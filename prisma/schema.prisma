@@ -1,0 +1,780 @@
+generator client {
+ provider = "prisma-client"
+ output = "../src/generated/prisma"
+}
+datasource db {
+ provider = "mysql"
+}
+
+enum ScopeKind {
+ GLOBAL
+ BRANCH
+ DEPARTMENT
+ WAREHOUSE
+}
+
+enum DestinationType {
+ BRANCH
+ DC
+ FACTORY
+}
+
+enum RevisionStatus {
+ DRAFT
+ PUBLISHED
+ SUPERSEDED
+}
+
+enum TripKind {
+ BRANCH_DELIVERY
+ INBOUND_DC
+ OTHER
+}
+
+enum ReceiptMode {
+ PACKAGES
+ DETAILED
+}
+
+enum ConsignmentStatus {
+ DRAFT
+ PENDING_REVIEW
+ REJECTED
+ ASSIGNED
+ WAREHOUSE_RECEIVED
+ LOADED
+ IN_TRANSIT
+ PARTIALLY_RECEIVED
+ ISSUE
+ RECEIVED
+ CLOSED
+ CANCELLED
+ RETURNED
+}
+
+enum CustodyState {
+ SENDER
+ WAREHOUSE
+ VEHICLE
+ BRANCH
+ RETURNED
+}
+
+enum EventKind {
+ SUBMITTED
+ ASSIGNED
+ WAREHOUSE_RECEIVED
+ LOADED
+ DEPARTED
+ RECEIPT
+ ISSUE
+ CORRECTION
+ RETURNED
+ CLOSED
+ CANCELLED
+}
+
+enum ImportStatus {
+ STAGED
+ VALIDATED
+ COMMITTED
+ REJECTED
+}
+
+model User {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  subject String @unique @db.VarChar(191)
+  displayName String @db.VarChar(191)
+  active Boolean @default(true)
+  version Int @default(1)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  userRole_userId UserRole[] @relation("UserRole_userId")
+  userScope_userId UserScope[] @relation("UserScope_userId")
+  routeRevision_createdById RouteRevision[] @relation("RouteRevision_createdById")
+  templateRevision_createdById TemplateRevision[] @relation("TemplateRevision_createdById")
+  planRevision_createdById PlanRevision[] @relation("PlanRevision_createdById")
+  planRevision_publishedById PlanRevision[] @relation("PlanRevision_publishedById")
+  consignment_requesterId Consignment[] @relation("Consignment_requesterId")
+  addressSnapshot_createdById AddressSnapshot[] @relation("AddressSnapshot_createdById")
+  consignmentAssignment_approvedById ConsignmentAssignment[] @relation("ConsignmentAssignment_approvedById")
+  idempotencyRecord_actorId IdempotencyRecord[] @relation("IdempotencyRecord_actorId")
+  consignmentEvent_actorId ConsignmentEvent[] @relation("ConsignmentEvent_actorId")
+  attachment_uploaderId Attachment[] @relation("Attachment_uploaderId")
+  printEvent_actorId PrintEvent[] @relation("PrintEvent_actorId")
+  importBatch_createdById ImportBatch[] @relation("ImportBatch_createdById")
+  auditLog_actorId AuditLog[] @relation("AuditLog_actorId")
+}
+
+model Role {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  userRole_roleId UserRole[] @relation("UserRole_roleId")
+  rolePermission_roleId RolePermission[] @relation("RolePermission_roleId")
+}
+
+model Permission {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  rolePermission_permissionId RolePermission[] @relation("RolePermission_permissionId")
+}
+
+model UserRole {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  userId String @db.VarChar(36)
+  roleId String @db.VarChar(36)
+  user User @relation("UserRole_userId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  role Role @relation("UserRole_roleId", fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([userId, roleId])
+}
+
+model RolePermission {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  roleId String @db.VarChar(36)
+  permissionId String @db.VarChar(36)
+  role Role @relation("RolePermission_roleId", fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  permission Permission @relation("RolePermission_permissionId", fields: [permissionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([roleId, permissionId])
+}
+
+model Department {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  active Boolean @default(true)
+  userScope_departmentId UserScope[] @relation("UserScope_departmentId")
+  consignment_departmentId Consignment[] @relation("Consignment_departmentId")
+}
+
+model Warehouse {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  address String @db.Text
+  active Boolean @default(true)
+  userScope_warehouseId UserScope[] @relation("UserScope_warehouseId")
+  consignment_sourceWarehouseId Consignment[] @relation("Consignment_sourceWarehouseId")
+}
+
+model UserScope {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  userId String @db.VarChar(36)
+  kind ScopeKind
+  branchId String? @db.VarChar(36)
+  departmentId String? @db.VarChar(36)
+  warehouseId String? @db.VarChar(36)
+  user User @relation("UserScope_userId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch Branch? @relation("UserScope_branchId", fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  department Department? @relation("UserScope_departmentId", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  warehouse Warehouse? @relation("UserScope_warehouseId", fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([userId, kind])
+}
+
+model EligibilityGuard {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  key String @unique @db.VarChar(32)
+  version Int @default(1)
+}
+
+model Branch {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  destinationType DestinationType @default(BRANCH)
+  addressLine String @db.VarChar(500)
+  subdistrict String @db.VarChar(100)
+  district String @db.VarChar(100)
+  province String @db.VarChar(100)
+  postalCode String @db.VarChar(10)
+  contactName String? @db.VarChar(191)
+  contactPhone String? @db.VarChar(32)
+  receivingFromMinute Int?
+  receivingToMinute Int?
+  activeFrom DateTime @db.Date
+  activeTo DateTime? @db.Date
+  archived Boolean @default(false)
+  version Int @default(1)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  userScope_branchId UserScope[] @relation("UserScope_branchId")
+  branchAlias_branchId BranchAlias[] @relation("BranchAlias_branchId")
+  routeStop_branchId RouteStop[] @relation("RouteStop_branchId")
+  planBranch_branchId PlanBranch[] @relation("PlanBranch_branchId")
+  tripStop_branchId TripStop[] @relation("TripStop_branchId")
+  consignment_destinationBranchId Consignment[] @relation("Consignment_destinationBranchId")
+  addressSnapshot_branchId AddressSnapshot[] @relation("AddressSnapshot_branchId")
+  @@index([destinationType, activeFrom, activeTo])
+}
+
+model BranchAlias {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  branchId String @db.VarChar(36)
+  name String @db.VarChar(191)
+  branch Branch @relation("BranchAlias_branchId", fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([branchId, name])
+  @@index([name])
+}
+
+model VehicleType {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  wheelCount Int
+  vehicle_typeId Vehicle[] @relation("Vehicle_typeId")
+}
+
+model StorageCondition {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  vehicle_storageConditionId Vehicle[] @relation("Vehicle_storageConditionId")
+}
+
+model Vehicle {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  plateNormalized String @db.VarChar(32)
+  province String @db.VarChar(100)
+  typeId String @db.VarChar(36)
+  storageConditionId String @db.VarChar(36)
+  brand String? @db.VarChar(100)
+  model String? @db.VarChar(100)
+  color String? @db.VarChar(64)
+  bodyDescription String? @db.VarChar(191)
+  ownerName String? @db.VarChar(191)
+  capacity Decimal? @db.Decimal(14,3)
+  capacityUnit String? @db.VarChar(32)
+  active Boolean @default(true)
+  availableFrom DateTime? @db.DateTime(3)
+  availableTo DateTime? @db.DateTime(3)
+  version Int @default(1)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  type VehicleType @relation("Vehicle_typeId", fields: [typeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  storageCondition StorageCondition @relation("Vehicle_storageConditionId", fields: [storageConditionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tripRevision_vehicleId TripRevision[] @relation("TripRevision_vehicleId")
+  vehicleReservation_vehicleId VehicleReservation[] @relation("VehicleReservation_vehicleId")
+  @@unique([plateNormalized, province])
+}
+
+model Driver {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  phone String? @db.VarChar(32)
+  active Boolean @default(true)
+  tripRevision_driverId TripRevision[] @relation("TripRevision_driverId")
+}
+
+model ProductCategory {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  parentId String? @db.VarChar(36)
+  active Boolean @default(true)
+  parent ProductCategory? @relation("ProductCategory_parentId", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  productCategory_parentId ProductCategory[] @relation("ProductCategory_parentId")
+  templateStopCategory_categoryId TemplateStopCategory[] @relation("TemplateStopCategory_categoryId")
+  tripStopCategory_categoryId TripStopCategory[] @relation("TripStopCategory_categoryId")
+}
+
+model ConsignmentCategory {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  name String @db.VarChar(191)
+  active Boolean @default(true)
+  consignmentItem_categoryId ConsignmentItem[] @relation("ConsignmentItem_categoryId")
+}
+
+model Route {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  active Boolean @default(true)
+  version Int @default(1)
+  routeRevision_routeId RouteRevision[] @relation("RouteRevision_routeId")
+}
+
+model RouteRevision {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  routeId String @db.VarChar(36)
+  number Int
+  name String @db.VarChar(191)
+  effectiveFrom DateTime @db.Date
+  effectiveTo DateTime? @db.Date
+  createdById String @db.VarChar(36)
+  route Route @relation("RouteRevision_routeId", fields: [routeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("RouteRevision_createdById", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  routeStop_routeRevisionId RouteStop[] @relation("RouteStop_routeRevisionId")
+  templateRevision_routeRevisionId TemplateRevision[] @relation("TemplateRevision_routeRevisionId")
+  tripRevision_routeRevisionId TripRevision[] @relation("TripRevision_routeRevisionId")
+  @@unique([routeId, number])
+}
+
+model RouteStop {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  routeRevisionId String @db.VarChar(36)
+  branchId String @db.VarChar(36)
+  sequence Int
+  routeRevision RouteRevision @relation("RouteStop_routeRevisionId", fields: [routeRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch Branch @relation("RouteStop_branchId", fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  templateStopCategory_routeStopId TemplateStopCategory[] @relation("TemplateStopCategory_routeStopId")
+  @@unique([routeRevisionId, sequence])
+}
+
+model ScheduleTemplate {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  active Boolean @default(true)
+  version Int @default(1)
+  templateRevision_templateId TemplateRevision[] @relation("TemplateRevision_templateId")
+}
+
+model TemplateRevision {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  templateId String @db.VarChar(36)
+  number Int
+  routeRevisionId String @db.VarChar(36)
+  effectiveFrom DateTime @db.Date
+  effectiveTo DateTime? @db.Date
+  roundNo Int
+  loadingMinute Int?
+  departureMinute Int?
+  arrivalMinute Int?
+  createdById String @db.VarChar(36)
+  template ScheduleTemplate @relation("TemplateRevision_templateId", fields: [templateId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  routeRevision RouteRevision @relation("TemplateRevision_routeRevisionId", fields: [routeRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("TemplateRevision_createdById", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  templateWeekday_templateRevisionId TemplateWeekday[] @relation("TemplateWeekday_templateRevisionId")
+  templateStopCategory_templateRevisionId TemplateStopCategory[] @relation("TemplateStopCategory_templateRevisionId")
+  tripRevision_templateRevisionId TripRevision[] @relation("TripRevision_templateRevisionId")
+  @@unique([templateId, number])
+}
+
+model TemplateWeekday {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  templateRevisionId String @db.VarChar(36)
+  weekday Int
+  templateRevision TemplateRevision @relation("TemplateWeekday_templateRevisionId", fields: [templateRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([templateRevisionId, weekday])
+}
+
+model TemplateStopCategory {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  templateRevisionId String @db.VarChar(36)
+  routeStopId String @db.VarChar(36)
+  categoryId String @db.VarChar(36)
+  templateRevision TemplateRevision @relation("TemplateStopCategory_templateRevisionId", fields: [templateRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  routeStop RouteStop @relation("TemplateStopCategory_routeStopId", fields: [routeStopId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category ProductCategory @relation("TemplateStopCategory_categoryId", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([templateRevisionId, routeStopId, categoryId])
+}
+
+model DailyPlan {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  serviceDate DateTime @unique @db.Date
+  version Int @default(1)
+  publishedRevisionId String? @unique @db.VarChar(36)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  publishedRevision PlanRevision? @relation("DailyPlan_publishedRevisionId", fields: [publishedRevisionId, id], references: [id, planId], onDelete: Restrict, onUpdate: Restrict)
+  planRevision_planId PlanRevision[] @relation("PlanRevision_planId")
+  trip_planId Trip[] @relation("Trip_planId")
+}
+
+model PlanRevision {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  planId String @db.VarChar(36)
+  number Int
+  status RevisionStatus @default(DRAFT)
+  eligibilityVersion Int?
+  createdById String @db.VarChar(36)
+  publishedById String? @db.VarChar(36)
+  publishedAt DateTime? @db.DateTime(3)
+  dailyPlan_publishedRevisionId DailyPlan[] @relation("DailyPlan_publishedRevisionId")
+  plan DailyPlan @relation("PlanRevision_planId", fields: [planId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("PlanRevision_createdById", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  publishedBy User? @relation("PlanRevision_publishedById", fields: [publishedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  planBranch_planRevisionId PlanBranch[] @relation("PlanBranch_planRevisionId")
+  tripRevision_planRevisionId TripRevision[] @relation("TripRevision_planRevisionId")
+  @@unique([planId, number])
+  @@unique([id, planId])
+}
+
+model PlanBranch {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  planRevisionId String @db.VarChar(36)
+  branchId String @db.VarChar(36)
+  planRevision PlanRevision @relation("PlanBranch_planRevisionId", fields: [planRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch Branch @relation("PlanBranch_branchId", fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([planRevisionId, branchId])
+}
+
+model Trip {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  planId String @db.VarChar(36)
+  code String @unique @db.VarChar(64)
+  version Int @default(1)
+  plan DailyPlan @relation("Trip_planId", fields: [planId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tripRevision_tripId TripRevision[] @relation("TripRevision_tripId")
+  consignmentAssignment_tripId ConsignmentAssignment[] @relation("ConsignmentAssignment_tripId")
+  @@unique([id, planId])
+}
+
+model TripRevision {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  tripId String @db.VarChar(36)
+  planId String @db.VarChar(36)
+  planRevisionId String @db.VarChar(36)
+  templateRevisionId String? @db.VarChar(36)
+  routeRevisionId String? @db.VarChar(36)
+  kind TripKind @default(BRANCH_DELIVERY)
+  roundNo Int?
+  cancelled Boolean @default(false)
+  vehicleId String? @db.VarChar(36)
+  driverId String? @db.VarChar(36)
+  loadingAt DateTime? @db.DateTime(3)
+  departureAt DateTime? @db.DateTime(3)
+  arrivalAt DateTime? @db.DateTime(3)
+  occupancyStart DateTime? @db.DateTime(3)
+  occupancyEnd DateTime? @db.DateTime(3)
+  bufferMinutes Int @default(0)
+  trip Trip @relation("TripRevision_tripId", fields: [tripId, planId], references: [id, planId], onDelete: Restrict, onUpdate: Restrict)
+  planRevision PlanRevision @relation("TripRevision_planRevisionId", fields: [planRevisionId, planId], references: [id, planId], onDelete: Restrict, onUpdate: Restrict)
+  templateRevision TemplateRevision? @relation("TripRevision_templateRevisionId", fields: [templateRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  routeRevision RouteRevision? @relation("TripRevision_routeRevisionId", fields: [routeRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  vehicle Vehicle? @relation("TripRevision_vehicleId", fields: [vehicleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  driver Driver? @relation("TripRevision_driverId", fields: [driverId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tripStop_tripRevisionId TripStop[] @relation("TripStop_tripRevisionId")
+  vehicleReservation_tripRevisionId VehicleReservation[] @relation("VehicleReservation_tripRevisionId")
+  consignmentAssignment_tripRevisionId ConsignmentAssignment[] @relation("ConsignmentAssignment_tripRevisionId")
+  @@unique([planRevisionId, tripId])
+  @@unique([id, tripId])
+  @@index([planRevisionId, departureAt, tripId])
+}
+
+model TripStop {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  tripRevisionId String @db.VarChar(36)
+  branchId String @db.VarChar(36)
+  sequence Int
+  nameSnapshot String @db.VarChar(191)
+  arrivalAt DateTime? @db.DateTime(3)
+  tripRevision TripRevision @relation("TripStop_tripRevisionId", fields: [tripRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branch Branch @relation("TripStop_branchId", fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tripStopCategory_stopId TripStopCategory[] @relation("TripStopCategory_stopId")
+  consignmentAssignment_stopId ConsignmentAssignment[] @relation("ConsignmentAssignment_stopId")
+  @@unique([tripRevisionId, sequence])
+  @@unique([id, tripRevisionId])
+  @@index([branchId, tripRevisionId])
+}
+
+model TripStopCategory {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  stopId String @db.VarChar(36)
+  categoryId String @db.VarChar(36)
+  stop TripStop @relation("TripStopCategory_stopId", fields: [stopId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category ProductCategory @relation("TripStopCategory_categoryId", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([stopId, categoryId])
+  @@index([categoryId, stopId])
+}
+
+model VehicleReservation {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  vehicleId String @db.VarChar(36)
+  tripRevisionId String @db.VarChar(36)
+  startAt DateTime @db.DateTime(3)
+  endAt DateTime @db.DateTime(3)
+  bufferMinutes Int
+  active Boolean @default(true)
+  releasedAt DateTime? @db.DateTime(3)
+  vehicle Vehicle @relation("VehicleReservation_vehicleId", fields: [vehicleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tripRevision TripRevision @relation("VehicleReservation_tripRevisionId", fields: [tripRevisionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([tripRevisionId])
+  @@index([vehicleId, active, startAt, endAt])
+}
+
+model Consignment {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code String @unique @db.VarChar(64)
+  requesterId String @db.VarChar(36)
+  departmentId String @db.VarChar(36)
+  sourceWarehouseId String @db.VarChar(36)
+  destinationBranchId String @db.VarChar(36)
+  receiptMode ReceiptMode @default(PACKAGES)
+  status ConsignmentStatus @default(DRAFT)
+  currentAssignmentId String? @unique @db.VarChar(36)
+  hasOpenIssue Boolean @default(false)
+  version Int @default(1)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  requester User @relation("Consignment_requesterId", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  department Department @relation("Consignment_departmentId", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sourceWarehouse Warehouse @relation("Consignment_sourceWarehouseId", fields: [sourceWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  destinationBranch Branch @relation("Consignment_destinationBranchId", fields: [destinationBranchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currentAssignment ConsignmentAssignment? @relation("Consignment_currentAssignmentId", fields: [currentAssignmentId, id], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  consignmentItem_consignmentId ConsignmentItem[] @relation("ConsignmentItem_consignmentId")
+  consignmentPackage_consignmentId ConsignmentPackage[] @relation("ConsignmentPackage_consignmentId")
+  consignmentAssignment_consignmentId ConsignmentAssignment[] @relation("ConsignmentAssignment_consignmentId")
+  consignmentEvent_consignmentId ConsignmentEvent[] @relation("ConsignmentEvent_consignmentId")
+  receiptLine_consignmentId ReceiptLine[] @relation("ReceiptLine_consignmentId")
+  attachment_consignmentId Attachment[] @relation("Attachment_consignmentId")
+  @@index([destinationBranchId, status, createdAt])
+  @@index([requesterId, createdAt])
+}
+
+model ConsignmentItem {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  consignmentId String @db.VarChar(36)
+  categoryId String @db.VarChar(36)
+  name String @db.VarChar(191)
+  sentQuantity Decimal @db.Decimal(14,3)
+  unit String @db.VarChar(32)
+  consignment Consignment @relation("ConsignmentItem_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category ConsignmentCategory @relation("ConsignmentItem_categoryId", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  receiptLine_itemId ReceiptLine[] @relation("ReceiptLine_itemId")
+  @@unique([id, consignmentId])
+}
+
+model ConsignmentPackage {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  consignmentId String @db.VarChar(36)
+  sequence Int
+  total Int
+  weight Decimal? @db.Decimal(14,3)
+  weightUnit String? @db.VarChar(32)
+  custody CustodyState @default(SENDER)
+  consignment Consignment @relation("ConsignmentPackage_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  receiptLine_packageId ReceiptLine[] @relation("ReceiptLine_packageId")
+  labelPackage_packageId LabelPackage[] @relation("LabelPackage_packageId")
+  @@unique([consignmentId, sequence])
+  @@unique([id, consignmentId])
+}
+
+model AddressSnapshot {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  schemaVersion Int @default(1)
+  branchId String? @db.VarChar(36)
+  payload Json
+  createdById String @db.VarChar(36)
+  branch Branch? @relation("AddressSnapshot_branchId", fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("AddressSnapshot_createdById", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  consignmentAssignment_senderSnapshotId ConsignmentAssignment[] @relation("ConsignmentAssignment_senderSnapshotId")
+  consignmentAssignment_recipientSnapshotId ConsignmentAssignment[] @relation("ConsignmentAssignment_recipientSnapshotId")
+}
+
+model ConsignmentAssignment {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  consignmentId String @db.VarChar(36)
+  tripId String @db.VarChar(36)
+  tripRevisionId String @db.VarChar(36)
+  stopId String @db.VarChar(36)
+  senderSnapshotId String @db.VarChar(36)
+  recipientSnapshotId String @db.VarChar(36)
+  transportSnapshot Json
+  previousAssignmentId String? @unique @db.VarChar(36)
+  reason String @db.VarChar(500)
+  approvedById String @db.VarChar(36)
+  approvedAt DateTime @db.DateTime(3)
+  consignment_currentAssignmentId Consignment[] @relation("Consignment_currentAssignmentId")
+  consignment Consignment @relation("ConsignmentAssignment_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  trip Trip @relation("ConsignmentAssignment_tripId", fields: [tripId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tripRevision TripRevision @relation("ConsignmentAssignment_tripRevisionId", fields: [tripRevisionId, tripId], references: [id, tripId], onDelete: Restrict, onUpdate: Restrict)
+  stop TripStop @relation("ConsignmentAssignment_stopId", fields: [stopId, tripRevisionId], references: [id, tripRevisionId], onDelete: Restrict, onUpdate: Restrict)
+  senderSnapshot AddressSnapshot @relation("ConsignmentAssignment_senderSnapshotId", fields: [senderSnapshotId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recipientSnapshot AddressSnapshot @relation("ConsignmentAssignment_recipientSnapshotId", fields: [recipientSnapshotId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  previousAssignment ConsignmentAssignment? @relation("ConsignmentAssignment_previousAssignmentId", fields: [previousAssignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  consignmentAssignment_previousAssignmentId ConsignmentAssignment[] @relation("ConsignmentAssignment_previousAssignmentId")
+  approvedBy User @relation("ConsignmentAssignment_approvedById", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  labelVersion_assignmentId LabelVersion[] @relation("LabelVersion_assignmentId")
+  @@unique([id, consignmentId])
+  @@index([tripId, consignmentId])
+}
+
+model IdempotencyRecord {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  actorId String @db.VarChar(36)
+  operation String @db.VarChar(64)
+  key String @db.VarChar(100)
+  requestHash String @db.Char(64)
+  response Json?
+  actor User @relation("IdempotencyRecord_actorId", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  consignmentEvent_idempotencyId ConsignmentEvent[] @relation("ConsignmentEvent_idempotencyId")
+  auditLog_idempotencyId AuditLog[] @relation("AuditLog_idempotencyId")
+  @@unique([actorId, operation, key])
+}
+
+model ConsignmentEvent {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  consignmentId String @db.VarChar(36)
+  actorId String @db.VarChar(36)
+  kind EventKind
+  occurredAt DateTime @db.DateTime(3)
+  payload Json
+  idempotencyId String? @db.VarChar(36)
+  compensatesEventId String? @db.VarChar(36)
+  consignment Consignment @relation("ConsignmentEvent_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor User @relation("ConsignmentEvent_actorId", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  idempotency IdempotencyRecord? @relation("ConsignmentEvent_idempotencyId", fields: [idempotencyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  compensatesEvent ConsignmentEvent? @relation("ConsignmentEvent_compensatesEventId", fields: [compensatesEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  consignmentEvent_compensatesEventId ConsignmentEvent[] @relation("ConsignmentEvent_compensatesEventId")
+  receiptLine_eventId ReceiptLine[] @relation("ReceiptLine_eventId")
+  @@index([consignmentId, occurredAt, id])
+  @@unique([id, consignmentId])
+}
+
+model ReceiptLine {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  eventId String @db.VarChar(36)
+  consignmentId String @db.VarChar(36)
+  itemId String? @db.VarChar(36)
+  packageId String? @unique @db.VarChar(36)
+  quantity Decimal @db.Decimal(14,3)
+  unit String @db.VarChar(32)
+  note String? @db.VarChar(500)
+  event ConsignmentEvent @relation("ReceiptLine_eventId", fields: [eventId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  consignment Consignment @relation("ReceiptLine_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  item ConsignmentItem? @relation("ReceiptLine_itemId", fields: [itemId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  package ConsignmentPackage? @relation("ReceiptLine_packageId", fields: [packageId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  @@index([itemId, eventId])
+}
+
+model Attachment {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  consignmentId String @db.VarChar(36)
+  uploaderId String @db.VarChar(36)
+  storageKey String @unique @db.VarChar(191)
+  displayName String @db.VarChar(191)
+  contentType String @db.VarChar(64)
+  sizeBytes Int
+  sha256 String @db.Char(64)
+  accessClass String @default("PRIVATE") @db.VarChar(32)
+  retainedUntil DateTime? @db.DateTime(3)
+  deletedAt DateTime? @db.DateTime(3)
+  consignment Consignment @relation("Attachment_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploader User @relation("Attachment_uploaderId", fields: [uploaderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([consignmentId, createdAt])
+}
+
+model LabelVersion {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  assignmentId String @db.VarChar(36)
+  number Int
+  lookupToken String @unique @db.VarChar(64)
+  payload Json
+  revokedAt DateTime? @db.DateTime(3)
+  revocationReason String? @db.VarChar(500)
+  assignment ConsignmentAssignment @relation("LabelVersion_assignmentId", fields: [assignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  labelPackage_labelVersionId LabelPackage[] @relation("LabelPackage_labelVersionId")
+  printEvent_labelVersionId PrintEvent[] @relation("PrintEvent_labelVersionId")
+  @@unique([assignmentId, number])
+}
+
+model LabelPackage {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  labelVersionId String @db.VarChar(36)
+  packageId String @db.VarChar(36)
+  labelVersion LabelVersion @relation("LabelPackage_labelVersionId", fields: [labelVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  package ConsignmentPackage @relation("LabelPackage_packageId", fields: [packageId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([labelVersionId, packageId])
+}
+
+model PrintEvent {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  labelVersionId String @db.VarChar(36)
+  actorId String @db.VarChar(36)
+  format String @db.VarChar(32)
+  copies Int
+  reason String? @db.VarChar(500)
+  labelVersion LabelVersion @relation("PrintEvent_labelVersionId", fields: [labelVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor User @relation("PrintEvent_actorId", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+}
+
+model ImportBatch {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  sourceHash String @db.Char(64)
+  sourceName String @db.VarChar(191)
+  sourceEdition String @db.VarChar(100)
+  status ImportStatus @default(STAGED)
+  createdById String @db.VarChar(36)
+  committedAt DateTime? @db.DateTime(3)
+  createdBy User @relation("ImportBatch_createdById", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  importRow_batchId ImportRow[] @relation("ImportRow_batchId")
+  @@unique([sourceHash, sourceEdition])
+}
+
+model ImportRow {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  batchId String @db.VarChar(36)
+  rowNumber Int
+  raw Json
+  validation Json
+  resolvedEntityId String? @db.VarChar(36)
+  batch ImportBatch @relation("ImportRow_batchId", fields: [batchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([batchId, rowNumber])
+}
+
+model AuditLog {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  actorId String @db.VarChar(36)
+  action String @db.VarChar(64)
+  entityType String @db.VarChar(64)
+  entityId String @db.VarChar(36)
+  before Json?
+  after Json?
+  reason String? @db.VarChar(500)
+  idempotencyId String? @db.VarChar(36)
+  actor User @relation("AuditLog_actorId", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  idempotency IdempotencyRecord? @relation("AuditLog_idempotencyId", fields: [idempotencyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([entityType, entityId, createdAt])
+}
+
+model SeedManifest {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  key String @unique @db.VarChar(100)
+  version Int
+  checksum String @db.Char(64)
+  payload Json
+}
