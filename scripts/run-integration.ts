@@ -26,11 +26,12 @@ try {
     console.error(code?.join("; ") ?? "MIGRATION_FAILED"); throw new Error("MIGRATION_FAILED");
   }
   console.log(`Fresh disposable MySQL database: ${name}; migration deploy passed. Retained for inspection.`);
-  if((process.argv.includes("--browser")||process.argv.includes("--planning-browser"))){
-    const prepare=spawnSync(process.execPath,["--conditions=react-server","--import","tsx","scripts/prepare-auth-e2e.ts"],{env,stdio:"inherit"});if(prepare.status!==0)throw new Error("BROWSER_FIXTURE_FAILED");
-    const browser=spawnSync(process.execPath,["node_modules/@playwright/test/cli.js","test","--config",process.argv.includes("--planning-browser")?"playwright.planning.config.ts":"playwright.auth.config.ts"],{env:{...env,DATABASE_URL:url.toString(),APP_ENV:"local",BETTER_AUTH_URL:"http://127.0.0.1:3011",BETTER_AUTH_SECRET:randomBytes(32).toString("hex")},stdio:"inherit"});process.exitCode=browser.status??1;
+  if((process.argv.includes("--browser")||process.argv.includes("--planning-browser")||process.argv.includes("--search-browser"))){
+    const search=process.argv.includes("--search-browser");
+    const prepare=spawnSync(process.execPath,["--conditions=react-server","--import","tsx",search?"scripts/prepare-search-e2e.ts":"scripts/prepare-auth-e2e.ts"],{env,stdio:"inherit"});if(prepare.status!==0)throw new Error("BROWSER_FIXTURE_FAILED");
+    const browser=spawnSync(process.execPath,["node_modules/@playwright/test/cli.js","test","--config",search?"playwright.search.config.ts":process.argv.includes("--planning-browser")?"playwright.planning.config.ts":"playwright.auth.config.ts"],{env:{...env,DATABASE_URL:url.toString(),APP_ENV:"local",BETTER_AUTH_URL:"http://127.0.0.1:3011",BETTER_AUTH_SECRET:randomBytes(32).toString("hex")},stdio:"inherit"});process.exitCode=browser.status??1;
   }else{
-    const test=spawnSync(process.execPath,["--conditions=react-server","--import","tsx","--test","--test-concurrency=1","tests/integration/phase2.test.ts","tests/integration/phase3.test.ts","tests/integration/phase4.test.ts"],{env,stdio:"inherit"});
+    const test=spawnSync(process.execPath,["--conditions=react-server","--import","tsx","--test","--test-concurrency=1","tests/integration/phase2.test.ts","tests/integration/phase3.test.ts","tests/integration/phase4.test.ts","tests/integration/phase5.test.ts"],{env,stdio:"inherit"});
     process.exitCode=test.status ?? 1;
   }
 } catch { console.error("INTEGRATION_RUN_FAILED (no existing database reset)"); process.exitCode=1; }

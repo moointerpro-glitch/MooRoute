@@ -6,7 +6,7 @@ test("Thai shell, keyboard tabs and honest unavailable actions", async ({ page }
   await expect(page.locator("html")).toHaveAttribute("lang", "th");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("ค้นหาเส้นทางเดินรถ");
   await expect(page.getByRole("button", { name: "ค้นหา", exact: true })).toBeDisabled();
-  await expect(page.getByText("กำลังเตรียมเปิดบริการค้นหา", { exact: false })).toBeVisible();
+  await expect(page.getByText("กรุณาเข้าสู่ระบบเพื่อค้นหารอบรถที่เผยแพร่", { exact: false })).toBeVisible();
   const branchTab = page.getByRole("tab", { name: "ค้นหาจากสาขา" });
   await branchTab.focus(); await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("tab", { name: "เลือกเวลา", exact: true })).toBeFocused();

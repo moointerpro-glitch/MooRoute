@@ -9,23 +9,23 @@ Phase 1 verification on 2026-10-06 covers configuration safety, database connect
 | T01 | Coverage complete | 3 active branches x 3 rounds x pork/chicken = 18 cells; valid daily revision publishes. | Passed (Phase 2) |
 | T02 | Coverage incomplete | Remove one required category at one branch/round; publication fails with that missing cell. | Passed (Phase 2) |
 | T03 | Coverage eligibility | Cancelled/inbound DC trips do not count; branch effective dates determine required branches. | Passed (Phase 2) |
-| T04 | Branch and category | Pork at A and chicken at B cannot match branch A plus chicken; aliases resolve or flag ambiguity. | Core predicate passed; alias handling not run |
-| T05 | Time filters | Selected times use OR; inclusive range includes endpoints; duplicate matched stops produce one trip. | Not run |
-| T06 | Time truth | Loading time is not departure; null departure does not match; Bangkok midnight preserves service date. | Core time/storage passed; search filters not run |
+| T04 | Branch and category | Pork at A and chicken at B cannot match branch A plus chicken; aliases resolve or flag ambiguity. | Passed (Phase 5 search, aliases and ambiguity) |
+| T05 | Time filters | Selected times use OR; inclusive range includes endpoints; duplicate matched stops produce one trip. | Passed (Phase 5) |
+| T06 | Time truth | Loading time is not departure; null departure does not match; Bangkok midnight preserves service date. | Passed (Phase 5 search filters) |
 | T07 | Vehicle race | Two concurrent overlapping assignments for one vehicle cannot both commit; boundary/buffer behavior is explicit. | Passed (real MySQL race) |
 | T08 | Trip changes | Cancel/merge/reassign validates coverage and consignments atomically; history and ownership remain intact. | Passed Phase 4 for pre-loading reassignment; in-motion changes rejected |
 | T09 | Receipt race | Concurrent receipts cannot exceed sent quantity; 30 items and 3 boxes are distinct balances. | Passed (real MySQL race) |
 | T10 | Idempotency | Same key/payload replays once; same key/different payload conflicts; no duplicate events. | Passed (replay and real deadlock) |
 | T11 | Master constraints | Duplicate plate/province and branch code fail; referenced rows cannot be destructively deleted. | Passed (Phase 2/3 schema and master workflows) |
 | T12 | Versions | Stale edit conflicts; template change leaves past data intact; concurrent publication preserves valid revision. | Passed (Phase 2) |
-| T13 | Authorization | Wrong branch/role cannot list, read, mutate, export, print, scan or download restricted data. | Passed for Phase 3 endpoints; future file/print/QR endpoints pending |
+| T13 | Authorization | Wrong branch/role cannot list, read, mutate, export, print, scan or download restricted data. | Passed for Phase 3–5 endpoints; future file/print/QR endpoints pending |
 | T14 | Consignment flow | A permitted marketing shipment moves from draft through assignment, loading, transit and complete receipt. | Not run |
 | T15 | Partial and exceptions | Partial receipt stays open; premature receipt fails; discrepancy/return resolution preserves event history. | Not run |
 | T16 | Print integrity | A4 and 100 x 150 mm long Thai addresses fit; 3 packages produce 1/3, 2/3, 3/3; missing address blocks issue. | Not run |
 | T17 | Label lifecycle | Vehicle/address/trip changes revoke old label; QR checks current version; reprint does not duplicate records. | Not run |
 | T18 | Files and snapshots | Private files remain scoped; invalid uploads fail; branch edits do not change historical snapshots. | Not run |
-| T19 | Thai and responsive UI | All screens/states are Thai; keyboard navigation and 1440/768/390 px views are usable. | Not run |
-| T20 | Search truth | Counts/sort/pagination follow the same filters; no fixed count 41 or invented contact details. | Not run |
+| T19 | Thai and responsive UI | All screens/states are Thai; keyboard navigation and 1440/768/390 px views are usable. | Passed for search/detail/directory/planner/masters; consignment/print screens pending |
+| T20 | Search truth | Counts/sort/pagination follow the same filters; no fixed count 41 or invented contact details. | Passed (Phase 5) |
 | T21 | Generation | Repeated daily generation is idempotent; missing operational time data remains draft and visible. | Passed Phase 4, including different-key and concurrent generation |
 | T22 | Import validation | Invalid staged rows produce precise errors; no partial silent commit; repeated batch does not duplicate. | Not run |
 | T23 | Source provenance | Repeated PDF category pages do not become 123 trips; different source dates and ambiguity are preserved. | Not run |
@@ -42,3 +42,7 @@ Phase 1 verification on 2026-10-06 covers configuration safety, database connect
 ## Phase 4 evidence — 2026-10-06
 
 [Planning verification](evidence/phase-4/VERIFICATION.md): T01–T03, T07–T08, T11–T12 and T21 passed with real MySQL and the implemented Thai planner flow. 23 integration, 2 planning browser, 4 auth/master browser, 5 shell browser and 8 unit tests pass. T13 covers planning API/page/global scope. T19 covers planner at 1440/768/390 px; later operational/print screens remain pending. T17 label revocation inside reassignment passed; actual label issue/QR/print lifecycle remains Phase 7 work.
+
+## Phase 5 evidence — 2026-10-06
+
+[Search verification](evidence/phase-5/VERIFICATION.md): T04–T06, T13 and T20 passed with 6 real MySQL integration tests (29 total) and 6 search browser tests; T19 covers the three search modes, trip detail and branch directory at 1440/768/390 px. 13 unit tests pass. Regression: 5 shell, 4 auth and 2 planning browser tests pass.

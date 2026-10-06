@@ -1,8 +1,8 @@
 # Project progress
 
 Last updated: 2026-10-06
-State: Phases 1–4 implemented and verified locally.
-Active phase: none (Phase 4 complete). No Phase 5 work or deployment authorized.
+State: Phases 1–5 implemented and verified locally.
+Active phase: none (Phase 5 complete). No Phase 6 work or deployment authorized.
 
 | Phase | Status | Evidence |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Active phase: none (Phase 4 complete). No Phase 5 work or deployment authorized.
 | 2 Data and invariants | Complete | [48 models, two migrations, real MySQL invariants and 13 integration tests](evidence/phase-2/VERIFICATION.md) |
 | 3 Authentication and masters | Complete | [Real local authentication, scoped Thai masters and checks](evidence/phase-3/VERIFICATION.md) |
 | 4 Daily planning | Complete | [23 MySQL tests and planning browser evidence](evidence/phase-4/VERIFICATION.md) |
-| 5 Thai route search | Not started | None |
+| 5 Thai route search | Complete | [6 MySQL search tests, 6 browser tests and screenshots](evidence/phase-5/VERIFICATION.md) |
 | 6 Consignments | Not started | None |
 | 7 Printing and imports | Not started | None |
 | 8 Release verification | Not started | None |
@@ -86,3 +86,13 @@ Route/ordered-stop and effective-template revision editors, idempotent generatio
 Verified: lint/typecheck/build/schema/database; 8 unit, 23 real MySQL integration, 2 planning browser, 4 auth/master browser and 5 shell tests. Zero production audit findings; current generated-secret scan passed. Actual limited-runtime account smoke passed for both local roles. See [exact evidence and corrected failures](evidence/phase-4/VERIFICATION.md). No unresolved critical local Phase 4 defect. Not run: production/load/restore/SSO and later phase flows. In-motion reassignment remains blocked deliberately.
 
 Next three actions: review/commit the application checkpoint; implement Phase 5 only on explicit request; later connect consignment/label workflows to the guarded reassignment service and extend their scoped tests.
+
+## Phase 5 completed — 2026-10-06
+
+Implemented the authenticated Thai search page (metric cards, date/round/category/trip-type filters, three keyboard tabs, branch combobox with alias autocomplete and ambiguity choice, data-derived time chips, inclusive range with Thai validation, count badge, sorting, pagination, loading/empty/error/not-published states), trip detail, all-trips list, branch directory and a read-only consignment hand-off. Server queries use same-stop EXISTS, OR within groups and AND between groups, one row per trip, scoped facets and permission-filtered contacts. Public `/` keeps an honest login shell. No schema, migration, grant or dependency change. Decision D209.
+
+Verified on 2026-10-06: lint, typecheck, build, db:validate, 13 unit, 29 real MySQL integration (6 new), 6 search browser, 5 shell, 4 auth and 2 planning browser tests; production audit zero; secret-value scan zero hits. Screenshots at 1440/768/390 for every search mode, detail and directory, manually compared with the reference. See [evidence](evidence/phase-5/VERIFICATION.md), including four corrected failures. Local preview on 3010 restarted on the new build; the development database still has no published plans, so it shows the Thai "not published" state.
+
+Not run: load test of search p95 (D108), assistive-technology screen-reader pass, production deployment. Consignment submission remains Phase 6.
+
+Next three actions: review and commit Phase 5; confirm D209 search scope and contact visibility with the operating owner; on an explicit Phase 6 request, build consignment submission on the eligibility pre-check and re-validate cutoff/limits server-side.

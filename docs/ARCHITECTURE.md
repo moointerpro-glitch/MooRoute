@@ -70,3 +70,7 @@ Primary references consulted during setup:
 - [Tailwind with Next.js](https://tailwindcss.com/docs/installation/framework-guides/nextjs)
 - [Oracle MySQL Community 8.4 downloads](https://dev.mysql.com/downloads/mysql/8.4.html)
 - [MySQL Windows archive setup](https://dev.mysql.com/doc/refman/8.4/en/windows-install-archive.html)
+
+## Phase 5 search boundary
+
+`src/server/domain/search.ts` parses and validates the query contract (pure, unit tested). `src/server/services/trip-search.ts` owns the scoped read model: it composes parameterized `Prisma.sql` fragments (column identifiers come only from a whitelist), runs count/rows/facets in one repeatable-read transaction and presents rows with permission-filtered contacts. `TripResults` is a hook-free component shared by the client search workspace and server-rendered lists. No schema, grant or dependency changes; the runtime account already has SELECT. See [Phase 5 evidence](evidence/phase-5/VERIFICATION.md).

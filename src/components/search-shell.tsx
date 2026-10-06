@@ -45,8 +45,8 @@ export function SearchShell({ dateLabel }: { dateLabel: string }) {
           {active === 1 ? <p className="no-times"><Clock3 size={18} aria-hidden="true" />รายการเวลาจะแสดงเมื่อเปิดใช้งานข้อมูลรอบรถ</p>
             : <div className="range-fields"><div className="filter"><label htmlFor="range-start">เวลาเริ่มต้น</label><input id="range-start" placeholder="ชั่วโมง : นาที" disabled /></div><span className="range-separator" aria-hidden="true">—</span><div className="filter"><label htmlFor="range-end">เวลาสิ้นสุด</label><input id="range-end" placeholder="ชั่วโมง : นาที" disabled /></div><button className="primary-button" disabled><Search size={19} aria-hidden="true" />ค้นหา</button></div>}
         </div>}
-      <p className="availability-note" id="search-unavailable"><Info size={17} aria-hidden="true" /><span>กำลังเตรียมเปิดบริการค้นหา ขณะนี้ยังไม่สามารถค้นหาหรือจองรอบรถได้</span></p>
+      <p className="availability-note" id="search-unavailable"><Info size={17} aria-hidden="true" /><span>กรุณาเข้าสู่ระบบเพื่อค้นหารอบรถที่เผยแพร่ตามสิทธิ์ของคุณ <a className="inline-link" href="/login?next=/">เข้าสู่ระบบ</a></span></p>
     </div>
-    <div className="results-empty"><span className="empty-icon"><Route size={30} strokeWidth={1.6} aria-hidden="true" /></span><div><h3>พื้นที่แสดงรอบรถ</h3><p>เมื่อเปิดบริการแล้ว คุณจะเห็นเที่ยวรถที่เผยแพร่<br className="desktop-break" />พร้อมเวลา สาขาที่ผ่าน และรายละเอียดการขนส่งที่นี่</p></div></div>
+    <div className="results-empty"><span className="empty-icon"><Route size={30} strokeWidth={1.6} aria-hidden="true" /></span><div><h3>พื้นที่แสดงรอบรถ</h3><p>หลังเข้าสู่ระบบ คุณจะเห็นรอบรถที่เผยแพร่<br className="desktop-break" />พร้อมเวลา สาขาที่ผ่าน และรายละเอียดการขนส่งที่นี่</p></div></div>
   </section>;
 }

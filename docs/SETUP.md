@@ -27,11 +27,12 @@ npm run typecheck
 npm test
 npm run test:integration
 npm run test:planning:e2e
+npm run test:search:e2e
 npm run test:auth:e2e
 npm run test:e2e
 ```
 
-Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. Both authenticated browser runners create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
+Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. All authenticated browser runners (auth, planning, search) create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
 
 ## Phase 3 local authentication and masters
 

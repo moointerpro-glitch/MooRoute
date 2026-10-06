@@ -1,5 +1,29 @@
 # API and operator contracts
 
+## Phase 5 implemented search routes
+
+All routes require a verified session; the actor is never taken from the request. Responses are `no-store`; errors use the shared Thai contract (401 unauthenticated, 403 forbidden, 404 out-of-scope detail, 400 invalid input, 503 generic).
+
+`GET /api/search` (capability `trip.read`). Query string, all optional:
+
+| Parameter | Contract |
+| --- | --- |
+| `date` | Gregorian `YYYY-MM-DD` service date; default today in Asia/Bangkok |
+| `mode` | `branch` (default), `time`, `range`; only the active mode's filter applies |
+| `branch` / `q` | Branch ID, or text (≤100 chars, Thai digits normalized) matched against code, official name and active aliases |
+| `times` | Comma list (≤48) of minute offsets from 00:00 Bangkok of `date`, −1440…2879; combined with OR |
+| `from`, `to` | `HH:mm`, both or neither, `to ≥ from`; inclusive, within the date |
+| `basis` | `departure` (default) or `loading`; NULL never matches |
+| `rounds` | Subset of `1,2,3` (OR); `categories`: product category IDs (OR, ≤20); `kinds`: TripKind list (OR), default `BRANCH_DELIVERY` |
+| `sort` | `time_asc` (default) or `time_desc`; unknown times last, ties by stable trip ID |
+| `page` | 1…10000; page size 20 |
+
+Different groups combine with AND. Branch and category must be satisfied by the same `TripStop` (EXISTS). Only the current published revision of the date is searched; cancelled trips are excluded. The response is `{serviceDate, applied, resolution:{status NONE|RESOLVED|AMBIGUOUS|NOT_FOUND, branch, candidates}, total, page, pageSize, pageCount, rows, published, facets:{tripCount, unknownCount, times[{offset,label}], span}, allowedKinds}`. Each row is one trip with ordered stops (frozen names), per-stop categories, `matched` flags, times `{at, offset, label}` or null, vehicle, and permission-filtered contact/driver objects. Count, rows and facets run in one repeatable-read transaction with the same scope predicate; facets ignore only the active mode filter.
+
+`GET /api/search/branches?q=` returns up to 10 `{id, code, name, alias}` candidates for autocomplete (`trip.read`).
+
+Pages: `/` (search; anonymous visitors see the public shell and a login link; accounts without `trip.read` see a Thai permission message), `/trips` (all permitted published trips by date), `/trips/[tripId]?branch=` (current published revision detail with eligibility pre-check), `/branches?q=&page=` (directory, 20 per page), `/consign?trip=&branch=` (read-only hand-off; no submission). `/login?next=` accepts only same-site relative paths.
+
 ## Phase 4 implemented planning routes
 
 `/admin/planning` is the Thai authenticated daily planner with route/template editors and revision audit. The complete workspace requires GLOBAL plus `plan.read`. Its mobile coverage table intentionally scrolls horizontally in a labeled region. Dates are entered as DD/MM/YYYY Buddhist era; API dates are Gregorian and instants are exact UTC ISO strings with millisecond precision. Empty times become null, never assumed departures.
