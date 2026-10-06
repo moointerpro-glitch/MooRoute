@@ -22,4 +22,6 @@ export const masterDefinitions:Record<string,{title:string;table:string;fields:F
   "product-categories":{title:"หมวดสินค้า",table:"ProductCategory",active:"active",search:["code","name"],fields:[code,name,{name:"parentId",label:"หมวดแม่",type:"select",lookup:"product-categories"}]},
   "storage-conditions":{title:"สภาพการเก็บรักษา",table:"StorageCondition",active:"active",search:["code","name"],fields:[code,name]},
   "consignment-categories":{title:"หมวดสิ่งของฝากส่ง",table:"ConsignmentCategory",active:"active",search:["code","name"],fields:[code,name]},
+  warehouses:{title:"คลังต้นทาง",table:"Warehouse",active:"active",search:["code","name"],fields:[code,name,{name:"address",label:"ที่อยู่คลัง",type:"textarea",required:true,max:1000}]},
+  departments:{title:"แผนก",table:"Department",active:"active",search:["code","name"],fields:[code,name]},
 };

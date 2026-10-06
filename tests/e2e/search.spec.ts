@@ -78,8 +78,9 @@ test("T04/T05/T06/T19/T20: three search modes, aliases, chips, range validation,
   await page.goto(`/trips/s5-2028-03-01-trip-1?branch=${A}`);
   await expect(page.getByText("สาขาที่เลือก")).toBeVisible();
   await page.getByRole("link", { name: "ฝากของกับรอบนี้" }).click();
-  await expect(page.getByText("ระบบรับคำขอฝากส่งยังไม่เปิดใช้งาน")).toBeVisible();
-  await expect(page.getByRole("button", { name: /ส่งคำขอ|บันทึก/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "ฝากของส่งรถ" })).toBeVisible();
+  await expect(page.getByLabel("สาขาปลายทาง")).toHaveValue(A);
+  await expect(page.getByLabel("วันที่ต้องการส่ง (พ.ศ.)")).toHaveValue("01/03/2571");
   await page.screenshot({ path: `${evidence}/consign-handoff-1440.png`, fullPage: true });
 });
 

@@ -1,8 +1,8 @@
 # Project progress
 
 Last updated: 2026-10-06
-State: Phases 1–5 implemented and verified locally.
-Active phase: none (Phase 5 complete). No Phase 6 work or deployment authorized.
+State: Phases 1–6 implemented and verified locally.
+Active phase: none (Phase 6 complete). No Phase 7 work or deployment authorized.
 
 | Phase | Status | Evidence |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Active phase: none (Phase 5 complete). No Phase 6 work or deployment authorized.
 | 3 Authentication and masters | Complete | [Real local authentication, scoped Thai masters and checks](evidence/phase-3/VERIFICATION.md) |
 | 4 Daily planning | Complete | [23 MySQL tests and planning browser evidence](evidence/phase-4/VERIFICATION.md) |
 | 5 Thai route search | Complete | [6 MySQL search tests, 6 browser tests and screenshots](evidence/phase-5/VERIFICATION.md) |
-| 6 Consignments | Not started | None |
+| 6 Consignments | Complete | [4 MySQL lifecycle tests, 5 browser tests, transition matrix](evidence/phase-6/VERIFICATION.md) |
 | 7 Printing and imports | Not started | None |
 | 8 Release verification | Not started | None |
 
@@ -96,3 +96,13 @@ Verified on 2026-10-06: lint, typecheck, build, db:validate, 13 unit, 29 real My
 Not run: load test of search p95 (D108), assistive-technology screen-reader pass, production deployment. Consignment submission remains Phase 6.
 
 Next three actions: review and commit Phase 5; confirm D209 search scope and contact visibility with the operating owner; on an explicit Phase 6 request, build consignment submission on the eligibility pre-check and re-validate cutoff/limits server-side.
+
+## Phase 6 completed — 2026-10-06
+
+Implemented the Thai ฝากของส่งรถ form (sections per UI_SPEC, draft/submit, attachments), dispatcher review (reject/assign/reassign/cancel with eligible-trip list, cutoff and capacity), warehouse receipt, loading and per-trip departure, branch package-ID/scan and detailed-quantity receipt, issues with preserved movement state, supervisor returns/resolutions/corrective receipt, close, scoped history with CSV export, and private attachment upload/download. Executable transition matrix and design: [PHASE6_DESIGN.md](PHASE6_DESIGN.md); decision D210. Additive migration 005 (53 models, five migrations) applied to moointer_dev after a verified backup and restore rehearsal. Grants extended without DELETE on history. Warehouse and department master screens added.
+
+Verified on 2026-10-06: lint, typecheck, build (no warnings), prisma validate; 19 unit and 33 real MySQL integration tests (4 new); 5 consignment, 6 search, 2 planning, 4 auth and 5 shell browser tests; production audit zero; secret scan zero hits. Screenshots at 1440/768/390 inspected. Ten corrected failures are in the [evidence](evidence/phase-6/VERIFICATION.md). Preview on 3010 restarted on the new build.
+
+Not run: load test, screen-reader pass, malware scanning of uploads, retention policy. Label issue/print/QR/manifests are Phase 7. Backup restore needs a trigger normalization (Phase 8 follow-up).
+
+Next three actions: review and commit Phase 6; confirm D209/D210 operational values (cutoff lead, weights/capacity units, visibility) with the owner; on an explicit Phase 7 request, build label versions, print layouts and QR lookup on the existing snapshots and revocation.

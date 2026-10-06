@@ -74,6 +74,8 @@ enum EventKind {
  RETURNED
  CLOSED
  CANCELLED
+ REJECTED
+ ISSUE_RESOLVED
 }
 
 enum ImportStatus {
@@ -157,6 +159,8 @@ model Department {
   active Boolean @default(true)
   userScope_departmentId UserScope[] @relation("UserScope_departmentId")
   consignment_departmentId Consignment[] @relation("Consignment_departmentId")
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @db.DateTime(3)
 }
 
 model Warehouse {
@@ -168,6 +172,8 @@ model Warehouse {
   active Boolean @default(true)
   userScope_warehouseId UserScope[] @relation("UserScope_warehouseId")
   consignment_sourceWarehouseId Consignment[] @relation("Consignment_sourceWarehouseId")
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @db.DateTime(3)
 }
 
 model UserScope {
@@ -479,6 +485,7 @@ model Trip {
   plan DailyPlan @relation("Trip_planId", fields: [planId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   tripRevision_tripId TripRevision[] @relation("TripRevision_tripId")
   consignmentAssignment_tripId ConsignmentAssignment[] @relation("ConsignmentAssignment_tripId")
+  consignment_requestedTripId Consignment[] @relation("Consignment_requestedTripId")
   @@unique([id, planId])
 }
 
@@ -587,6 +594,26 @@ model Consignment {
   consignmentEvent_consignmentId ConsignmentEvent[] @relation("ConsignmentEvent_consignmentId")
   receiptLine_consignmentId ReceiptLine[] @relation("ReceiptLine_consignmentId")
   attachment_consignmentId Attachment[] @relation("Attachment_consignmentId")
+  returnLine_consignmentId ReturnLine[] @relation("ReturnLine_consignmentId")
+  requestedServiceDate DateTime? @db.Date
+  requestedRoundNo Int?
+  requestedTripId String? @db.VarChar(36)
+  requestedTrip Trip? @relation("Consignment_requestedTripId", fields: [requestedTripId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  senderName String? @db.VarChar(191)
+  senderPhone String? @db.VarChar(32)
+  recipientName String? @db.VarChar(191)
+  recipientPhone String? @db.VarChar(32)
+  notes String? @db.VarChar(1000)
+  packageCount Int @default(0)
+  packageWeight Decimal? @db.Decimal(14,3)
+  packageWeightUnit String? @db.VarChar(32)
+  draftItems Json?
+  resumeStatus ConsignmentStatus?
+  submittedAt DateTime? @db.DateTime(3)
+  closedAt DateTime? @db.DateTime(3)
+  @@index([status, createdAt])
+  @@index([requestedServiceDate])
+  @@index([requestedTripId])
   @@index([destinationBranchId, status, createdAt])
   @@index([requesterId, createdAt])
 }
@@ -602,6 +629,7 @@ model ConsignmentItem {
   consignment Consignment @relation("ConsignmentItem_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   category ConsignmentCategory @relation("ConsignmentItem_categoryId", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   receiptLine_itemId ReceiptLine[] @relation("ReceiptLine_itemId")
+  returnLine_itemId ReturnLine[] @relation("ReturnLine_itemId")
   @@unique([id, consignmentId])
 }
 
@@ -616,6 +644,7 @@ model ConsignmentPackage {
   custody CustodyState @default(SENDER)
   consignment Consignment @relation("ConsignmentPackage_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   receiptLine_packageId ReceiptLine[] @relation("ReceiptLine_packageId")
+  returnLine_packageId ReturnLine[] @relation("ReturnLine_packageId")
   labelPackage_packageId LabelPackage[] @relation("LabelPackage_packageId")
   @@unique([consignmentId, sequence])
   @@unique([id, consignmentId])
@@ -693,6 +722,7 @@ model ConsignmentEvent {
   compensatesEvent ConsignmentEvent? @relation("ConsignmentEvent_compensatesEventId", fields: [compensatesEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   consignmentEvent_compensatesEventId ConsignmentEvent[] @relation("ConsignmentEvent_compensatesEventId")
   receiptLine_eventId ReceiptLine[] @relation("ReceiptLine_eventId")
+  returnLine_eventId ReturnLine[] @relation("ReturnLine_eventId")
   @@index([consignmentId, occurredAt, id])
   @@unique([id, consignmentId])
 }
@@ -711,6 +741,23 @@ model ReceiptLine {
   consignment Consignment @relation("ReceiptLine_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   item ConsignmentItem? @relation("ReceiptLine_itemId", fields: [itemId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
   package ConsignmentPackage? @relation("ReceiptLine_packageId", fields: [packageId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  @@index([itemId, eventId])
+}
+
+model ReturnLine {
+  id String @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  eventId String @db.VarChar(36)
+  consignmentId String @db.VarChar(36)
+  itemId String? @db.VarChar(36)
+  packageId String? @unique @db.VarChar(36)
+  quantity Decimal @db.Decimal(14,3)
+  unit String @db.VarChar(32)
+  note String? @db.VarChar(500)
+  event ConsignmentEvent @relation("ReturnLine_eventId", fields: [eventId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  consignment Consignment @relation("ReturnLine_consignmentId", fields: [consignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  item ConsignmentItem? @relation("ReturnLine_itemId", fields: [itemId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
+  package ConsignmentPackage? @relation("ReturnLine_packageId", fields: [packageId, consignmentId], references: [id, consignmentId], onDelete: Restrict, onUpdate: Restrict)
   @@index([itemId, eventId])
 }
 

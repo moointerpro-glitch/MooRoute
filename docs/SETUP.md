@@ -28,11 +28,12 @@ npm test
 npm run test:integration
 npm run test:planning:e2e
 npm run test:search:e2e
+npm run test:consignment:e2e
 npm run test:auth:e2e
 npm run test:e2e
 ```
 
-Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. All authenticated browser runners (auth, planning, search) create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
+Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. All authenticated browser runners (auth, planning, search, consignment) create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
 
 ## Phase 3 local authentication and masters
 
@@ -169,3 +170,10 @@ Unit tests cover safe configuration, test-database isolation, Bangkok midnight, 
 Playwright starts the built application on loopback port 3011, requires that port to be free, and closes its own server afterwards. It checks navigation, keyboard tabs, unavailable controls, public-health output and 404 behavior. Screenshots for 1440, 768 and 390 px in all three tab modes are saved to `docs/evidence/phase-1/`; reports/traces are ignored by Git.
 
 No operational tables, seed or applied migrations exist in Phase 1. Schema design and migration commands must be established in Phase 2 after field/relationship review. See [architecture](ARCHITECTURE.md), [API contracts](API_CONTRACTS.md) and [progress](PROGRESS.md).
+
+## Phase 6 consignments (local)
+
+1. Back up `moointer_dev` first. Use `mysqldump --single-transaction --routines --triggers --set-gtid-purged=OFF --no-tablespaces --result-file=<file>`; `--result-file` avoids Windows CRLF conversion. Known limitation (Phase 8): the single-statement history triggers end with `;` inside their body, so mysqldump emits `...'IMMUTABLE_HISTORY'; */;;`. Restore through `sed "s/'; */;;$/' */;;/"`, which was verified to restore all tables and triggers into a disposable schema.
+2. Run `npm run db:migrate:local` (applies migration 005) and then `npm run auth:setup:local` (safe rerun: installs warehouse/department master capabilities and the new INSERT/UPDATE grants; no DELETE on history).
+3. As the administrator, create at least one คลังต้นทาง (warehouse) and one แผนก (department) under จัดการหลังบ้าน. Then create a requester with `{"action":"create","email":"requester@example.test","name":"ผู้ฝากส่ง","role":"REQUESTER","scope":"DEPARTMENT","scopeId":"<department id>"}`, and similarly WAREHOUSE (scope WAREHOUSE), BRANCH_RECEIVER (scope BRANCH) and DRIVER (scope DRIVER) accounts as needed.
+4. Attachments are stored in `UPLOAD_DIR` (default `.local/uploads`, ignored). Browser tests use `.local/uploads-e2e`.

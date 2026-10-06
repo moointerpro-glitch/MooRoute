@@ -74,3 +74,7 @@ Primary references consulted during setup:
 ## Phase 5 search boundary
 
 `src/server/domain/search.ts` parses and validates the query contract (pure, unit tested). `src/server/services/trip-search.ts` owns the scoped read model: it composes parameterized `Prisma.sql` fragments (column identifiers come only from a whitelist), runs count/rows/facets in one repeatable-read transaction and presents rows with permission-filtered contacts. `TripResults` is a hook-free component shared by the client search workspace and server-rendered lists. No schema, grant or dependency changes; the runtime account already has SELECT. See [Phase 5 evidence](evidence/phase-5/VERIFICATION.md).
+
+## Phase 6 consignment boundary
+
+`src/server/domain/consignment.ts` holds the executable transition matrix, draft validation and Thai labels. `domain/files.ts` holds signature sniffing, name sanitizing and the upload path guard. `services/consignments.ts` implements every lifecycle mutation through `guardedWrite` (idempotency, bounded deadlock retry) with row locks and re-authorization; `services/receipts.ts` remains the single receipt writer. `storage/attachments.ts` writes opaque-keyed private files outside the web root; the HTTP adapter writes before the transaction and removes the file on failure or replay. UI components post to one action endpoint and never write Prisma directly. Migration 005 adds ReturnLine and request fields (53 models). See [PHASE6_DESIGN.md](PHASE6_DESIGN.md) and [evidence](evidence/phase-6/VERIFICATION.md).

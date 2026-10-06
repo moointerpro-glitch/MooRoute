@@ -129,3 +129,17 @@ Status: Proposed (implemented under the explicit Phase 5 request; operational ow
 - Branch text resolves by code, official name or active alias (case-insensitive collation, literal wildcards). One exact match, or exactly one partial match, resolves; otherwise the UI lists candidates instead of choosing.
 - The eligible-trip action is a pre-check (permission, published, not cancelled, outbound, visits branch, departure known and in the future). `/consign` only shows the checked trip/branch with a Thai “not yet open” notice. No cutoff rule is invented; Phase 6 must re-validate on submission.
 - No schema change, new dependency or runtime grant. Affected: src/server/domain/search.ts, src/server/services/trip-search.ts, search/branch APIs, search/detail/directory/consign pages, header/login redirect, tests, docs.
+
+## D210 — Phase 6 consignment lifecycle (2026-10-06)
+
+Status: Proposed (implemented under the explicit Phase 6 request; operational owner confirmation pending where noted).
+
+- Submission/assignment contract (resolves the D201 difference): the requester may pick a preferred eligible trip at submission (validated then), but the dispatcher assigns during review (Markdown precedence). Assignment always re-checks eligibility.
+- Cutoff: loading start, or departure when loading is unknown, minus `CONSIGNMENT_CUTOFF_LEAD_MINUTES` (default 0). This is a placeholder until the operating owner supplies real cutoff rules.
+- Package handover at warehouse and loading must confirm every stable package ID; partial handover is recorded as an issue, not a partial status. Departure is recorded per trip by the trip's driver or the source warehouse.
+- Returns are only for undelivered packages/quantities and use a separate ReturnLine ledger. RETURNED is terminal when every package is returned. CLOSED requires every package received or returned and no open issue.
+- Drafts are private to their requester; department/branch/warehouse/driver scopes see only submitted records.
+- Consignment codes are `FS-<พ.ศ. YYYYMMDD>-<6 random characters>` to keep visible identifiers consistent with Buddhist-era display.
+- Warehouse and department become versioned master screens. They were needed to enter source warehouses and requester departments; the generic masters service and audit are reused.
+- Backup finding: dumps of the existing history triggers need the documented normalization on restore. A permanent fix (migration or restore tooling) belongs to Phase 8 release work.
+- Migration impact: additive migration 005 applied to moointer_dev after a verified backup (restore rehearsed into a disposable schema); runtime grants extended with INSERT on ledgers and UPDATE only on Consignment/ConsignmentPackage; no DELETE on history.

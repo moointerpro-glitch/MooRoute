@@ -15,6 +15,8 @@ function rowScope(p:Principal,kind:string) {
   if(p.global)return Prisma.sql`1=1`;
   if(kind==="branches") {const ids=p.scopes.flatMap(s=>s.branchId?[s.branchId]:[]);return ids.length?Prisma.sql`id IN (${Prisma.join(ids)})`:Prisma.sql`1=0`;}
   if(kind==="drivers") {const ids=p.scopes.flatMap(s=>s.driverId?[s.driverId]:[]);return ids.length?Prisma.sql`id IN (${Prisma.join(ids)})`:Prisma.sql`1=0`;}
+  if(kind==="warehouses") {const ids=p.scopes.flatMap(s=>s.warehouseId?[s.warehouseId]:[]);return ids.length?Prisma.sql`id IN (${Prisma.join(ids)})`:Prisma.sql`1=0`;}
+  if(kind==="departments") {const ids=p.scopes.flatMap(s=>s.departmentId?[s.departmentId]:[]);return ids.length?Prisma.sql`id IN (${Prisma.join(ids)})`:Prisma.sql`1=0`;}
   if(["product-categories","storage-conditions","consignment-categories","vehicle-types"].includes(kind)&&p.scopes.length)return Prisma.sql`1=1`;
   return Prisma.sql`1=0`;
 }

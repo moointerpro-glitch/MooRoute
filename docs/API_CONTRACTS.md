@@ -1,5 +1,21 @@
 # API and operator contracts
 
+## Phase 6 implemented consignment routes
+
+All routes derive the actor from the verified session and re-authorize in the service. Responses are `no-store`, and errors use the shared Thai contract. The state machine and actors are in [PHASE6_DESIGN.md](PHASE6_DESIGN.md).
+
+| Route | Contract |
+| --- | --- |
+| `GET /api/consignments` | History. Query `q` (code or item name ≤100), `status` (comma list), `branch`, `category`, `date` (ISO or พ.ศ. DD/MM/YYYY; requested or assigned service date), `trip` (trip code), `mine=1`, `page`. Returns `{total,page,pageSize=20,pageCount,rows}` with the scope predicate in the same repeatable-read transaction |
+| `GET /api/consignments/export` | Same filters/scope, ≤1,000 rows, UTF-8 BOM CSV with Thai headers and formula-prefix escaping |
+| `GET /api/consignments/[id]` | Detail: items with sent/received/returned, packages (stable label `CODE-n/N`, custody), assignment chain with frozen snapshots and label versions, event timeline, attachments, advisory `actions` |
+| `GET /api/consignments/[id]/trips?date=` | Dispatcher (consignment.assign + GLOBAL): published outbound trips visiting the destination, with eligibility reasons, cutoff and capacity |
+| `POST /api/consignments` | Exact Origin, JSON ≤100,000 chars, `Idempotency-Key`, `{action,input}`. Actions: `saveDraft` (DraftInput), `submit`, `cancel` (reason), `reject` (reason), `assign` / `reassign` (tripId, optional stopSequence, reason required for reassign), `warehouseReceive` / `load` (all packageIds), `depart` ({tripId}), `receive` (ReceiptInput; optional `correctionReason` for the supervisor path), `reportIssue` (type, description, packageIds), `resolveIssue` (reason), `recordReturn` (reason, packageIds, items[{itemId,quantity}]), `close`. Every mutating input carries `id` + `expectedVersion` except depart. Results: `{id,status,version}` |
+| `POST /api/consignments/[id]/attachments` | Multipart `file`, exact Origin, Idempotency-Key; signature-detected JPG/PNG/PDF ≤10 MB, ≤5 files; own requester in DRAFT/PENDING_REVIEW |
+| `GET /api/attachments/[id]` | Scoped private download (attachment disposition, nosniff, sandbox CSP, no-store); 401/403/404 otherwise |
+
+Pages: `/consign` (new, `?id=` own draft, `?trip=&branch=` prefilled from search), `/consignments` (history, filters, CSV), `/consignments/[id]` (detail, timeline, role-specific action panels). Status codes: VERSION_CONFLICT 409; FORBIDDEN 403; NOT_FOUND (including other users' drafts) 404; INVALID_TRANSITION, SUBMISSION_INCOMPLETE, INELIGIBLE_TRIP, PACKAGE_HANDOVER, RECEIPT_* and RETURN_* 400.
+
 ## Phase 5 implemented search routes
 
 All routes require a verified session; the actor is never taken from the request. Responses are `no-store`; errors use the shared Thai contract (401 unauthenticated, 403 forbidden, 404 out-of-scope detail, 400 invalid input, 503 generic).

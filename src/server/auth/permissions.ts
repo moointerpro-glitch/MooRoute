@@ -3,7 +3,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import type { Transaction } from "../services/transaction";
 import { requireCondition } from "../domain/errors";
 
-export const masterKinds = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories"] as const;
+export const masterKinds = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories", "warehouses", "departments"] as const;
 export const rolePermissions: Record<string, string[]> = {
   REQUESTER: ["trip.read", "consignment.create", "consignment.read", "master.branches.read"],
   DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "consignment.read", "consignment.assign", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],

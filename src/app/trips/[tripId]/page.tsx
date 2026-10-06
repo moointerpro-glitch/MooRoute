@@ -59,7 +59,7 @@ export default async function TripDetailPage({ params, searchParams }: { params:
       {trip.eligibility.eligible && matched ? <>
         <p><CheckCircle2 size={16} aria-hidden="true" className="inline-icon ok" />รอบรถนี้แวะส่ง <strong>{matched.name}</strong> และยังไม่ถึงเวลาออกรถ ตรวจสอบเบื้องต้นแล้ว</p>
         <Link className="primary-button" href={`/consign?trip=${encodeURIComponent(trip.tripId)}&branch=${encodeURIComponent(matched.branchId)}`}>ฝากของกับรอบนี้</Link>
-        <p className="field-hint">ระบบรับคำขอฝากส่งยังไม่เปิดใช้งาน ปุ่มนี้จะพาไปตรวจข้อมูลรอบรถที่เลือกไว้เท่านั้น</p>
+        <p className="field-hint">ระบบจะกรอกสาขาและรอบรถนี้ในคำขอให้ ผู้จัดรถจะตรวจสอบและยืนยันรอบรถอีกครั้ง</p>
       </> : <>
         <button type="button" className="primary-button" disabled aria-describedby="consign-reasons">ฝากของกับรอบนี้</button>
         <ul id="consign-reasons" className="reason-list">{trip.eligibility.reasons.map((r) => <li key={r}>{r}</li>)}</ul>

@@ -2,20 +2,18 @@
 
 ## Current state — 2026-10-06
 
-Phase 5 (Thai route search) was explicitly requested and is complete locally. Respond in Thai; technical docs and identifiers in English, UI in Thai. No Phase 6 work or deployment is authorized. Phase 4 was committed as `0574394` before this session; Phase 5 changes are uncommitted for review.
+Phase 6 (consignments, tracking, branch receipts) was explicitly requested and is complete locally. Respond in Thai; technical docs and identifiers in English, UI in Thai. No Phase 7 work or deployment is authorized. Phase 5 is committed as `34bf57b`; Phase 6 changes are uncommitted for review.
 
-Implemented: `src/server/domain/search.ts` (query contract, Bangkok minute offsets), `src/server/services/trip-search.ts` (scoped search, branch suggestions/resolution, trip detail with consign pre-check, branch directory), `GET /api/search` and `/api/search/branches`, the client workspace `src/components/trip-search.tsx`, the shared `trip-results.tsx`, pages `/`, `/trips`, `/trips/[tripId]`, `/branches`, `/consign`, header navigation, `/login?next=`. Contract: [API_CONTRACTS](API_CONTRACTS.md). Scope rules: [PERMISSIONS](PERMISSIONS.md) and D209 in [DECISIONS](DECISIONS.md).
+Implemented: migration `202610060005_consignments` (request fields, resumeStatus, ReturnLine, REJECTED/ISSUE_RESOLVED events, request-freeze trigger, Warehouse/Department versions, MARKETING/DOCUMENT/EQUIPMENT categories). Code: `src/server/domain/consignment.ts` (transition matrix), `domain/files.ts`, `services/consignments.ts`, updated `services/receipts.ts` and `auth/resource-policy.ts` (shared consignmentScope; drafts private), `storage/attachments.ts`, APIs under `/api/consignments` and `/api/attachments/[id]`, pages `/consign`, `/consignments`, `/consignments/[id]`, components `consign-form.tsx` and `consignment-actions.tsx`, and warehouse/department masters. Contracts: [API_CONTRACTS](API_CONTRACTS.md); design/matrix: [PHASE6_DESIGN](PHASE6_DESIGN.md); decisions D209–D210.
 
-Schema unchanged: 52 models, four migrations. No grants or dependencies added. MySQL 8.4.11 on 127.0.0.1:3307. Preview on http://127.0.0.1:3010 restarted with the new build; the dev database has no published plans (search shows the "not published" state). Local planning accounts and passwords remain only in ignored `.local/auth/`. Never print credentials.
+Database: MySQL 8.4.11 on 127.0.0.1:3307, 53 models, five migrations, applied to moointer_dev after a backup in ignored `.local/backups/` (restore rehearsed into `moointer_test_run_restore104834`). `auth:setup:local` re-run: new master capabilities and INSERT/UPDATE grants; no DELETE on history. The dev DB still has no warehouses, departments or published plans: an administrator must add a คลังต้นทาง and แผนก, then the CLI can create REQUESTER/WAREHOUSE/BRANCH_RECEIVER/DRIVER accounts (see SETUP). Uploads go to `.local/uploads` (`UPLOAD_DIR`). Never print credentials.
 
-Verified: lint, typecheck, build, db:validate; 13 unit, 29 integration (real MySQL), 6 search, 5 shell, 4 auth and 2 planning browser tests; audit zero; secret scan zero hits. Screenshots and the mockup comparison are in [evidence/phase-5](evidence/phase-5/VERIFICATION.md). Retained disposable schemas: integration `moointer_test_run_b636f38babdb290a`, search browser `moointer_test_run_e2d7f7a20c784870` (first green) plus the later rerun.
+Verified: lint, typecheck, build, prisma validate; 19 unit, 33 integration (real MySQL), 5 consignment, 6 search, 2 planning, 4 auth and 5 shell browser tests; audit zero; secret scan zero hits. Evidence and the ten corrected failures: [evidence/phase-6](evidence/phase-6/VERIFICATION.md). Preview http://127.0.0.1:3010 runs the new build.
 
-Changed paths: the files above, `src/app/globals.css`, `src/app/page.tsx`, `src/app/guide/page.tsx`, `src/components/{app-header,session-navigation,search-shell,login-form}.tsx`, `src/app/login/page.tsx`, `src/lib/trip-format.ts`, `scripts/{run-integration,prepare-search-e2e}.ts`, `playwright.{config,search.config}.ts`, `package.json` (`test:search:e2e`), `tests/{fixtures/search.ts,integration/phase5.test.ts,unit/search.test.ts,e2e/search.spec.ts,e2e/shell.spec.ts}`, and docs.
-
-Deferred/not run: search load test (D108), screen-reader pass, production SSO/deployment. Consignment submission, print/QR and imports are later phases. Branch aliases, contacts and real schedules still need owner verification before any import.
+Known limitations: cutoff lead (default 0 minutes) and KG-only package weights are proposed values. A mysqldump of the history triggers needs the documented normalization to restore (Phase 8). There is no malware scanning or retention policy for uploads. Label issue/print/QR/manifests are Phase 7.
 
 ## Next three actions
 
-1. Review and commit the Phase 5 changes.
-2. Confirm D209 with the operating owner: department-wide visibility of outbound trips and the contact visibility rule.
-3. On an explicit Phase 6 request, implement consignment submission from `/consign`, re-validating eligibility, cutoff and limits on the server.
+1. Review and commit the Phase 6 changes.
+2. Confirm D209/D210 with the operating owner: cutoff rule, weight/capacity units, department-wide visibility and contact display.
+3. On an explicit Phase 7 request, implement label versions, A4 and 100×150 mm print layouts, QR lookup and manifests on the existing assignment snapshots and revocation.

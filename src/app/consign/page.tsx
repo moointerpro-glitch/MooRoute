@@ -1,36 +1,56 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { Construction, PackagePlus, Search } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requirePageActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
 import { tripDetail } from "@/server/services/trip-search";
+import { consignmentDetail, consignmentFormOptions } from "@/server/services/consignments";
 import { DomainError } from "@/server/domain/errors";
-import { roundLabel, thaiLongDate, UNKNOWN_TIME } from "@/lib/trip-format";
+import { ConsignForm, type ConsignInitial } from "@/components/consign-form";
+import { bangkokServiceDate } from "@/lib/bangkok-date";
+import { roundLabel } from "@/lib/trip-format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ฝากของส่งรถ" };
 
-/** Hand-off target for the eligible-trip action. Submission belongs to Phase 6 and is not offered here. */
-export default async function ConsignPage({ searchParams }: { searchParams: Promise<{ trip?: string; branch?: string }> }) {
-  const actor = await requirePageActor(), { trip: tripId, branch } = await searchParams;
-  const notice = <p className="notice-panel" role="note"><Construction size={20} aria-hidden="true" /><span><strong>ระบบรับคำขอฝากส่งยังไม่เปิดใช้งาน</strong> หน้านี้แสดงรอบรถและสาขาที่เลือกไว้ให้ตรวจสอบเท่านั้น ยังไม่มีการบันทึกหรือส่งคำขอใด ๆ</span></p>;
-  if (!tripId) return <div className="container detail-page"><h1>ฝากของส่งรถ</h1>{notice}<p>เลือกรอบรถจากหน้าค้นหา แล้วกด “ฝากของกับรอบนี้” ในรายละเอียดรอบรถ</p><Link className="primary-button" href="/"><Search size={18} aria-hidden="true" />ไปหน้าค้นหา</Link></div>;
-  let trip;
-  try { trip = await tripDetail(getDatabase(), actor.id, tripId, { branchId: branch ?? null }); }
-  catch (error) { if (error instanceof DomainError && ["NOT_FOUND", "FORBIDDEN"].includes(error.code)) notFound(); throw error; }
-  const destination = trip.stops.find((s) => s.matched);
+const denied = (title: string, text: string) => <div className="container message-page"><span className="eyebrow">ฝากของส่งรถ</span><h1>{title}</h1><p>{text}</p><Link className="secondary-button" href="/consignments">ไปที่ประวัติฝากส่ง</Link></div>;
+
+export default async function ConsignPage({ searchParams }: { searchParams: Promise<{ id?: string; trip?: string; branch?: string }> }) {
+  const actor = await requirePageActor(), { id, trip, branch } = await searchParams, db = getDatabase();
+  let options;
+  try { options = await consignmentFormOptions(db, actor.id); }
+  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return denied("บัญชีนี้ยังไม่มีสิทธิ์สร้างคำขอฝากส่ง", "กรุณาติดต่อผู้ดูแลเพื่อกำหนดบทบาทผู้ฝากส่งและแผนก"); throw error; }
+  const today = bangkokServiceDate();
+  let initial: ConsignInitial = {
+    id: null, code: null, version: 0, departmentId: options.departments.length === 1 ? options.departments[0].id : "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : "",
+    destinationBranchId: "", requestedServiceDate: "", requestedRoundNo: null, requestedTripId: null, tripLabel: null, tripProblems: [],
+    senderName: options.senderName, senderPhone: "", recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", packageCount: "1", packageWeight: "", packageWeightUnit: "KG",
+    items: [{ categoryId: "", name: "", quantity: "", unit: "" }], attachments: [],
+  };
+  if (id) {
+    let d;
+    try { d = await consignmentDetail(db, actor.id, id); }
+    catch (error) { if (error instanceof DomainError && ["NOT_FOUND", "FORBIDDEN"].includes(error.code)) return denied("ไม่พบฉบับร่างนี้", "ฉบับร่างเปิดได้เฉพาะผู้สร้าง"); throw error; }
+    if (d.status !== "DRAFT" || !d.mine) redirect(`/consignments/${d.id}`);
+    const raw = await db.consignment.findUniqueOrThrow({ where: { id: d.id }, select: { departmentId: true } });
+    initial = { ...initial, id: d.id, code: d.code, version: d.version, departmentId: raw.departmentId, sourceWarehouseId: d.warehouse.id, destinationBranchId: d.branch.id,
+      requestedServiceDate: d.requested.serviceDate ?? "", requestedRoundNo: d.requested.roundNo, requestedTripId: d.requested.tripId, tripLabel: d.requested.tripCode,
+      senderName: d.contacts.senderName ?? "", senderPhone: d.contacts.senderPhone ?? "", recipientName: d.contacts.recipientName ?? "", recipientPhone: d.contacts.recipientPhone ?? "",
+      notes: d.notes ?? "", receiptMode: d.receiptMode, packageCount: String(d.packageCount), packageWeight: d.packageWeight ?? "", packageWeightUnit: d.packageWeightUnit ?? "KG",
+      items: d.draftItems.length ? d.draftItems : initial.items, attachments: d.attachments.map((a) => ({ id: a.id, name: a.name, size: a.size })) };
+  } else if (trip) {
+    // Pre-fill from the search page's eligible-trip action; the server re-checks eligibility on submission and assignment.
+    try {
+      const t = await tripDetail(db, actor.id, trip, { branchId: branch ?? null });
+      const stop = t.stops.find((s) => s.matched);
+      initial = { ...initial, destinationBranchId: stop?.branchId ?? "", requestedServiceDate: t.serviceDate, requestedRoundNo: t.roundNo,
+        requestedTripId: t.eligibility.eligible ? t.tripId : null, tripLabel: `${t.routeName ?? t.code} · ${roundLabel(t.roundNo)}${t.departure ? ` · ออก ${t.departure.label} น.` : ""}`,
+        tripProblems: t.eligibility.eligible ? [] : t.eligibility.reasons };
+    } catch (error) { if (!(error instanceof DomainError)) throw error; initial = { ...initial, tripProblems: ["ไม่พบรอบรถที่เลือกหรือคุณไม่มีสิทธิ์เข้าถึง"] }; }
+  }
   return <div className="container detail-page">
-    <p className="eyebrow"><span />ฝากของส่งรถ</p><h1>ตรวจสอบรอบรถที่เลือก</h1>{notice}
-    <section className="detail-card" aria-labelledby="selected-trip"><h2 id="selected-trip"><PackagePlus size={19} aria-hidden="true" />ปลายทางและรอบรถ</h2>
-      <dl className="fact-list">
-        <div><dt>วันที่ให้บริการ</dt><dd>{thaiLongDate(trip.serviceDate)}</dd></div>
-        <div><dt>รอบรถ</dt><dd>{trip.routeName ?? trip.code} · {roundLabel(trip.roundNo)}</dd></div>
-        <div><dt>สาขาปลายทาง</dt><dd>{destination ? `${destination.name} (${destination.branchCode})` : "ยังไม่ได้เลือกสาขาที่รอบรถนี้แวะส่ง"}</dd></div>
-        <div><dt>เวลาออกรถ</dt><dd>{trip.departure ? `${trip.departure.label} น.` : UNKNOWN_TIME}</dd></div>
-        <div><dt>ทะเบียนรถ</dt><dd>{trip.vehicle ? `${trip.vehicle.plate} ${trip.vehicle.province}` : UNKNOWN_TIME}</dd></div>
-        <div><dt>ผลตรวจสอบเบื้องต้น</dt><dd>{trip.eligibility.eligible ? "รอบรถนี้รับฝากได้ตามข้อมูลปัจจุบัน (ต้องตรวจสอบเวลาปิดรับอีกครั้งเมื่อส่งคำขอ)" : trip.eligibility.reasons.join(" · ")}</dd></div>
-      </dl>
-      <Link className="secondary-button" href={`/trips/${encodeURIComponent(trip.tripId)}${destination ? `?branch=${encodeURIComponent(destination.branchId)}` : ""}`}>กลับไปรายละเอียดรอบรถ</Link>
-    </section>
+    <p className="eyebrow"><span />ฝากของส่งรถ</p>
+    <h1>{initial.id ? `แก้ไขฉบับร่าง ${initial.code}` : "ฝากของส่งรถ"}</h1>
+    <p className="muted">ฝากสื่อการตลาด เอกสาร หรืออุปกรณ์ไปกับรถส่งสาขา หนึ่งคำขอต่อหนึ่งสาขาปลายทาง ผู้จัดรถจะตรวจสอบและจัดรอบรถให้</p>
+    <ConsignForm options={options} initial={initial} today={today} />
   </div>;
 }

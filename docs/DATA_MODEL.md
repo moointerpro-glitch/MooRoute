@@ -53,3 +53,7 @@ Default proposed uploads: JPG, PNG or PDF, maximum 10 MB each and five files per
 ## Phase 4 implementation supplement — 2026-10-06
 
 The 52-model schema is extended by additive migration 004. See [reviewed field dictionary, ER relationships and transaction decisions](PHASE4_DESIGN.md) and [actual MySQL evidence](evidence/phase-4/VERIFICATION.md). Existing history triggers, FK ownership and stable trip identities remain in force. No applied migration rewritten or database reset.
+
+## Phase 6 implementation supplement — 2026-10-06
+
+Additive migration 005: consignment request fields, `resumeStatus`, the ReturnLine ledger, the REJECTED/ISSUE_RESOLVED event kinds, the request-freeze trigger, versioned Warehouse/Department and three seeded consignment categories. 53 models, five migrations. See [PHASE6_DESIGN.md](PHASE6_DESIGN.md).
