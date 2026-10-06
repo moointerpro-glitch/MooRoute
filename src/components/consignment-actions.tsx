@@ -62,7 +62,20 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
       {all && <button type="button" className="link-button" onClick={() => setSelected(list.map((p) => p.id))}>เลือกครบทุกหีบห่อ</button>}
     </fieldset>;
   }
-  function onScan() {
+  async function onScan() {
+    if (scan.includes("/l/")) {
+      // A scanned QR is verified on the server: revoked label versions are rejected with the replacement shown.
+      const response = await fetch(`/api/labels/lookup?code=${encodeURIComponent(scan.trim())}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      setScan("");
+      if (!response.ok) { setMessage({ tone: "error", text: data?.message ?? "ตรวจสอบฉลากไม่สำเร็จ" }); return; }
+      if (data.consignment.id !== d.id) { setMessage({ tone: "error", text: `ฉลากนี้เป็นของรายการ ${data.consignment.code} ไม่ใช่รายการนี้` }); return; }
+      if (data.state !== "CURRENT") { setMessage({ tone: "error", text: `ฉลากฉบับที่ ${data.number} ถูกยกเลิกแล้ว${data.replacement ? ` กรุณาใช้ฉลากฉบับที่ ${data.replacement.number}` : " กรุณาติดต่อผู้จัดรถ"}` }); return; }
+      if (!data.package) { setMessage({ tone: "error", text: "คิวอาร์นี้ไม่ได้ระบุหีบห่อ" }); return; }
+      if (data.package.custody !== "VEHICLE") { setMessage({ tone: "error", text: `หีบห่อ ${data.package.label} ไม่ได้อยู่บนรถ` }); return; }
+      setSelected((s) => s.includes(data.package.id) ? s : [...s, data.package.id]); setMessage({ tone: "ok", text: `เพิ่ม ${data.package.label} แล้ว (ฉลากฉบับที่ ${data.number})` });
+      return;
+    }
     const value = scan.trim().toUpperCase(); if (!value) return;
     const match = d.packages.find((p) => p.label.toUpperCase() === value || p.id.toUpperCase() === value);
     if (!match) setMessage({ tone: "error", text: `ไม่พบหีบห่อ “${scan}” ในรายการนี้` });
@@ -97,7 +110,7 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
     {can("depart") && currentTrip && <Panel title="บันทึกรถออก"><p>บันทึกรถออกสำหรับทุกรายการที่ขึ้นรถแล้วในรอบ {currentTrip.tripCode} ซึ่งคุณมีสิทธิ์</p>
       <button type="button" className="primary-button" disabled={busy} onClick={() => void run("depart", { tripId: currentTrip.tripId }, "บันทึกรถออกแล้ว")}>บันทึกรถออกทั้งรอบ</button></Panel>}
     {(can("receive") || can("correctiveReceive")) && <Panel title={can("receive") ? "สาขารับของ" : "รับของก่อนบันทึกรถออก (หัวหน้างาน)"}>
-      <div className="inline-form"><label><ScanLine size={16} aria-hidden="true" className="inline-icon" />สแกนหรือพิมพ์รหัสหีบห่อ<input value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onScan(); } }} placeholder={d.packages[0]?.label} /></label><button type="button" className="secondary-button" onClick={onScan}>เพิ่ม</button></div>
+      <div className="inline-form"><label><ScanLine size={16} aria-hidden="true" className="inline-icon" />สแกนหรือพิมพ์รหัสหีบห่อ<input value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void onScan(); } }} placeholder={d.packages[0]?.label} /></label><button type="button" className="secondary-button" onClick={() => void onScan()}>เพิ่ม</button></div>
       {checklist(packages(["VEHICLE"]))}
       {d.receiptMode === "DETAILED" && <fieldset className="qty-fields"><legend>จำนวนสิ่งของที่รับ</legend>{d.items.map((i) => <label key={i.id}>{i.name} (ค้างรับ {Number(i.sent) - Number(i.received) - Number(i.returned)} {unitText(i.unit)})<span className="input-unit"><input value={quantities[i.id] ?? ""} inputMode="decimal" onChange={(e) => setQuantities((q) => ({ ...q, [i.id]: e.target.value }))} /><span>{unitText(i.unit)}</span></span></label>)}</fieldset>}
       {!can("receive") && reasonField("เหตุผลการแก้ไข")}

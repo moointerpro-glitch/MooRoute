@@ -1,8 +1,8 @@
 # Project progress
 
 Last updated: 2026-10-06
-State: Phases 1–6 implemented and verified locally.
-Active phase: none (Phase 6 complete). No Phase 7 work or deployment authorized.
+State: Phases 1–7 implemented and verified locally.
+Active phase: none (Phase 7 complete). No Phase 8 work or deployment authorized.
 
 | Phase | Status | Evidence |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Active phase: none (Phase 6 complete). No Phase 7 work or deployment authorized.
 | 4 Daily planning | Complete | [23 MySQL tests and planning browser evidence](evidence/phase-4/VERIFICATION.md) |
 | 5 Thai route search | Complete | [6 MySQL search tests, 6 browser tests and screenshots](evidence/phase-5/VERIFICATION.md) |
 | 6 Consignments | Complete | [4 MySQL lifecycle tests, 5 browser tests, transition matrix](evidence/phase-6/VERIFICATION.md) |
-| 7 Printing and imports | Not started | None |
+| 7 Printing and imports | Complete | [3 MySQL tests, 6 browser/PDF tests, print files](evidence/phase-7/VERIFICATION.md) |
 | 8 Release verification | Not started | None |
 
 Allowed status values: Not started, In progress, Blocked, Complete. Record the reason for Blocked and acceptance evidence for Complete.
@@ -106,3 +106,13 @@ Verified on 2026-10-06: lint, typecheck, build (no warnings), prisma validate; 1
 Not run: load test, screen-reader pass, malware scanning of uploads, retention policy. Label issue/print/QR/manifests are Phase 7. Backup restore needs a trigger normalization (Phase 8 follow-up).
 
 Next three actions: review and commit Phase 6; confirm D209/D210 operational values (cutoff lead, weights/capacity units, visibility) with the owner; on an explicit Phase 7 request, build label versions, print layouts and QR lookup on the existing snapshots and revocation.
+
+## Phase 7 completed — 2026-10-06
+
+Implemented immutable label versions with issue, reprint logging, automatic revocation (reassignment, cancellation, vehicle change through plan replacement, address correction), authenticated QR lookup with replacement information, actual-size Thai print pages for A4 four-up and 100 × 150 mm, watermarked samples for incomplete addresses, per-trip manifests, and staged CSV/XLSX imports for branches, vehicles and schedule templates (template download, mapping, Thai row errors, duplicate review, hash + edition idempotency, single-transaction commit, frozen history). Design: [PHASE7_DESIGN.md](PHASE7_DESIGN.md); decision D211. Additive migration 006 (53 models, six migrations) applied to moointer_dev after a verified backup. New pinned dependencies: qrcode-generator 2.0.4, jsqr 1.4.0 (dev).
+
+Verified on 2026-10-06: lint, typecheck, build, prisma validate; 24 unit and 36 real MySQL integration tests (3 new); 6 label/import, 5 consignment, 6 search, 2 planning, 4 auth and 5 shell browser tests; production audit zero; secret scan zero hits. Print sizes, PDF page counts, QR decode and long-address fit are asserted. Six corrected failures are in the [evidence](evidence/phase-7/VERIFICATION.md). Preview on 3010 restarted on the new build.
+
+Not run: physical printer and scanner checks, load test, screen-reader pass. Phase 8 release verification is not started.
+
+Next three actions: review and commit Phase 7; test both label formats and QR scanning on the real printer and devices, and confirm D209–D211 with the owner; on an explicit Phase 8 request, run the full acceptance matrix, fix the backup-restore trigger normalization and prepare operations and release documents.

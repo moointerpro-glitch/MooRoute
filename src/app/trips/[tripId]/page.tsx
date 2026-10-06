@@ -65,6 +65,7 @@ export default async function TripDetailPage({ params, searchParams }: { params:
         <ul id="consign-reasons" className="reason-list">{trip.eligibility.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
       </>}
     </section>
+    <p><Link className="text-link" href={`/print/manifest/${encodeURIComponent(trip.tripId)}`}>ใบคุมรถฝากของของรอบนี้ (สำหรับผู้จัดรถ คลัง และพนักงานขับรถ)</Link></p>
     <p className="muted small">ข้อมูลจากแผนที่เผยแพร่{trip.published.publishedAt ? ` เมื่อ ${thaiDateTime(trip.published.publishedAt)} น.` : ""}</p>
   </div>;
 }

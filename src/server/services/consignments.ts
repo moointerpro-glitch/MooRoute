@@ -246,6 +246,25 @@ export async function reassignConsignment(db: PrismaClient, actorId: string, key
   });
 }
 
+/** Address/contact correction: same trip and stop, fresh immutable snapshots, previous labels revoked. */
+export async function correctAssignmentAddress(db: PrismaClient, actorId: string, key: string, input: { id: string; expectedVersion: number; reason: string }) {
+  const reason = reasonText(input?.reason);
+  return guardedWrite(db, actorId, "consignment.correctAddress", key, input, async (tx, idem) => {
+    const p = await principal(tx, actorId), c = await lockConsignment(tx, input.id); requireActor(p, actorId, "correctAddress", c);
+    const prior = await replay<Result>(tx, idem); if (prior) return prior;
+    versionMatches(c.version, input.expectedVersion); requireTransition("correctAddress", c.status);
+    requireCondition((await tx.consignmentEvent.count({ where: { consignmentId: c.id, kind: { in: ["DEPARTED", "RECEIPT"] } } })) === 0, "CONSIGNMENT_IN_MOTION", "รถออกแล้ว แก้ไขที่อยู่บนฉลากไม่ได้ กรุณาใช้การแจ้งปัญหา");
+    const previous = c.currentAssignment!;
+    const { sender, recipient } = await snapshots(tx, actorId, c);
+    const assignment = await tx.consignmentAssignment.create({ data: { consignmentId: c.id, tripId: previous.tripId, tripRevisionId: previous.tripRevisionId, stopId: previous.stopId, senderSnapshotId: sender.id, recipientSnapshotId: recipient.id, previousAssignmentId: previous.id, transportSnapshot: previous.transportSnapshot as Prisma.InputJsonObject, reason, approvedById: actorId, approvedAt: new Date() } });
+    const revoked = await tx.labelVersion.updateMany({ where: { assignmentId: previous.id, revokedAt: null }, data: { revokedAt: new Date(), revocationReason: reason } });
+    const updated = await bump(tx, c.id, { currentAssignment: { connect: { id_consignmentId: { id: assignment.id, consignmentId: c.id } } } });
+    await event(tx, c.id, actorId, "ASSIGNED", idem, { type: "ADDRESS_CORRECTION", previousAssignmentId: previous.id, assignmentId: assignment.id, reason, labelsRevoked: revoked.count });
+    await tx.auditLog.create({ data: { actorId, action: "CONSIGNMENT_ADDRESS_CORRECTED", entityType: "Consignment", entityId: c.id, idempotencyId: idem, reason, before: { assignmentId: previous.id, version: c.version }, after: { assignmentId: assignment.id, version: updated.version, labelsRevoked: revoked.count } } });
+    return ok(updated);
+  });
+}
+
 export async function rejectConsignment(db: PrismaClient, actorId: string, key: string, input: { id: string; expectedVersion: number; reason: string }) {
   const reason = reasonText(input?.reason);
   return guardedWrite(db, actorId, "consignment.reject", key, input, async (tx, idem) => {

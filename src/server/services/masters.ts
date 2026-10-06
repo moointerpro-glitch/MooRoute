@@ -110,13 +110,9 @@ async function aliases(tx:Transaction,branchId:string,text:string){
   for(const a of old)if(a.active&&!names.includes(a.name))await tx.branchAlias.update({where:{id:a.id},data:{active:false,version:{increment:1}}});
   for(const name of names){const a=old.find(a=>a.name===name);if(!a)await tx.branchAlias.create({data:{branchId,name}});else if(!a.active)await tx.branchAlias.update({where:{id:a.id},data:{active:true,version:{increment:1}}});}
 }
-export async function mutateMaster(db:PrismaClient,actorId:string,kind:string,key:string,input:{id?:string;expectedVersion:number;reason:string;action:"save"|"delete";values?:unknown}){
-  const d=definition(kind);requireCondition(input&&["save","delete"].includes(input.action)&&Number.isInteger(input.expectedVersion)&&input.expectedVersion>=0&&typeof input.reason==="string"&&input.reason.trim().length>=3&&input.reason.length<=500,"INVALID_INPUT","กรุณาระบุเหตุผลอย่างน้อย ๓ ตัวอักษรและข้อมูลรุ่นให้ถูกต้อง");
-  const parsed=input.action==="save"?validate(kind,input.values):null;
-  try{return await guardedWrite(db,actorId,`master.${kind}`,key,input,async(tx,idem)=>{
-    const p=await principal(tx,actorId);requireCapability(p,`master.${kind}.${input.action==="delete"?"delete":"write"}`);
-    requireCondition(p.global||!!input.id,"FORBIDDEN","ต้องมีสิทธิ์ส่วนกลางในการเพิ่มข้อมูล");
-    const previous=await replay<{id:string;version:number;outcome:string}>(tx,idem);if(previous)return previous;
+/** Transaction-level master mutation shared by the HTTP adapter and staged imports. Caller authorizes and handles replay. */
+export async function mutateMasterTransaction(tx:Transaction,p:Principal,actorId:string,idem:string,kind:string,input:{id?:string;expectedVersion:number;reason:string;action:"save"|"delete"},parsed:Record<string,string|number|Date|boolean|null>|null){
+    const d=definition(kind);
     await lockEligibility(tx);
     const before=input.id?await scopedRecord(tx,p,kind,input.id):null;
     if(before)versionMatches(Number(before.version),input.expectedVersion);else versionMatches(0,input.expectedVersion);
@@ -142,5 +138,15 @@ export async function mutateMaster(db:PrismaClient,actorId:string,kind:string,ke
     await tx.auditLog.create({data:{actorId,action:`MASTER_${outcome.toUpperCase()}`,entityType:d.table,entityId:id,idempotencyId:idem,reason:input.reason.trim(),before:before?serialize(before):Prisma.JsonNull,after:serialize(data)}});
     if(kind==="branches")await tx.eligibilityGuard.update({where:{key:"GLOBAL"},data:{version:{increment:1}}});
     return {id,version,outcome};
+}
+export const validateMasterValues=(kind:string,raw:unknown)=>validate(kind,raw);
+export async function mutateMaster(db:PrismaClient,actorId:string,kind:string,key:string,input:{id?:string;expectedVersion:number;reason:string;action:"save"|"delete";values?:unknown}){
+  definition(kind);requireCondition(input&&["save","delete"].includes(input.action)&&Number.isInteger(input.expectedVersion)&&input.expectedVersion>=0&&typeof input.reason==="string"&&input.reason.trim().length>=3&&input.reason.length<=500,"INVALID_INPUT","กรุณาระบุเหตุผลอย่างน้อย ๓ ตัวอักษรและข้อมูลรุ่นให้ถูกต้อง");
+  const parsed=input.action==="save"?validate(kind,input.values):null;
+  try{return await guardedWrite(db,actorId,`master.${kind}`,key,input,async(tx,idem)=>{
+    const p=await principal(tx,actorId);requireCapability(p,`master.${kind}.${input.action==="delete"?"delete":"write"}`);
+    requireCondition(p.global||!!input.id,"FORBIDDEN","ต้องมีสิทธิ์ส่วนกลางในการเพิ่มข้อมูล");
+    const previous=await replay<{id:string;version:number;outcome:string}>(tx,idem);if(previous)return previous;
+    return mutateMasterTransaction(tx,p,actorId,idem,kind,input,parsed);
   });}catch(error){if(error instanceof Prisma.PrismaClientKnownRequestError&&(error.code==="P2002"||JSON.stringify(error.meta).includes("1062")))throw new DomainError("DUPLICATE_MASTER","รหัส หรือทะเบียนรถและจังหวัดนี้มีอยู่แล้ว กรุณาตรวจสอบรายการเดิม");throw error;}
 }

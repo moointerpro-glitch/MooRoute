@@ -19,6 +19,7 @@ export const transitionMatrix: Record<string, Transition> = {
   reject: { from: ["PENDING_REVIEW"], to: "REJECTED", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "Reason" },
   assign: { from: ["PENDING_REVIEW"], to: "ASSIGNED", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "Current published outbound trip visiting the destination, before cutoff, compatible known capacity; sender/recipient/transport snapshots frozen" },
   reassign: { from: ["ASSIGNED", "WAREHOUSE_RECEIVED"], to: "(unchanged)", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "No loading, departure or receipt evidence; packages with sender or warehouse; eligible target; labels revoked; reason" },
+  correctAddress: { from: ["ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED"], to: "(unchanged)", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "No departure recorded; same trip and stop; sender/recipient snapshots re-frozen from current master data; previous labels revoked; reason" },
   cancelAssigned: { from: ["ASSIGNED", "WAREHOUSE_RECEIVED"], to: "CANCELLED", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "Not loaded; labels revoked; package custody retained; reason" },
   warehouseReceive: { from: ["ASSIGNED"], to: "WAREHOUSE_RECEIVED", actors: [{ capability: "consignment.warehouse", scope: "SOURCE_WAREHOUSE" }], prerequisites: "Every package handed over by the sender" },
   load: { from: ["WAREHOUSE_RECEIVED"], to: "LOADED", actors: [{ capability: "consignment.load", scope: "SOURCE_WAREHOUSE" }], prerequisites: "Assignment on the current published, non-cancelled trip revision; every package in warehouse custody" },
@@ -57,7 +58,7 @@ export function requireTransition(action: string, status: string) {
 }
 export const actionLabels: Record<string, string> = {
   saveDraft: "บันทึกฉบับร่าง", submit: "ส่งคำขอ", cancelRequest: "ยกเลิกคำขอ", reject: "ไม่อนุมัติ", assign: "จัดรถ", reassign: "ย้ายรอบรถ",
-  cancelAssigned: "ยกเลิกรายการที่จัดรถแล้ว", warehouseReceive: "บันทึกคลังรับของ", load: "บันทึกขึ้นรถ", depart: "บันทึกรถออก", receive: "บันทึกรับของ",
+  correctAddress: "แก้ไขที่อยู่บนฉลาก", cancelAssigned: "ยกเลิกรายการที่จัดรถแล้ว", warehouseReceive: "บันทึกคลังรับของ", load: "บันทึกขึ้นรถ", depart: "บันทึกรถออก", receive: "บันทึกรับของ",
   correctiveReceive: "บันทึกรับของก่อนรถออก", reportIssue: "แจ้งปัญหา", recordReturn: "บันทึกส่งคืน", resolveIssue: "ปิดปัญหา", close: "ปิดงาน",
 };
 

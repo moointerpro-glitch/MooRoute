@@ -143,3 +143,16 @@ Status: Proposed (implemented under the explicit Phase 6 request; operational ow
 - Warehouse and department become versioned master screens. They were needed to enter source warehouses and requester departments; the generic masters service and audit are reused.
 - Backup finding: dumps of the existing history triggers need the documented normalization on restore. A permanent fix (migration or restore tooling) belongs to Phase 8 release work.
 - Migration impact: additive migration 005 applied to moointer_dev after a verified backup (restore rehearsed into a disposable schema); runtime grants extended with INSERT on ledgers and UPDATE only on Consignment/ConsignmentPackage; no DELETE on history.
+
+## D211 — Phase 7 labels, QR, manifests and imports (2026-10-06)
+
+Status: Proposed (implemented under the explicit Phase 7 request).
+
+- One current label version per consignment, numbered across its assignments. Issue is blocked while the branch master differs from the frozen snapshot; the dispatcher's address correction re-freezes the snapshot and revokes earlier versions.
+- QR content is only the lookup URL with a random opaque token and the package sequence. Lookup needs a session and the consignment row policy.
+- Reprints require a reason. Revoked versions cannot be rendered or printed.
+- Label formats: A4 with four 105 × 148.5 mm labels, and 100 × 150 mm. Addresses above 300 characters block a production label instead of shrinking text. Printer margins and QR size still need a test on the real printer (D106).
+- Dependencies: qrcode-generator 2.0.4 (runtime) and jsqr 1.4.0 (tests). XLSX is read by a small in-repo reader instead of the npm xlsx package, whose registry version is outdated.
+- Imports: approved fields only, 500 rows per file, staged then committed in one transaction, same file + edition = same batch. Contact name and phone are required for imported branches, matching the branch master form.
+- Schedule import creates recurring templates (not dated trips); repeated category pages merge into one template per code; unknown times and vehicles stay null.
+- Affected: migration 006, role capabilities, grants (INSERT on label tables, INSERT/UPDATE on import tables), print CSS, docs.

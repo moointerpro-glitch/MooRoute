@@ -1,5 +1,20 @@
 # API and operator contracts
 
+## Phase 7 implemented label, manifest and import routes
+
+All routes derive the actor from the verified session. Mutations need the exact Origin and an `Idempotency-Key`. Rules and actors are in [PHASE7_DESIGN.md](PHASE7_DESIGN.md).
+
+| Route | Contract |
+| --- | --- |
+| `POST /api/labels` | `{action,input}`: `issue` {consignmentId, expectedVersion} → {labelVersionId, number, version}; `print` {labelVersionId, format A4_4UP or STICKER_100X150, copies 1–20, reason (required on reprint)} → {printEventId, reprint}; `correctAddress` {id, expectedVersion, reason} → {id, status, version}. Codes: LABEL_INCOMPLETE, ADDRESS_CHANGED, LABEL_EXISTS, LABEL_REVOKED, ASSIGNMENT_STALE (400), FORBIDDEN (403), VERSION_CONFLICT (409) |
+| `GET /api/labels/lookup?code=` | Scanned URL, path or token. Returns {state CURRENT or REVOKED, number, revokedAt, revocationReason, replacement, consignment, package}. 401 without a session, 403 outside the consignment scope, 404 for unknown tokens |
+| `POST /api/imports` | Multipart `kind`, `edition` (3–100 chars), `file` (CSV or XLSX, ≤2 MB, ≤500 rows). Returns {batchId, existing, status, version, summary}. PDF/JPG/PNG → REFERENCE_ONLY (400) |
+| `GET /api/imports/[id]` | Batch detail with headers, mapping, summary and every row: raw cells, parsed values, errors, notes, duplicate, action, decision, resolvedEntityId |
+| `POST /api/imports/[id]` | `remap` {expectedVersion, mapping}; `decide` {expectedVersion, rowNumbers, decision UPDATE, SKIP or null}; `commit` {expectedVersion}; `reject` {expectedVersion, reason}. Codes: IMPORT_HAS_ERRORS, IMPORT_ROW_FAILED, INVALID_MAPPING, IMPORT_CLOSED, IMPORT_KIND_MISMATCH (400) |
+| `GET /api/imports/template?kind=&format=csv|xlsx` | Header-only template for a kind the actor may import |
+
+Pages: `/consignments/[id]/labels` (versions, print history, issue, address correction), `/print/labels/[labelVersionId]?format=` (actual-size print; revoked versions show no label), `/print/sample/[consignmentId]` (watermarked sample), `/print/manifest/[tripId]`, `/l/[token]?p=` (QR landing; redirects to login with a safe `next`), `/admin/imports` and `/admin/imports/[id]`.
+
 ## Phase 6 implemented consignment routes
 
 All routes derive the actor from the verified session and re-authorize in the service. Responses are `no-store`, and errors use the shared Thai contract. The state machine and actors are in [PHASE6_DESIGN.md](PHASE6_DESIGN.md).

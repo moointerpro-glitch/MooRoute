@@ -6,12 +6,12 @@ import { requireCondition } from "../domain/errors";
 export const masterKinds = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories", "warehouses", "departments"] as const;
 export const rolePermissions: Record<string, string[]> = {
   REQUESTER: ["trip.read", "consignment.create", "consignment.read", "master.branches.read"],
-  DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "consignment.read", "consignment.assign", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
-  WAREHOUSE: ["consignment.read", "consignment.warehouse", "consignment.load", "master.consignment-categories.read"],
-  DRIVER: ["trip.read", "trip.move", "consignment.read", "master.drivers.read"],
+  DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "consignment.read", "consignment.assign", "label.issue", "label.print", "manifest.read", "import.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
+  WAREHOUSE: ["consignment.read", "consignment.warehouse", "consignment.load", "label.issue", "label.print", "manifest.read", "master.consignment-categories.read"],
+  DRIVER: ["trip.read", "trip.move", "consignment.read", "manifest.read", "master.drivers.read"],
   BRANCH_RECEIVER: ["trip.read", "consignment.read", "consignment.receive", "master.branches.read"],
-  SUPERVISOR: ["plan.read", "trip.read", "plan.publish", "consignment.read", "consignment.correct", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
-  ADMINISTRATOR: ["identity.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.write`,`master.${k}.delete`,`master.${k}.export`])],
+  SUPERVISOR: ["plan.read", "trip.read", "plan.publish", "consignment.read", "consignment.correct", "label.print", "manifest.read", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
+  ADMINISTRATOR: ["identity.manage", "import.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.write`,`master.${k}.delete`,`master.${k}.export`])],
 };
 export async function installRoles(db: PrismaClient) {
   const names:Record<string,string>={REQUESTER:"ผู้ฝากส่ง",DISPATCHER:"ผู้จัดรถ",WAREHOUSE:"เจ้าหน้าที่คลัง",DRIVER:"พนักงานขับรถ",BRANCH_RECEIVER:"ผู้รับประจำสาขา",SUPERVISOR:"หัวหน้างาน",ADMINISTRATOR:"ผู้ดูแลระบบ"};

@@ -34,7 +34,8 @@
     "auth:account:local": "node --conditions=react-server --import tsx scripts/account-local.ts",
     "test:planning:e2e": "node --import tsx scripts/run-integration.ts --planning-browser",
     "test:search:e2e": "node --import tsx scripts/run-integration.ts --search-browser",
-    "test:consignment:e2e": "node --import tsx scripts/run-integration.ts --consignment-browser"
+    "test:consignment:e2e": "node --import tsx scripts/run-integration.ts --consignment-browser",
+    "test:labels:e2e": "node --import tsx scripts/run-integration.ts --labels-browser"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "5.3.0",
@@ -44,6 +45,7 @@
     "dotenv": "17.2.3",
     "lucide-react": "1.52.0",
     "next": "16.3.8",
+    "qrcode-generator": "2.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1"
@@ -57,6 +59,7 @@
     "@types/react-dom": "19.3.0",
     "eslint": "10.12.0",
     "eslint-plugin-react-hooks": "7.1.1",
+    "jsqr": "1.4.0",
     "prisma": "7.10.0",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",

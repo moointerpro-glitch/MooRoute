@@ -84,7 +84,8 @@ export default async function ConsignmentPage({ params, searchParams }: { params
             {r.branch && <p className="small">ที่อยู่ ณ เวลาจัดรถ: {[r.branch.name, r.branch.addressLine, r.branch.subdistrict, r.branch.district, r.branch.province, r.branch.postalCode].join(" ")}</p>}
             {a.labels.length > 0 && <p className="small">ฉลาก: {a.labels.map((l) => `ฉบับที่ ${l.number}${l.revoked ? " (ยกเลิกแล้ว)" : ""}`).join(", ")}</p>}
           </li>; })}</ol>
-          <p className="muted small">การพิมพ์ฉลากและใบคุมรถจะเปิดใช้ในขั้นถัดไป เมื่อย้ายรอบรถ ฉลากเดิมจะถูกยกเลิกโดยอัตโนมัติ</p>
+          <p className="muted small">เมื่อย้ายรอบรถ เปลี่ยนรถ หรือแก้ไขที่อยู่ ฉลากเดิมจะถูกยกเลิกโดยอัตโนมัติและต้องออกฉบับใหม่</p>
+          <div className="form-actions"><Link className="secondary-button" href={`/consignments/${d.id}/labels`}>ฉลากหีบห่อและประวัติการพิมพ์</Link>{current && <Link className="secondary-button" href={`/print/manifest/${encodeURIComponent(current.tripId)}`}>ใบคุมรถของรอบนี้</Link>}</div>
         </section>}
         <section className="detail-card" aria-labelledby="files-title"><h2 id="files-title"><FileText size={19} aria-hidden="true" />เอกสารแนบ</h2>
           {d.attachments.length ? <ul className="attachment-list">{d.attachments.map((a) => <li key={a.id}><a href={`/api/attachments/${a.id}`}>{a.name}</a> <span className="muted small">{Math.ceil(a.size / 1024).toLocaleString("th-TH")} KB · {a.uploader}</span></li>)}</ul> : <p className="muted">ไม่มีเอกสารแนบ</p>}

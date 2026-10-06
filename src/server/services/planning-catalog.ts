@@ -15,11 +15,21 @@ function identity(i:IdentityInput){
   const from=serviceDate(i.effectiveFrom),to=i.effectiveTo===null?null:serviceDate(i.effectiveTo);
   requireCondition(!to||to>=from,"INVALID_DATE","วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น");return {from,to};
 }
-export async function saveRoute(db:PrismaClient,actorId:string,key:string,i:RouteInput){
-  const {from,to}=identity(i);
+/** Shape and rule validation shared by the HTTP adapter and staged imports. */
+export function validateRouteInput(i:RouteInput){
+  identity(i);
   requireCondition(typeof i.name==="string"&&i.name.trim().length>0&&i.name.length<=191&&Array.isArray(i.branchIds)&&i.branchIds.length>0&&i.branchIds.length<=100&&i.branchIds.every(id=>typeof id==="string"),"INVALID_INPUT","กรุณาระบุชื่อและจุดส่งตามลำดับ");
+}
+export async function saveRoute(db:PrismaClient,actorId:string,key:string,i:RouteInput){
+  validateRouteInput(i);
   return guardedWrite(db,actorId,"route.save",key,i,async(tx,idem)=>{
     await authorize(tx,actorId,"route.write");const prior=await replay<{id:string;revisionId:string;version:number}>(tx,idem);if(prior)return prior;
+    return saveRouteTransaction(tx,actorId,idem,i);
+  });
+}
+/** Transaction-level route revision. Caller authorizes, handles replay and has validated the input. */
+export async function saveRouteTransaction(tx:Transaction,actorId:string,idem:string,i:RouteInput){
+    const {from,to}=identity(i);
     await lockEligibility(tx);const old=await tx.route.findUnique({where:{id:i.id}});versionMatches(old?.version??0,i.expectedVersion);
     requireCondition(!old||old.code===i.code,"IMMUTABLE_CODE","รหัสเส้นทางเดิมไม่สามารถเปลี่ยนได้");
     requireCondition(!(await tx.route.findFirst({where:{code:i.code,id:{not:i.id}}})),"DUPLICATE_MASTER","รหัสเส้นทางนี้มีอยู่แล้ว");
@@ -29,17 +39,26 @@ export async function saveRoute(db:PrismaClient,actorId:string,key:string,i:Rout
     const revision=await tx.routeRevision.create({data:{routeId:route.id,number:(max._max.number??0)+1,name:i.name,effectiveFrom:from,effectiveTo:to,createdById:actorId}});
     for(const [n,branchId]of i.branchIds.entries())await tx.routeStop.create({data:{routeRevisionId:revision.id,branchId,sequence:n+1}});
     const result={id:route.id,revisionId:revision.id,version:route.version};await tx.auditLog.create({data:{actorId,action:"ROUTE_REVISED",entityType:"Route",entityId:route.id,idempotencyId:idem,reason:i.reason,before:{version:old?.version??0},after:{...result,name:i.name,branchIds:i.branchIds,active:i.active}}});return result;
-  });
 }
-export async function saveTemplate(db:PrismaClient,actorId:string,key:string,i:TemplateInput){
-  const {from,to}=identity(i);
+/** Shape and rule validation shared by the HTTP adapter and staged imports. */
+export function validateTemplateInput(i:TemplateInput){
+  identity(i);
   requireCondition(typeof i.routeRevisionId==="string"&&(i.vehicleId===null||typeof i.vehicleId==="string")&&(i.driverId===null||typeof i.driverId==="string"),"INVALID_INPUT","รหัสเส้นทาง รถ หรือพนักงานขับรถไม่ถูกต้อง");
   requireCondition(["BRANCH_DELIVERY","INBOUND_DC","VAN_SALES"].includes(i.kind)&&[1,2,3].includes(i.roundNo)&&Array.isArray(i.weekdays)&&i.weekdays.length>0&&i.weekdays.every(d=>Number.isInteger(d)&&d>=1&&d<=7)&&new Set(i.weekdays).size===i.weekdays.length,"INVALID_INPUT","ประเภทเที่ยว รอบ หรือวันประจำสัปดาห์ไม่ถูกต้อง");
   requireCondition([i.loadingMinute,i.departureMinute,i.arrivalMinute].every(n=>n===null||(Number.isInteger(n)&&n>=0&&n<=1439))&&[i.occupancyStartMinute,i.occupancyEndMinute].every(n=>n===null||(Number.isInteger(n)&&n>=0&&n<=4319))&&Number.isInteger(i.arrivalDayOffset)&&i.arrivalDayOffset>=0&&i.arrivalDayOffset<=2&&Number.isInteger(i.bufferMinutes)&&i.bufferMinutes>=0&&i.bufferMinutes<=1440,"INVALID_TIME","เวลาของแม่แบบไม่ถูกต้อง");
   requireCondition((i.loadingMinute===null||i.departureMinute===null||i.loadingMinute<=i.departureMinute)&&(i.departureMinute===null||i.arrivalMinute===null||i.departureMinute<=i.arrivalMinute+i.arrivalDayOffset*1440)&&(i.occupancyStartMinute===null||i.occupancyEndMinute===null||i.occupancyStartMinute<i.occupancyEndMinute),"INVALID_TIME_ORDER","ลำดับเวลาของแม่แบบไม่ถูกต้อง");
   requireCondition((i.notes===null||(typeof i.notes==="string"&&i.notes.length<=2000))&&Array.isArray(i.categories)&&i.categories.length<=100&&i.categories.every(c=>c&&typeof c.routeStopId==="string"&&Array.isArray(c.categoryIds)&&c.categoryIds.length<=100&&c.categoryIds.every(id=>typeof id==="string")&&new Set(c.categoryIds).size===c.categoryIds.length)&&new Set(i.categories.map(c=>c.routeStopId)).size===i.categories.length,"INVALID_INPUT","ข้อมูลหมวดสินค้าหรือหมายเหตุไม่ถูกต้อง");
+}
+export async function saveTemplate(db:PrismaClient,actorId:string,key:string,i:TemplateInput){
+  validateTemplateInput(i);
   return guardedWrite(db,actorId,"template.save",key,i,async(tx,idem)=>{
     await authorize(tx,actorId,"template.write");const prior=await replay<{id:string;revisionId:string;version:number}>(tx,idem);if(prior)return prior;
+    return saveTemplateTransaction(tx,actorId,idem,i);
+  });
+}
+/** Transaction-level template revision. Caller authorizes, handles replay and has validated the input. */
+export async function saveTemplateTransaction(tx:Transaction,actorId:string,idem:string,i:TemplateInput){
+    const {from,to}=identity(i);
     await lockEligibility(tx);const old=await tx.scheduleTemplate.findUnique({where:{id:i.id}});versionMatches(old?.version??0,i.expectedVersion);
     requireCondition(!old||old.code===i.code,"IMMUTABLE_CODE","รหัสแม่แบบเดิมไม่สามารถเปลี่ยนได้");
     requireCondition(!(await tx.scheduleTemplate.findFirst({where:{code:i.code,id:{not:i.id}}})),"DUPLICATE_MASTER","รหัสแม่แบบนี้มีอยู่แล้ว");
@@ -54,7 +73,6 @@ export async function saveTemplate(db:PrismaClient,actorId:string,key:string,i:T
     for(const weekday of i.weekdays)await tx.templateWeekday.create({data:{templateRevisionId:revision.id,weekday}});
     for(const c of i.categories)for(const categoryId of c.categoryIds)await tx.templateStopCategory.create({data:{templateRevisionId:revision.id,routeStopId:c.routeStopId,categoryId}});
     const result={id:t.id,revisionId:revision.id,version:t.version};await tx.auditLog.create({data:{actorId,action:"TEMPLATE_REVISED",entityType:"ScheduleTemplate",entityId:t.id,idempotencyId:idem,reason:i.reason,before:{version:old?.version??0},after:{...result,active:i.active}}});return result;
-  });
 }
 export async function draftTrips(tx:Transaction,revisionId:string):Promise<DraftTrip[]>{
   const trips=await tx.tripRevision.findMany({where:{planRevisionId:revisionId},include:{trip:true,tripStop_tripRevisionId:{orderBy:{sequence:"asc"},include:{tripStopCategory_stopId:true}}},orderBy:{trip:{code:"asc"}}});

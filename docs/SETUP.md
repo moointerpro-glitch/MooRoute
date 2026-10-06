@@ -29,11 +29,12 @@ npm run test:integration
 npm run test:planning:e2e
 npm run test:search:e2e
 npm run test:consignment:e2e
+npm run test:labels:e2e
 npm run test:auth:e2e
 npm run test:e2e
 ```
 
-Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. All authenticated browser runners (auth, planning, search, consignment) create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
+Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. All authenticated browser runners (auth, planning, search, consignment, labels) create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
 
 ## Phase 3 local authentication and masters
 
@@ -177,3 +178,10 @@ No operational tables, seed or applied migrations exist in Phase 1. Schema desig
 2. Run `npm run db:migrate:local` (applies migration 005) and then `npm run auth:setup:local` (safe rerun: installs warehouse/department master capabilities and the new INSERT/UPDATE grants; no DELETE on history).
 3. As the administrator, create at least one คลังต้นทาง (warehouse) and one แผนก (department) under จัดการหลังบ้าน. Then create a requester with `{"action":"create","email":"requester@example.test","name":"ผู้ฝากส่ง","role":"REQUESTER","scope":"DEPARTMENT","scopeId":"<department id>"}`, and similarly WAREHOUSE (scope WAREHOUSE), BRANCH_RECEIVER (scope BRANCH) and DRIVER (scope DRIVER) accounts as needed.
 4. Attachments are stored in `UPLOAD_DIR` (default `.local/uploads`, ignored). Browser tests use `.local/uploads-e2e`.
+
+## Phase 7 labels and imports (local)
+
+1. Back up, then run `npm run db:migrate:local` (migration 006) and `npm run auth:setup:local` (new label/manifest/import capabilities and grants).
+2. Printing: open a consignment, choose ฉลากหีบห่อ, issue the label and print. Set the printer to actual size (100%) with no margins. A4 holds four labels; the sticker format is 100 × 150 mm. Margins and QR size must be checked on the real printer before production use.
+3. The QR points to `BETTER_AUTH_URL`/l/<token>. Use the address that scanning devices can reach when a non-local environment is configured.
+4. Imports: จัดการหลังบ้าน → นำเข้าข้อมูล. Download the template, fill it from the reviewed source, upload, fix or skip flagged rows, then commit. PDFs and images are not read.

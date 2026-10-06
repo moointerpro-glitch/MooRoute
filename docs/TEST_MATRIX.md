@@ -13,17 +13,17 @@ Passed for search/detail/directory/planner/masters/consignment screens; print sc
 | T10 | Idempotency | Same key/payload replays once; same key/different payload conflicts; no duplicate events. | Passed (Phase 2; Phase 6 duplicate submission replay) |
 | T11 | Master constraints | Duplicate plate/province and branch code fail; referenced rows cannot be destructively deleted. | Passed (Phase 2/3 schema and master workflows) |
 | T12 | Versions | Stale edit conflicts; template change leaves past data intact; concurrent publication preserves valid revision. | Passed (Phase 2) |
-| T13 | Authorization | Wrong branch/role cannot list, read, mutate, export, print, scan or download restricted data. | Passed for Phase 3–6 endpoints incl. consignment list/detail/export/files/actions; print/QR pending Phase 7 |
+| T13 | Authorization | Wrong branch/role cannot list, read, mutate, export, print, scan or download restricted data. | Passed for Phase 3–7 endpoints incl. labels, QR lookup, print, manifest and imports |
 | T14 | Consignment flow | A permitted marketing shipment moves from draft through assignment, loading, transit and complete receipt. | Passed (Phase 6 service and browser flow) |
 | T15 | Partial and exceptions | Partial receipt stays open; premature receipt fails; discrepancy/return resolution preserves event history. | Passed (Phase 6) |
-| T16 | Print integrity | A4 and 100 x 150 mm long Thai addresses fit; 3 packages produce 1/3, 2/3, 3/3; missing address blocks issue. | Not run |
-| T17 | Label lifecycle | Vehicle/address/trip changes revoke old label; QR checks current version; reprint does not duplicate records. | Not run |
-| T18 | Files and snapshots | Private files remain scoped; invalid uploads fail; branch edits do not change historical snapshots. | Passed for files and snapshots (Phase 6); label/print parts pending Phase 7 |
-| T19 | Thai and responsive UI | All screens/states are Thai; keyboard navigation and 1440/768/390 px views are usable. | Passed for search/detail/directory/planner/masters/consignment screens; print screens pending |
+| T16 | Print integrity | A4 and 100 x 150 mm long Thai addresses fit; 3 packages produce 1/3, 2/3, 3/3; missing address blocks issue. | Passed (Phase 7: A4 and 100 × 150 mm at actual size, long Thai address, 1/3–3/3, incomplete address blocked) |
+| T17 | Label lifecycle | Vehicle/address/trip changes revoke old label; QR checks current version; reprint does not duplicate records. | Passed (Phase 7: reassignment, vehicle change and address correction revoke; QR lookup; reprint adds no records) |
+| T18 | Files and snapshots | Private files remain scoped; invalid uploads fail; branch edits do not change historical snapshots. | Passed (Phase 6 files and snapshots; Phase 7 label payloads immutable) |
+| T19 | Thai and responsive UI | All screens/states are Thai; keyboard navigation and 1440/768/390 px views are usable. | Passed for all implemented screens incl. label, print preview and import screens |
 | T20 | Search truth | Counts/sort/pagination follow the same filters; no fixed count 41 or invented contact details. | Passed (Phase 5) |
 | T21 | Generation | Repeated daily generation is idempotent; missing operational time data remains draft and visible. | Passed Phase 4, including different-key and concurrent generation |
-| T22 | Import validation | Invalid staged rows produce precise errors; no partial silent commit; repeated batch does not duplicate. | Not run |
-| T23 | Source provenance | Repeated PDF category pages do not become 123 trips; different source dates and ambiguity are preserved. | Not run |
+| T22 | Import validation | Invalid staged rows produce precise errors; no partial silent commit; repeated batch does not duplicate. | Passed (Phase 7) |
+| T23 | Source provenance | Repeated PDF category pages do not become 123 trips; different source dates and ambiguity are preserved. | Passed (Phase 7 schedule import with synthetic category pages; no real source sheet imported) |
 | T24 | Release and recovery | Build/checks run; measured load test documented; disposable backup restores; secrets absent from logs/repo. | Not run |
 
 ## Phase 2 evidence — 2026-10-06
@@ -45,3 +45,7 @@ Passed for search/detail/directory/planner/masters/consignment screens; print sc
 ## Phase 6 evidence — 2026-10-06
 
 [Consignment verification](evidence/phase-6/VERIFICATION.md): 4 new real MySQL integration tests (33 total), 5 consignment browser tests, 19 unit tests; regression shell 5, auth 4, planning 2, search 6 browser tests pass.
+
+## Phase 7 evidence — 2026-10-06
+
+[Label, print and import verification](evidence/phase-7/VERIFICATION.md): 3 new real MySQL integration tests (36 total), 6 label/import browser tests, 24 unit tests; regression consignment 5, search 6, planning 2, auth 4 and shell 5 browser tests pass.

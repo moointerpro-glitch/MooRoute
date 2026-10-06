@@ -2,18 +2,18 @@
 
 ## Current state — 2026-10-06
 
-Phase 6 (consignments, tracking, branch receipts) was explicitly requested and is complete locally. Respond in Thai; technical docs and identifiers in English, UI in Thai. No Phase 7 work or deployment is authorized. Phase 5 is committed as `34bf57b`; Phase 6 changes are uncommitted for review.
+Phase 7 (labels, manifests, controlled imports) was explicitly requested and is complete locally. Respond in Thai; technical docs and identifiers in English, UI and print content in Thai. No Phase 8 work or deployment is authorized. Phase 6 is committed as `16845c5`; Phase 7 changes are uncommitted for review.
 
-Implemented: migration `202610060005_consignments` (request fields, resumeStatus, ReturnLine, REJECTED/ISSUE_RESOLVED events, request-freeze trigger, Warehouse/Department versions, MARKETING/DOCUMENT/EQUIPMENT categories). Code: `src/server/domain/consignment.ts` (transition matrix), `domain/files.ts`, `services/consignments.ts`, updated `services/receipts.ts` and `auth/resource-policy.ts` (shared consignmentScope; drafts private), `storage/attachments.ts`, APIs under `/api/consignments` and `/api/attachments/[id]`, pages `/consign`, `/consignments`, `/consignments/[id]`, components `consign-form.tsx` and `consignment-actions.tsx`, and warehouse/department masters. Contracts: [API_CONTRACTS](API_CONTRACTS.md); design/matrix: [PHASE6_DESIGN](PHASE6_DESIGN.md); decisions D209–D210.
+Implemented: `domain/labels.ts`, `services/labels.ts` (issue, print/reprint, lookup, manifest), `correctAssignmentAddress` in `services/consignments.ts`, print pages under `/print`, QR landing `/l/[token]`, label page `/consignments/[id]/labels`, scan verification in the receipt panel; `domain/tabular.ts` (CSV + minimal XLSX), `domain/imports.ts`, `services/imports.ts`, `/admin/imports` pages and `/api/imports` routes. Master and route/template services now expose transaction-level functions used by imports. Design: [PHASE7_DESIGN](PHASE7_DESIGN.md); contracts: [API_CONTRACTS](API_CONTRACTS.md); decisions D209–D211.
 
-Database: MySQL 8.4.11 on 127.0.0.1:3307, 53 models, five migrations, applied to moointer_dev after a backup in ignored `.local/backups/` (restore rehearsed into `moointer_test_run_restore104834`). `auth:setup:local` re-run: new master capabilities and INSERT/UPDATE grants; no DELETE on history. The dev DB still has no warehouses, departments or published plans: an administrator must add a คลังต้นทาง and แผนก, then the CLI can create REQUESTER/WAREHOUSE/BRANCH_RECEIVER/DRIVER accounts (see SETUP). Uploads go to `.local/uploads` (`UPLOAD_DIR`). Never print credentials.
+Database: MySQL 8.4.11 on 127.0.0.1:3307, 53 models, six migrations, applied to moointer_dev after a backup in ignored `.local/backups/` (restore rehearsed). `auth:setup:local` re-run for new capabilities and grants. The dev database still has no warehouses, departments or published plans. Never print credentials.
 
-Verified: lint, typecheck, build, prisma validate; 19 unit, 33 integration (real MySQL), 5 consignment, 6 search, 2 planning, 4 auth and 5 shell browser tests; audit zero; secret scan zero hits. Evidence and the ten corrected failures: [evidence/phase-6](evidence/phase-6/VERIFICATION.md). Preview http://127.0.0.1:3010 runs the new build.
+Verified: lint, typecheck, build, prisma validate; 24 unit, 36 integration (real MySQL), 6 label/import, 5 consignment, 6 search, 2 planning, 4 auth and 5 shell browser tests; audit zero; secret scan zero hits. Evidence, print files and corrected failures: [evidence/phase-7](evidence/phase-7/VERIFICATION.md). Preview http://127.0.0.1:3010 runs the new build.
 
-Known limitations: cutoff lead (default 0 minutes) and KG-only package weights are proposed values. A mysqldump of the history triggers needs the documented normalization to restore (Phase 8). There is no malware scanning or retention policy for uploads. Label issue/print/QR/manifests are Phase 7.
+Known limitations: nothing was printed on a physical printer or scanned with a real device. XLSX reading is first-sheet text/numbers only. Imports cover branches, vehicles and schedule templates, 500 rows per file. Proposed operational values (D209–D211: visibility, cutoff lead, weight unit, label formats) await owner confirmation. mysqldump restores need the trigger normalization documented in SETUP (Phase 8).
 
 ## Next three actions
 
-1. Review and commit the Phase 6 changes.
-2. Confirm D209/D210 with the operating owner: cutoff rule, weight/capacity units, department-wide visibility and contact display.
-3. On an explicit Phase 7 request, implement label versions, A4 and 100×150 mm print layouts, QR lookup and manifests on the existing assignment snapshots and revocation.
+1. Review and commit the Phase 7 changes.
+2. Print both label formats and the manifest on the real printer, scan the QR with the devices staff will use, and confirm D209–D211 with the operating owner.
+3. On an explicit Phase 8 request, run the full T01–T24 matrix against a staging-like configuration, fix the backup-restore issue, load-test search and write OPERATIONS.md and RELEASE_CHECKLIST.md.

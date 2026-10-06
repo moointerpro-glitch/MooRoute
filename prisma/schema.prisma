@@ -827,6 +827,15 @@ model ImportBatch {
   committedAt DateTime? @db.DateTime(3)
   createdBy User @relation("ImportBatch_createdById", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
   importRow_batchId ImportRow[] @relation("ImportRow_batchId")
+  kind String @default("branches") @db.VarChar(32)
+  headers Json?
+  mapping Json?
+  summary Json?
+  rowCount Int @default(0)
+  rejectionReason String? @db.VarChar(500)
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @db.DateTime(3)
+  @@index([createdAt])
   @@unique([sourceHash, sourceEdition])
 }
 
@@ -839,6 +848,7 @@ model ImportRow {
   validation Json
   resolvedEntityId String? @db.VarChar(36)
   batch ImportBatch @relation("ImportRow_batchId", fields: [batchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  decision String? @db.VarChar(16)
   @@unique([batchId, rowNumber])
 }
 
