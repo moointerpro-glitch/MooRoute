@@ -1,6 +1,14 @@
 # Application architecture
 
-Implemented 2026-10-06. A modular monolith using the Next.js App Router, TypeScript, Tailwind CSS and Prisma's MySQL provider. Phase 1 provides the Thai shell; Phase 2 adds relational entities and tested server domain transactions; Phase 3 adds local-account authentication, persisted scope policies and Thai master administration. Daily planning/consignment operational screens remain later phases.
+Implemented 2026-10-06. A modular monolith using the Next.js App Router, TypeScript, Tailwind CSS and Prisma's MySQL provider. Phases 1–3 provide the shell, relational domain, real local authentication and scoped masters. Phase 4 adds route/template revision editors, idempotent generation and daily planning/publication. Consignment creation and public trip search remain later phases.
+
+## Phase 4 planning boundary
+
+`planning-catalog.ts` validates route/template aggregates, appends immutable revisions and generates stable per-template/day trips. `plans.ts` is the single validated candidate-save and publication implementation. `planning-reassignment.ts` moves only eligible pre-loading consignments inside the publication transaction. `planning-read.ts` returns consistent globally authorized preview/catalog/history snapshots. UI components do not write Prisma directly. The typed `/api/planning` adapter derives the actor from the real session and dispatches these services; action names never bypass service authorization.
+
+Lock order is idempotency -> global eligibility -> daily plan -> sorted vehicles -> sorted consignments. All current daily writers participate; master changes share the eligibility guard. Drafts do not reserve capacity or vehicles. Publication rechecks six-cell coverage, active references, departure/service date, occupancy, known capacity and half-open buffered vehicle intervals. Assignment and label changes roll back if any later check fails. Old published pointers and reservations remain until the complete replacement commits. Effective template changes affect only future generation attempts for trips that do not already exist.
+
+Migration 004 adds nullable planning metadata and VAN_SALES without modifying applied migrations. Runtime grants add INSERT-only history tables and narrowly scoped mutable planning/assignment pointers. No runtime migration privileges or DELETE on history are granted. See [reviewed field/transaction design](PHASE4_DESIGN.md) and [current contracts](API_CONTRACTS.md). Earlier phase notes below are retained as history.
 
 ## Phase 3 access and write boundary
 

@@ -16,7 +16,7 @@ export async function seedMasters(db: PrismaClient) {
     const actor = await tx.user.upsert({ where: { id: synthetic.actorId }, create: { id: synthetic.actorId, subject: "synthetic:operator", displayName: "ผู้ทดสอบ (ข้อมูลสังเคราะห์)" }, update: {} });
     const role = await tx.role.upsert({ where: { code: "SYNTHETIC_OPERATOR" }, create: { id: "synthetic-role", code: "SYNTHETIC_OPERATOR", name: "บทบาททดสอบ (ข้อมูลสังเคราะห์)" }, update: {} });
     await tx.userRole.upsert({ where: { userId_roleId: { userId: actor.id, roleId: role.id } }, create: { userId: actor.id, roleId: role.id }, update: {} });
-    for (const code of ["plan.write", "plan.publish", "master.write", "consignment.receive", "trip.read"]) {
+    for (const code of ["plan.read", "route.write", "template.write", "plan.write", "plan.publish", "master.write", "consignment.receive", "trip.read"]) {
       const permission = await tx.permission.upsert({ where: { code }, create: { code }, update: {} });
       await tx.rolePermission.upsert({ where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } }, create: { roleId: role.id, permissionId: permission.id }, update: {} });
     }

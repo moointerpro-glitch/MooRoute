@@ -1,15 +1,15 @@
 # Project progress
 
 Last updated: 2026-10-06
-State: Phases 1–3 implemented and verified locally; daily planning and consignment UI phases remain unimplemented.
-Active phase: none (Phase 3 complete). Phase 4 requires an explicit request.
+State: Phases 1–4 implemented and verified locally.
+Active phase: none (Phase 4 complete). No Phase 5 work or deployment authorized.
 
 | Phase | Status | Evidence |
 | --- | --- | --- |
 | 1 Foundation | Complete | [Verified shell, real MySQL and checks](evidence/phase-1/VERIFICATION.md) |
 | 2 Data and invariants | Complete | [48 models, two migrations, real MySQL invariants and 13 integration tests](evidence/phase-2/VERIFICATION.md) |
 | 3 Authentication and masters | Complete | [Real local authentication, scoped Thai masters and checks](evidence/phase-3/VERIFICATION.md) |
-| 4 Daily planning | Not started | None |
+| 4 Daily planning | Complete | [23 MySQL tests and planning browser evidence](evidence/phase-4/VERIFICATION.md) |
 | 5 Thai route search | Not started | None |
 | 6 Consignments | Not started | None |
 | 7 Printing and imports | Not started | None |
@@ -78,3 +78,11 @@ No Phase 3 local-environment blocker. Not run: company SSO/production deployment
 Affected paths: src/server/auth, services/masters.ts, prerequisite plan validation, master definitions, Thai login/admin components/pages and authenticated APIs; schema/migration 003; local auth/account/browser-fixture scripts; package/lock/config; permission matrix, schema/API/setup/architecture/decision/status docs; unit/integration/browser tests and six Phase 3 screenshots. Prior source work preserved, no deployment/reset or source import.
 
 Next three actions: (1) On a Phase 4 request, implement the dated planning UI using the existing guarded services. (2) Add audited assignment-aware revision/reassignment workflows without weakening coverage or history. (3) Extend T01–T03/T07–T08/T12/T21 and relevant authenticated UI checks; resolve operational time/buffer data before production use.
+
+## Phase 4 completed — 2026-10-06
+
+Route/ordered-stop and effective-template revision editors, idempotent generation, Thai daily planner and coverage matrix, add/edit/copy/reduce/merge/cancel/permitted draft removal, conflict/capacity/consignment preview, atomic publication/reassignment, label revocation and revision audit implemented. Historical stop names preserved. Migration 004 additive; no dependency changes or source-data invention. Separate local planning roles provisioned without escalating administrator. Latest local preview on 3010.
+
+Verified: lint/typecheck/build/schema/database; 8 unit, 23 real MySQL integration, 2 planning browser, 4 auth/master browser and 5 shell tests. Zero production audit findings; current generated-secret scan passed. Actual limited-runtime account smoke passed for both local roles. See [exact evidence and corrected failures](evidence/phase-4/VERIFICATION.md). No unresolved critical local Phase 4 defect. Not run: production/load/restore/SSO and later phase flows. In-motion reassignment remains blocked deliberately.
+
+Next three actions: review/commit the application checkpoint; implement Phase 5 only on explicit request; later connect consignment/label workflows to the guarded reassignment service and extend their scoped tests.

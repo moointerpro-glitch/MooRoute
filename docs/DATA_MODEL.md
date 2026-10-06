@@ -49,3 +49,7 @@ Define typed contracts for master CRUD, trip search/detail, coverage preview, pl
 Search input includes serviceDate, searchMode, branchId/query, selectedTimes or from/to, timeBasis, roundNumbers, categoryIds, page and sort. Return rows, total, matched stops and applied filters from a consistent predicate. Use an EXISTS condition over the same TripStop for branch/category matching. Add pagination limits and indexes driven by actual query plans.
 
 Default proposed uploads: JPG, PNG or PDF, maximum 10 MB each and five files per consignment, configurable. Check file signatures, size and authorization; sanitize display names; serve private authenticated downloads. Do not execute uploaded content. Record configurable retention and backup policies in the operations guide.
+
+## Phase 4 implementation supplement — 2026-10-06
+
+The 52-model schema is extended by additive migration 004. See [reviewed field dictionary, ER relationships and transaction decisions](PHASE4_DESIGN.md) and [actual MySQL evidence](evidence/phase-4/VERIFICATION.md). Existing history triggers, FK ownership and stable trip identities remain in force. No applied migration rewritten or database reset.

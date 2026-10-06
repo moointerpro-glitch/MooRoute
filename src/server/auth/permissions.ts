@@ -6,11 +6,11 @@ import { requireCondition } from "../domain/errors";
 export const masterKinds = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories"] as const;
 export const rolePermissions: Record<string, string[]> = {
   REQUESTER: ["trip.read", "consignment.create", "consignment.read", "master.branches.read"],
-  DISPATCHER: ["trip.read", "plan.write", "consignment.read", "consignment.assign", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
+  DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "consignment.read", "consignment.assign", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
   WAREHOUSE: ["consignment.read", "consignment.warehouse", "consignment.load", "master.consignment-categories.read"],
   DRIVER: ["trip.read", "trip.move", "consignment.read", "master.drivers.read"],
   BRANCH_RECEIVER: ["trip.read", "consignment.read", "consignment.receive", "master.branches.read"],
-  SUPERVISOR: ["trip.read", "plan.publish", "consignment.read", "consignment.correct", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
+  SUPERVISOR: ["plan.read", "trip.read", "plan.publish", "consignment.read", "consignment.correct", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
   ADMINISTRATOR: ["identity.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.write`,`master.${k}.delete`,`master.${k}.export`])],
 };
 export async function installRoles(db: PrismaClient) {

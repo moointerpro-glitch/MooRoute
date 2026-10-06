@@ -108,3 +108,13 @@ Use clearly labeled synthetic defaults in development and keep unverified operat
 - Migration impact: Both migrations applied forward to local development and disposable test databases; failed disposable attempts retained for inspection.
 
 For each new decision record: ID, date, status (Confirmed, Proposed or Superseded), question, choice, reason, source/owner, affected files and migration impact. Explicit user changes supersede older decisions; retain the old entry with its replacement reference.
+
+## D208 — Phase 4 planning and atomic reassignment (2026-10-06)
+
+Phase 4 explicitly authorized. Preserve stack, dependency pins, MySQL and applied migrations. Add migration 004 for VAN_SALES, nullable trip notes/load/unit and template vehicle/driver/occupancy/offset/buffer metadata. See [reviewed fields and ER](PHASE4_DESIGN.md).
+
+Route/template edits append immutable revisions; highest numbered effective revision wins generation. Deterministic template identity + service-date trip IDs prevent semantic duplicates. Generated trips retain source revisions. Daily edits append complete candidates with optimistic DailyPlan.version; never-published/unassigned draft removal preserves historical rows. Published/linked trips must be cancelled instead of omitted. No history DELETE granted.
+
+Supersede D205's temporary blanket reassignment block with explicit pre-loading reassignment inside publication. Require every linked consignment's expected version and destination-matching outbound target. Only ASSIGNED/WAREHOUSE_RECEIVED without loaded/departed/receipt evidence or vehicle/branch custody may move. New assignment/event/transport snapshot, label revocation, audit, reservations and publication commit together. Moving/completed records still block pending a later operational workflow. No invented mapping between consignment categories and product-coverage categories.
+
+Planning/catalog reads require plan.read + GLOBAL; dispatcher gets route/template/plan writes, supervisor publication including atomic reassignment approval. Administrator retains master/identity duties. Local setup creates separate secure planning accounts; reruns preserve passwords. Preview is advisory; publish rechecks under eligibility -> plan -> sorted vehicles -> sorted consignments. Known load/capacity units must match. Existing cancelled trips may retain archived references. Unknown facts stay null; no deployment or Phase 5 work.

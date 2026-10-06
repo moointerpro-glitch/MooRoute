@@ -23,8 +23,16 @@ try{
     await provisionAccount(db,{email,name:"ผู้ดูแลระบบพัฒนา",password,role:"ADMINISTRATOR",scope:"GLOBAL"});
     mkdirSync(".local/auth",{recursive:true});writeFileSync(".local/auth/admin-credentials.txt",`LOCAL DEVELOPMENT ONLY\nEmail: ${email}\nPassword: ${password}\n`,{flag:"wx"});
   }else if(!existsSync(".local/auth/admin-credentials.txt"))console.log("Existing administrator preserved. Use the documented local password recovery process if required.");
+  for(const [code,role,name] of [["dispatcher","DISPATCHER","ผู้จัดรถระบบพัฒนา"],["supervisor","SUPERVISOR","หัวหน้างานระบบพัฒนา"]]){
+    const email=`local.${code}@moointer.test`;
+    if(!await db.user.findUnique({where:{email}})){
+      const password=randomBytes(24).toString("base64url");
+      await provisionAccount(db,{email,name,password,role,scope:"GLOBAL"});
+      mkdirSync(".local/auth",{recursive:true});writeFileSync(`.local/auth/${code}-credentials.txt`,`LOCAL DEVELOPMENT ONLY\nEmail: ${email}\nPassword: ${password}\n`,{flag:"wx"});
+    }
+  }
   const mutable=["Vehicle","VehicleType","Driver","Branch","BranchAlias","ProductCategory","StorageCondition","ConsignmentCategory"];
-  const grants=[...mutable.map(t=>`GRANT INSERT, UPDATE, DELETE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["AuthSession","AuthRateLimit","AuthVerification"].map(t=>`GRANT INSERT, UPDATE, DELETE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),"GRANT UPDATE ON moointer_dev.AuthAccount TO 'moointer_app'@'127.0.0.1';","GRANT INSERT ON moointer_dev.AuditLog TO 'moointer_app'@'127.0.0.1';","GRANT INSERT, UPDATE ON moointer_dev.IdempotencyRecord TO 'moointer_app'@'127.0.0.1';","GRANT UPDATE ON moointer_dev.EligibilityGuard TO 'moointer_app'@'127.0.0.1';"];
+  const grants=[...["Route","ScheduleTemplate","DailyPlan","PlanRevision","Trip","VehicleReservation"].map(t=>`GRANT INSERT, UPDATE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["RouteRevision","RouteStop","TemplateRevision","TemplateWeekday","TemplateStopCategory","TripRevision","TripStop","TripStopCategory","PlanBranch","ConsignmentAssignment","ConsignmentEvent"].map(t=>`GRANT INSERT ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["Consignment","LabelVersion"].map(t=>`GRANT UPDATE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...mutable.map(t=>`GRANT INSERT, UPDATE, DELETE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["AuthSession","AuthRateLimit","AuthVerification"].map(t=>`GRANT INSERT, UPDATE, DELETE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),"GRANT UPDATE ON moointer_dev.AuthAccount TO 'moointer_app'@'127.0.0.1';","GRANT INSERT ON moointer_dev.AuditLog TO 'moointer_app'@'127.0.0.1';","GRANT INSERT, UPDATE ON moointer_dev.IdempotencyRecord TO 'moointer_app'@'127.0.0.1';","GRANT UPDATE ON moointer_dev.EligibilityGuard TO 'moointer_app'@'127.0.0.1';"];
   const result=spawnSync(resolve(".local/tools/mysql-8.4.11-winx64/bin/mysql.exe"),[`--defaults-file=${resolve(".local/mysql/root-client.ini")}`,"--batch"],{input:grants.join("\n"),encoding:"utf8"});if(result.status!==0)throw new Error("GRANT_FAILED");
-  console.log("PASS: secure local account and seven roles installed; scoped runtime grants applied. Credentials are only in ignored .local/auth/admin-credentials.txt. No signup or authentication bypass.");
+  console.log("PASS: secure local account and seven roles installed; scoped runtime grants applied. Credentials are only in ignored .local/auth/*-credentials.txt. No signup or authentication bypass.");
 }catch{console.error("AUTH_SETUP_FAILED (existing accounts and data retained)");process.exitCode=1;}finally{await db?.$disconnect();}

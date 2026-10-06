@@ -31,7 +31,8 @@
     "db:migrate:local": "node --import tsx scripts/migrate-local.ts",
     "auth:setup:local": "node --conditions=react-server --import tsx scripts/setup-auth.ts",
     "test:auth:e2e": "node --import tsx scripts/run-integration.ts --browser",
-    "auth:account:local": "node --conditions=react-server --import tsx scripts/account-local.ts"
+    "auth:account:local": "node --conditions=react-server --import tsx scripts/account-local.ts",
+    "test:planning:e2e": "node --import tsx scripts/run-integration.ts --planning-browser"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "5.3.0",

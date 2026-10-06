@@ -1,15 +1,15 @@
-# Actual Phase 3 permission matrix
+# Actual Phase 4 permission matrix
 
 Implemented 2026-10-06. `src/server/auth/permissions.ts` seeds explicit role/capability links; server transactions resolve these links on each operation. Roles never imply a bypass. An administrator has master/identity privileges, not automatic planning, movement or receipt privileges. No self-signup or web role-edit endpoint exists.
 
 | Role | Implemented master access | Operational capabilities prepared for domain services | Row scope |
 | --- | --- | --- | --- |
 | REQUESTER | Branch read | trip.read; consignment.create/read | Explicit branches for branch lists; own or assigned department consignments |
-| DISPATCHER | All master read/export | trip.read; plan.write; consignment.read/assign | Explicit operational scope; current all-day plan writer requires GLOBAL |
+| DISPATCHER | All master read/export | trip.read; plan.read/write; route.write; template.write; consignment.read/assign | GLOBAL required for all planning/catalog reads and writes |
 | WAREHOUSE | Consignment-category read | consignment.read/warehouse/load | Assigned source warehouse |
 | DRIVER | Own driver profile read | trip.read/move; consignment.read | Explicit DRIVER scope linked to the actual trip driver |
 | BRANCH_RECEIVER | Assigned branch read | trip.read; consignment.read/receive | Explicit destination branch |
-| SUPERVISOR | All master read/export | trip.read; plan.publish; consignment.read/correct | Explicit scope; current whole-day publication requires GLOBAL |
+| SUPERVISOR | All master read/export | trip.read; plan.read/publish; consignment.read/correct | GLOBAL required for planning preview/history and atomic publication/reassignment |
 | ADMINISTRATOR | All master read/write/delete/export; identity.manage | None automatically | GLOBAL for new records; existing rows still constrained by assigned scope |
 
 Concrete master capability names are `master.<kind>.read`, `.write`, `.delete`, `.export`, for vehicles, vehicle-types, drivers, branches, product-categories, storage-conditions and consignment-categories. Aliases are edited atomically inside the branch aggregate, so the branch policy also protects them. GLOBAL is an explicit persisted scope, never inferred merely from a role name. UserScope has exactly one target matching GLOBAL/BRANCH/DEPARTMENT/WAREHOUSE/DRIVER; SQL CHECK and FKs enforce this.
@@ -21,3 +21,5 @@ Branch lists/details/mutations use allowed branch IDs. Driver profiles use allow
 Every current `/api/masters` route derives actorId from a verified Better Auth database session and resolves active identity and policy again on the server. Request body actor/role fields cannot grant access; unsupported master fields are rejected. Mutation requests require exact same-origin and JSON, an idempotency key, optimistic version and reason. HTML hiding is only presentation.
 
 Local-account bootstrap is an operator CLI, never a production request path. The initial administrator is GLOBAL and has no operational role. The CLI can create users with one role/scope, reset a password (revoking all sessions), or disable an account (also revoking sessions). Provisioning/reset/disable audit events explicitly identify local operator tooling; the affected account is the FK actor for this bootstrap exception, not a claimed authenticated web actor. Do not reuse that exception for normal mutations.
+
+Phase 4: `/admin/planning` and `GET /api/planning` both require `plan.read` and GLOBAL. Every POST operation resolves its own capability and GLOBAL inside the transaction, including idempotent replays. Route/template/catalog metadata, coverage, assignment impacts and revision audit are not exposed to branch-scoped readers. Supervisor publication explicitly approves every linked consignment mapping; this is part of `plan.publish`, not a standalone consignment assignment endpoint. No role gets destructive history deletion. Local setup provisions separate dispatcher/supervisor development accounts; it does not add these roles to the administrator.

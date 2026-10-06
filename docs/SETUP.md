@@ -1,5 +1,38 @@
 # Local setup
 
+## Phase 4 update — 2026-10-06
+
+Keep the existing Node 24.14.0/npm 11.9.0 and pinned dependency lockfile. Phase 4 adds no dependencies. Native Oracle MySQL 8.4.11 remains on loopback 3307; XAMPP MariaDB on 3306 is untouched. Run from the repository root in PowerShell:
+
+```powershell
+npm ci
+npm run db:start:windows
+npm run db:migrate:local
+npm run auth:setup:local
+npm run db:check
+npm run build
+npm start
+```
+
+The forward migration adds planning metadata without resetting data. `auth:setup:local` reruns preserve existing accounts/passwords, install new explicit capabilities and grant only the implemented planning table operations to the limited runtime account. It now provisions separate GLOBAL local dispatcher and supervisor accounts if missing. Credentials stay in ignored `.local/auth/dispatcher-credentials.txt` and `.local/auth/supervisor-credentials.txt`; the administrator file remains unchanged. Never copy these files into source control, logs or documentation. Administrator retains master/identity duties; use dispatcher for route/template/draft work and supervisor for preview/publication. Accounts are local development only, with the same real authentication and no production bypass.
+
+Open `http://127.0.0.1:3010/login`, then `/admin/planning`. Enter service/effective dates in Buddhist-era DD/MM/YYYY, and dated trip times as DD/MM/YYYY HH:mm. Template clocks are HH:mm with explicit following-day offsets where applicable. Add master data before creating operational routes; no uncertain source rows or synthetic operational plan is inserted into development by setup. An omitted draft trip retains its old revision history. Generated trips are not recreated automatically after removal; use manual copy/add with a new identity if intentionally restoring them.
+
+Verification commands:
+
+```powershell
+npm run db:validate
+npm run lint
+npm run typecheck
+npm test
+npm run test:integration
+npm run test:planning:e2e
+npm run test:auth:e2e
+npm run test:e2e
+```
+
+Build before browser checks. Run browser commands sequentially: all use a separate local preview on 3011. Both authenticated browser runners create fresh disposable MySQL databases and real scoped test accounts; planning screenshots contain only synthetic data. Schemas are retained for inspection, never reset. The ordinary shell runner excludes authenticated suites. See [Phase 4 evidence](evidence/phase-4/VERIFICATION.md) for actual outcomes, failures corrected and exact retained database names. Production hosting/SSO, restore/load tests, operational time/buffer confirmation and later phases remain outside this local setup.
+
 ## Phase 3 local authentication and masters
 
 After installing dependencies and starting native MySQL, run:

@@ -1,5 +1,27 @@
 # API and operator contracts
 
+## Phase 4 implemented planning routes
+
+`/admin/planning` is the Thai authenticated daily planner with route/template editors and revision audit. The complete workspace requires GLOBAL plus `plan.read`. Its mobile coverage table intentionally scrolls horizontally in a labeled region. Dates are entered as DD/MM/YYYY Buddhist era; API dates are Gregorian and instants are exact UTC ISO strings with millisecond precision. Empty times become null, never assumed departures.
+
+`GET /api/planning?date=YYYY-MM-DD&revision=<optional UUID>` returns a consistent read snapshot: current daily version, selected/published revision IDs, immutable revision history, ordered candidate trips, eligible branches, six-cell missing coverage, vehicles/capacity, drivers, categories, routes/template revisions, linked consignment IDs/codes/versions/states, changed trip codes and preliminary conflict messages. An unknown revision for that date returns 404. Only global planning users can access this operational metadata. Audit is limited to the most recent 100 relevant entries; historical revisions remain selectable. Preview is advisory and publication revalidates under write locks.
+
+`POST /api/planning` requires a verified active session, exact configured Origin, JSON body <=500,000 characters, ASCII `Idempotency-Key` <=100 characters, and `{action,input}`. Every input requires a 3–500 character reason. Successful writes return actual persisted IDs/versions; errors use the shared Thai response contract. No actor/capability is accepted from request fields.
+
+| Action | Capability + GLOBAL | Input / result |
+| --- | --- | --- |
+| `route` | route.write | RouteInput in planning-catalog.ts: immutable code, expectedVersion, active, name, effectiveFrom/To, ordered branchIds; returns id/revisionId/version |
+| `template` | template.write | TemplateInput: stable identity/version, effective range, route revision, kind/round, weekday list 1–7, vehicle/driver, nullable clock minutes, arrivalDayOffset 0–2, occupancy minute offsets 0–4319, buffer, per-route-stop category IDs, notes; returns id/revisionId/version |
+| `draft` | plan.write | serviceDate, expectedVersion (0 for new day), complete `DraftTrip[]` candidate, reason; returns planId/revisionId/version |
+| `generate` | plan.write | serviceDate, expectedVersion, reason; returns planId/revisionId/version/generated; a repeated semantic generation adds zero trips and preserves existing revisions |
+| `publish` | plan.publish | revisionId, expectedVersion, reason, optional reassignments `{consignmentId, expectedVersion, tripId, stopSequence}[]`; returns revisionId/version after atomic commit |
+
+DraftTrip includes stable tripId/code, BRANCH_DELIVERY/INBOUND_DC/VAN_SALES (legacy OTHER remains readable), roundNo, cancelled, vehicleId/driverId, provenance route/template revision IDs, distinct nullable loading/departure/arrival/occupancy instants, bufferMinutes, notes, plannedLoad decimal string/loadUnit and ordered stops with category IDs. Coverage requires the branch and PORK/CHICKEN category at the same stop. Known load/capacity comparisons require identical units. Drafts do not acquire reservations; every reservation writer runs only in publication under sorted vehicle locks and a locking current overlap query.
+
+Copy creates a new trip identity. Edit/reduce changes the complete candidate. Merge combines target stops/categories and cancels the source; explicit quantities need operator reconciliation. Delete omits a never-published unassigned draft member while retaining all old revision rows. Omitting a published or referenced trip fails `TRIP_DELETE_FORBIDDEN`; cancel it instead. Replacement publish requires every old linked consignment to have an explicit destination-matching outbound target and expected version. Only pre-loading ASSIGNED/WAREHOUSE_RECEIVED records may move. New assignments/events/snapshots, label revocation, audit, reservation release/acquisition and plan pointer change commit together. Failed replacement retains the previous published plan/reservations/assignments/labels. Missing coverage, in-motion consignments, stale versions, capacity, inactive references and overlaps reject with Thai errors.
+
+No public search, consignment creation, print/file or import handlers are added by Phase 4.
+
 ## Phase 3 implemented routes
 
 | Route | Contract |
@@ -19,7 +41,7 @@ Kinds: vehicles, vehicle-types, drivers, branches, product-categories, storage-c
 
 Mutations return `{id, version, outcome}` where outcome is saved/deleted/archived. A delete with retained FK dependencies archives instead; conflicts with published branch eligibility, active reservations or current dependencies reject the whole transaction. Required PORK/CHICKEN codes cannot be disabled/renamed. Every successful mutation writes actor, reason, before/after and idempotency reference in the same transaction. Duplicate normalized plate/province or code returns 409; stale version returns 409; forbidden 403; unauthenticated 401; invalid input 400; unexpected persistence/configuration error 503 with generic Thai text.
 
-See [actual permission matrix](PERMISSIONS.md). All current API paths derive the actor from a database-backed session; local-account provisioning remains CLI-only. Phase 2 statements below describe that phase's original exposure boundary; Phase 3 now exposes authenticated master mutations only. Public operational plan/consignment/file/print endpoints remain unavailable.
+See [actual permission matrix](PERMISSIONS.md). All current API paths derive the actor from a database-backed session; local-account provisioning remains CLI-only. Historical Phase 1–3 sections describe their original exposure boundaries; the Phase 4 section above is the current planning contract. Public operational reads and consignment/file/print endpoints remain unavailable.
 
 ## GET /api/health/live
 
