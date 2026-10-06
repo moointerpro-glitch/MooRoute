@@ -5,7 +5,7 @@ import { importKinds } from "../../src/server/domain/imports";
 import { toCsv } from "../../src/server/domain/tabular";
 
 // Synthetic fixture from scripts/prepare-labels-e2e.ts: `complete` goes to a branch with a long valid address, `incomplete` to one with postal code 00000.
-const f = JSON.parse(readFileSync(".local/auth/e2e-labels.json", "utf8")) as Record<"password" | "requester" | "branch" | "dispatcher" | "warehouse" | "admin" | "complete" | "incomplete" | "trip" | "tripTwo", string>;
+const f = JSON.parse(readFileSync(".local/auth/e2e-labels.json", "utf8")) as Record<"password" | "requester" | "branch" | "dispatcher" | "warehouse" | "admin" | "otherBranch" | "complete" | "incomplete" | "trip" | "tripTwo", string>;
 const jsQR = (jsQRModule as unknown as { default?: typeof jsQRModule }).default ?? jsQRModule;
 const evidence = "docs/evidence/phase-7", ORIGIN = "http://127.0.0.1:3011", MM = 96 / 25.4;
 mkdirSync(evidence, { recursive: true });
@@ -144,9 +144,13 @@ test("T17/T13: revoked QR is rejected with the replacement; lookup needs sign-in
   await page.goto(path);
   await expect(page.locator(".form-success")).toContainText("ฉลากฉบับที่ 1 เป็นฉบับปัจจุบัน");
   await expect(page.getByText(/-1\/3 · ผู้ฝาก/)).toBeVisible();
-  await login(page, f.admin);
+  // A receiver of another branch is out of scope; the administrator sees everything (D215).
+  await login(page, f.otherBranch);
   await page.goto(path);
   await expect(page.getByRole("heading", { name: "คุณไม่มีสิทธิ์ดูรายการของฉลากนี้" })).toBeVisible();
+  await login(page, f.admin);
+  await page.goto(path);
+  await expect(page.locator(".form-success")).toContainText("ฉลากฉบับที่ 1 เป็นฉบับปัจจุบัน");
 
   // Reassignment by the dispatcher revokes version 1.
   await login(page, f.dispatcher);
@@ -181,7 +185,11 @@ test("T22: staged import with Thai row errors stays uncommitted until handled; s
   await page.goto("/admin/imports");
   const template = await page.request.get("/api/imports/template?kind=branches&format=csv");
   expect(template.headers()["content-type"]).toContain("text/csv"); expect(await template.text()).toContain("รหัสสาขา");
+  // The administrator may import every kind (D215); a branch receiver may import none.
+  expect((await page.request.get("/api/imports/template?kind=schedule&format=csv")).status()).toBe(200);
+  await login(page, f.branch);
   expect((await page.request.get("/api/imports/template?kind=schedule&format=csv")).status()).toBe(403);
+  await login(page, f.admin);
   const fields = importKinds.branches.fields, row = (over: Record<string, string>) => fields.map((x) => ({ code: "E2E-B01", name: "สาขานำเข้าหน้าจอ (สังเคราะห์)", destinationType: "สาขา", addressLine: "๑ ถนนสังเคราะห์", subdistrict: "ตำบลสังเคราะห์", district: "อำเภอสังเคราะห์", province: "จังหวัดสังเคราะห์", postalCode: "50000", contactName: "ผู้รับนำเข้า (สังเคราะห์)", contactPhone: "000-000-7002", activeFrom: "01/01/2578", ...over } as Record<string, string>)[x.name] ?? "");
   const csv = Buffer.from(toCsv([fields.map((x) => x.label), row({}), row({ code: "E2E-B02", postalCode: "ABCDE", activeFrom: "31/02/2578" })]), "utf8");
   await page.locator('input[name="file"]').setInputFiles({ name: "reference.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 synthetic") });

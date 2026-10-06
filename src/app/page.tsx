@@ -4,7 +4,7 @@ import { ArrowRight, CalendarDays, Clock3, LogIn, Route, Search, ShieldCheck } f
 import { SearchShell } from "@/components/search-shell";
 import { TripSearch } from "@/components/trip-search";
 import { bangkokServiceDate, thaiServiceDate } from "@/lib/bangkok-date";
-import { actorFromHeaders } from "@/server/auth/session";
+import { optionalActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
 import { searchOptions } from "@/server/services/trip-search";
 import { DomainError } from "@/server/domain/errors";
@@ -15,7 +15,7 @@ const help = <section className="help-strip" aria-label="ข้อควรร�
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const serviceDate = bangkokServiceDate();
-  const actor = await actorFromHeaders(await headers()).catch(() => null);
+  const actor = await optionalActor(await headers());
   if (actor) {
     try {
       const options = await searchOptions(getDatabase(), actor.id);

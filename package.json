@@ -35,7 +35,11 @@
     "test:planning:e2e": "node --import tsx scripts/run-integration.ts --planning-browser",
     "test:search:e2e": "node --import tsx scripts/run-integration.ts --search-browser",
     "test:consignment:e2e": "node --import tsx scripts/run-integration.ts --consignment-browser",
-    "test:labels:e2e": "node --import tsx scripts/run-integration.ts --labels-browser"
+    "test:labels:e2e": "node --import tsx scripts/run-integration.ts --labels-browser",
+    "db:backup:verify": "node --import tsx scripts/backup-verify.ts",
+    "test:staging": "node --import tsx scripts/staging-rehearsal.ts",
+    "test:load": "node --conditions=react-server --import tsx scripts/load-test.ts",
+    "db:seed:mockup": "node --conditions=react-server --import tsx scripts/seed-mockup.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "5.3.0",

@@ -51,6 +51,12 @@ test("health exposes no configuration and unknown pages are Thai", async ({ requ
   expect(await response.json()).toEqual({ status: "ok" });
   expect(response.headers()["cache-control"]).toBe("no-store");
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  const home = await request.get("/");
+  expect(home.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(home.headers()["content-security-policy"]).toContain("object-src 'none'");
+  expect(home.headers()["permissions-policy"]).toContain("camera=()");
+  expect(home.headers()["x-frame-options"]).toBe("DENY");
+  expect(home.headers()["x-powered-by"]).toBeUndefined();
   const missing = await page.goto("/unavailable-route");
   expect(missing?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "หน้านี้อาจถูกย้ายหรือยังไม่เปิดใช้งาน" })).toBeVisible();

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync, mkdirSync } from "node:fs";
 
 // Synthetic fixture from tests/fixtures/search.ts: 2028-03-01 (พ.ศ. 2571) has 8 published branch trips.
-const account = JSON.parse(readFileSync(".local/auth/e2e-search.json", "utf8")) as { password: string; requester: string; branch: string; supervisor: string; admin: string };
+const account = JSON.parse(readFileSync(".local/auth/e2e-search.json", "utf8")) as { password: string; requester: string; branch: string; supervisor: string; admin: string; warehouse: string };
 const DATE = "2028-03-01", A = "synthetic-branch-a";
 const evidence = "docs/evidence/phase-5";
 mkdirSync(evidence, { recursive: true });
@@ -133,9 +133,13 @@ test("T13: branch scope, contact visibility and denied roles on pages and APIs",
   expect(invalid.status()).toBe(400); expect((await invalid.json()).message).toBe("เวลาสิ้นสุดต้องไม่ก่อนเวลาเริ่มต้น");
   await page.context().clearCookies();
 
-  await login(page, account.admin);
+  await login(page, account.warehouse);
   await expect(page.getByRole("heading", { name: "บัญชีนี้ยังไม่มีสิทธิ์ค้นหารอบรถ" })).toBeVisible();
   expect((await page.request.get(`/api/search?date=${DATE}`)).status()).toBe(403);
+  // The administrator sees everything (D215).
+  await login(page, account.admin);
+  await page.goto(`/?date=${DATE}`);
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
 });
 
 for (const width of [1440, 768, 390]) {
@@ -166,3 +170,47 @@ for (const width of [1440, 768, 390]) {
     await page.screenshot({ path: `${evidence}/branches-${width}.png`, fullPage: true });
   });
 }
+
+test("T19: search works with the keyboard only (tabs, chips, combobox, sort, detail link)", async ({ page }) => {
+  await login(page, account.supervisor);
+  await page.goto(`/?date=${DATE}`);
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
+  // Skip link is the first focus stop and moves focus to the main content.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "ข้ามไปยังเนื้อหา" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  // Tab list: arrow keys move and activate; Home returns to the first tab.
+  await page.getByRole("tab", { name: "ค้นหาจากสาขา" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "เลือกเวลา", exact: true })).toHaveAttribute("aria-selected", "true");
+  // Time chips are real checkboxes: Space toggles them.
+  const chip = page.getByRole("checkbox", { name: "08:00", exact: true });
+  await chip.focus();
+  await page.keyboard.press("Space");
+  await expect(badge(page)).toHaveText("พบ 1 รอบรถ");
+  // Regression: a search superseded mid-response once cleared the result and dropped focus from the chip.
+  await expect(chip).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
+  await page.getByRole("tab", { name: "เลือกเวลา", exact: true }).focus();
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("tab", { name: "ค้นหาจากสาขา" })).toHaveAttribute("aria-selected", "true");
+  // Combobox: type, arrow to an option, Enter selects; Escape closes the list.
+  const combo = page.getByRole("combobox", { name: "ชื่อสาขา รหัสสาขา หรือชื่อเรียกอื่น" });
+  await combo.focus();
+  await page.keyboard.type("SYNTHETIC-3");
+  await expect(page.getByRole("option").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(combo).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter");
+  await expect(badge(page)).toHaveText("พบ 5 รอบรถ");
+  // Sort select and the detail link are reachable and operable from the keyboard.
+  await page.getByLabel("เรียงลำดับ").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page).toHaveURL(/sort=time_desc/);
+  await page.locator(".results-table .detail-link").first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: /จุดส่งตามลำดับ/ })).toBeVisible();
+  const focusRing = await page.getByRole("link", { name: "กลับหน้าค้นหา" }).evaluate((el) => { (el as HTMLElement).focus(); return getComputedStyle(el).outlineStyle; });
+  expect(focusRing).not.toBe("none");
+});

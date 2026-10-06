@@ -43,7 +43,7 @@ function satisfies(p: Principal, actorId: string, rule: ActorRule, c: Locked) {
 function requireActor(p: Principal, actorId: string, action: string, c: Locked) {
   const ok = transitionMatrix[action].actors.some((a) => p.permissions.has(a.capability) && satisfies(p, actorId, a.scope, c));
   // Out-of-scope rows look missing to avoid disclosing their existence.
-  if (!ok && c.status === "DRAFT" && c.requesterId !== actorId) throw new DomainError("NOT_FOUND", "ไม่พบรายการฝากส่ง");
+  if (!ok && c.status === "DRAFT" && c.requesterId !== actorId && !p.permissions.has("consignment.read.drafts")) throw new DomainError("NOT_FOUND", "ไม่พบรายการฝากส่ง");
   requireCondition(ok, "FORBIDDEN", "คุณไม่มีสิทธิ์ดำเนินการกับรายการฝากส่งนี้");
 }
 async function bump(tx: Transaction, id: string, data: Prisma.ConsignmentUpdateInput) {
@@ -556,7 +556,8 @@ export async function eligibleTrips(db: PrismaClient, actorId: string, id: strin
   serviceDate(date);
   return db.$transaction(async (tx) => {
     const p = await principal(tx, actorId), c = await tx.consignment.findUnique({ where: { id }, include: { currentAssignment: { include: { tripRevision: true } } } });
-    requireCondition(c, "NOT_FOUND", "ไม่พบรายการฝากส่ง");
+    // Someone else's draft is indistinguishable from a missing record, as in the detail view.
+    requireCondition(c && (c.status !== "DRAFT" || c.requesterId === actorId || p.permissions.has("consignment.read.drafts")), "NOT_FOUND", "ไม่พบรายการฝากส่ง");
     requireCondition(p.permissions.has("consignment.assign") && p.global, "FORBIDDEN", "คุณไม่มีสิทธิ์จัดรถ");
     const plan = await tx.dailyPlan.findUnique({ where: { serviceDate: serviceDate(date) } });
     if (!plan?.publishedRevisionId) return { published: false, trips: [] };

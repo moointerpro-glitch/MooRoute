@@ -29,9 +29,9 @@ before(async () => {
   await seedSearchFixture(db);
   await installRoles(db);
   const password = randomBytes(24).toString("base64url");
-  const plan: Array<[string, "GLOBAL" | "BRANCH" | "DEPARTMENT" | "DRIVER", string | undefined]> = [
+  const plan: Array<[string, "GLOBAL" | "BRANCH" | "DEPARTMENT" | "DRIVER" | "WAREHOUSE", string | undefined]> = [
     ["SUPERVISOR", "GLOBAL", undefined], ["BRANCH_RECEIVER", "BRANCH", A], ["REQUESTER", "DEPARTMENT", "synthetic-department"],
-    ["DRIVER", "DRIVER", searchFixture.driverId], ["ADMINISTRATOR", "GLOBAL", undefined],
+    ["DRIVER", "DRIVER", searchFixture.driverId], ["ADMINISTRATOR", "GLOBAL", undefined], ["WAREHOUSE", "WAREHOUSE", "synthetic-warehouse"],
   ];
   for (const [role, scope, scopeId] of plan) {
     accounts[role] = (await provisionAccount(db, { email: `p5-${role.toLowerCase()}@synthetic.test`, name: `ผู้ทดสอบค้นหา ${role}`, password, role, scope, scopeId })).id;
@@ -161,9 +161,12 @@ test("T13: search, detail, directory and contacts are scoped on the server", asy
   assert.ok(supervisor.stops.every((s) => s.contact.visible));
 
   for (const call of [
-    () => search({ mode: "time" }, accounts.ADMINISTRATOR), () => suggestBranches(db, accounts.ADMINISTRATOR, "สาขา"),
-    () => tripDetail(db, accounts.ADMINISTRATOR, id("trip-1")), () => branchDirectory(db, accounts.ADMINISTRATOR, { query: "", page: 1 }),
+    () => search({ mode: "time" }, accounts.WAREHOUSE), () => suggestBranches(db, accounts.WAREHOUSE, "สาขา"),
+    () => tripDetail(db, accounts.WAREHOUSE, id("trip-1")), () => branchDirectory(db, accounts.WAREHOUSE, { query: "", page: 1 }),
   ]) await assert.rejects(call(), rejected("FORBIDDEN"));
+  // The administrator sees everything (D215), including contacts.
+  assert.ok((await search({ mode: "time" }, accounts.ADMINISTRATOR)).total > 0);
+  assert.ok((await tripDetail(db, accounts.ADMINISTRATOR, id("trip-1"))).stops.every((s) => s.contact.visible));
   const draftOnly = await db.trip.findFirst({ where: { tripRevision_tripId: { every: { planRevision: { status: "DRAFT" } } } } });
   if (draftOnly) await assert.rejects(tripDetail(db, accounts.SUPERVISOR, draftOnly.id), rejected("NOT_FOUND"));
 

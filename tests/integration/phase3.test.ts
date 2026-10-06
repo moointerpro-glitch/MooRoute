@@ -66,6 +66,8 @@ test("T11: all seven masters create/update, full vehicle fields, aliases, optimi
   assert.equal((await listMasters(db,accounts.ADMINISTRATOR,"branches",{q:"ชื่อเรียกทดสอบ"})).total,1);
   await save("branches",{...values,aliases:"ชื่อสำรอง"},branch.id,1);assert.equal(await db.branchAlias.count({where:{branchId:branch.id,active:false}}),1);
   await assert.rejects(save("branches",values),errorCode("DUPLICATE_MASTER"));
+  // Same postal-code rule as label issue: five digits, never starting with 0 (Phase 8 review R7).
+  await assert.rejects(save("branches",{...values,code:"BRANCH3-ZIP",postalCode:"01000"}),errorCode("INVALID_POSTCODE"));
   for(const [kind,result,values] of [["vehicle-types",type,{...basics("TYPE3"),wheelCount:"8"}],["storage-conditions",storage,{...basics("STORAGE3"),name:"แก้ไขสภาพเก็บ"}],["drivers",driver,{...basics("DRIVER3"),phone:"0811111111"}],["product-categories",product,{...basics("PRODUCT3"),parentId:"",name:"แก้ไขหมวด"}],["consignment-categories",category,{...basics("ITEM3"),name:"แก้ไขสิ่งของ"}]] as const)await save(kind,values,result.id,1);
   const audit=await db.auditLog.findFirstOrThrow({where:{entityId:vehicle.id,action:"MASTER_SAVED"},orderBy:{createdAt:"desc"}});assert.equal(audit.actorId,accounts.ADMINISTRATOR);assert.ok(audit.before&&audit.after&&audit.reason);
 });
@@ -103,7 +105,7 @@ test("T13: persisted roles and branch/driver scopes apply equally to lists/detai
   const c=await db.consignment.findFirstOrThrow({where:{destinationBranchId:synthetic.branchIds[0]}});
   for(const surface of ["detail","export","file","print"]) {
     await assert.rejects(db.$transaction(tx=>requireConsignmentAccess(tx,accounts.BRANCH_RECEIVER,c.id)),errorCode("FORBIDDEN"),surface);
-    await assert.rejects(db.$transaction(tx=>requireConsignmentAccess(tx,accounts.ADMINISTRATOR,c.id)),errorCode("FORBIDDEN"),surface);
+    assert.equal((await db.$transaction(tx=>requireConsignmentAccess(tx,accounts.ADMINISTRATOR,c.id))).id,c.id,"the administrator sees everything (D215)");
     assert.equal((await db.$transaction(tx=>requireConsignmentAccess(tx,accounts.WAREHOUSE,c.id))).id,c.id);
   }
   const draft=completeDraft("2027-01-02","driver3");draft.trips[0].driverId="phase3-driver";

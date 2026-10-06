@@ -61,3 +61,7 @@ Additive migration 005: consignment request fields, `resumeStatus`, the ReturnLi
 ## Phase 7 implementation supplement — 2026-10-06
 
 Additive migration 006 extends ImportBatch (kind, headers, mapping, summary, rowCount, version, rejectionReason) and ImportRow (decision) and adds triggers that freeze raw source rows and closed batches. Label tables are unchanged. 53 models, six migrations. See [PHASE7_DESIGN.md](PHASE7_DESIGN.md).
+
+## Phase 8 implementation supplement — 2026-10-06
+
+Migration 007 recreates 42 history-guard triggers in a restorable form (no rule change). Migration 008 adds the `AuditLog(entityId, createdAt)` index. 53 models, eight migrations.

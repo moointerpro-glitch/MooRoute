@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
-import { actorFromHeaders } from "@/server/auth/session";
+import { optionalActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
 import { lookupLabel } from "@/server/services/labels";
 import { DomainError } from "@/server/domain/errors";
@@ -17,7 +17,7 @@ export const metadata = { title: "ตรวจสอบฉลาก" };
 export default async function LabelLookupPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ p?: string }> }) {
   const { token } = await params, { p } = await searchParams;
   const sequence = /^\d{1,3}$/.test(p ?? "") ? Number(p) : null;
-  const actor = await actorFromHeaders(await headers()).catch(() => null);
+  const actor = await optionalActor(await headers());
   if (!actor) redirect(`/login?next=${encodeURIComponent(`/l/${token}${sequence ? `?p=${sequence}` : ""}`)}`);
   let result;
   try { result = await lookupLabel(getDatabase(), actor.id, token, sequence); }

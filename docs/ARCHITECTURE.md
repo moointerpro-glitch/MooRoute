@@ -82,3 +82,7 @@ Primary references consulted during setup:
 ## Phase 7 labels, print and import boundary
 
 `domain/labels.ts` holds the label payload type, mandatory-field rules, lookup path parsing and QR module generation. `services/labels.ts` issues immutable versions from frozen snapshots, appends print events, answers scoped lookups and builds manifests. Print pages are server-rendered at physical size with a per-page `@page` rule. `domain/tabular.ts` is a small CSV reader plus a minimal XLSX reader/writer on Node zlib (declared sizes are checked before inflating); `domain/imports.ts` defines approved fields, mapping and strict value parsing. `services/imports.ts` stages, validates and commits batches through the transaction-level functions extracted from the master and route/template services, so imports share their guards and audit. See [PHASE7_DESIGN.md](PHASE7_DESIGN.md) and [evidence](evidence/phase-7/VERIFICATION.md).
+
+## Phase 8 operational additions
+
+`src/server/logging.ts` writes redacted error lines for unexpected API failures. `next.config.ts` adds security headers and a production Content-Security-Policy. `scripts/runtime-grants.ts` is the single definition of the web account's database grants, used by local setup, the staging rehearsal and the load test. `scripts/backup-verify.ts`, `scripts/staging-rehearsal.ts` and `scripts/load-test.ts` are local-lab operator tools. See [OPERATIONS.md](OPERATIONS.md).

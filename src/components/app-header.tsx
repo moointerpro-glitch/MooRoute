@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ArrowUpRight, BookOpen, Building2, History, ListOrdered, Menu, PackagePlus, Route, Search, X } from "lucide-react";
+import { ArrowUpRight, BookOpen, Building2, History, ListOrdered, Menu, PackagePlus, Search, X } from "lucide-react";
 import { SessionNavigation } from "./session-navigation";
+import wordmark from "@/assets/brand/mooroute-wordmark.png";
 
 const links = [
   { href: "/", label: "ค้นหาเส้นทาง", icon: Search, active: (p: string) => p === "/" },
@@ -18,9 +20,9 @@ export function AppHeader() {
   const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
   return <header className="site-header"><div className="container header-inner">
-    <Link className="brand" href="/" aria-label="หมูอินเตอร์ หน้าหลัก" onClick={() => setExpanded(false)}>
-      <span className="brand-symbol"><Route size={28} strokeWidth={2.3} aria-hidden="true" /></span>
-      <span><strong>หมูอินเตอร์</strong><small>Moointer · เชื่อมทุกสาขา ทุกวัน</small></span>
+    <Link className="brand" href="/" aria-label="MOOROUTE หมูอินเตอร์ หน้าหลัก" onClick={() => setExpanded(false)}>
+      <Image src={wordmark} alt="" priority className="brand-wordmark" />
+      <span className="brand-tagline">ระบบเส้นทางเดินรถ<br />และฝากส่งสาขา</span>
     </Link>
     <button className="menu-toggle icon-button" aria-label={expanded ? "ปิดเมนู" : "เปิดเมนู"}
       aria-controls="main-navigation" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>

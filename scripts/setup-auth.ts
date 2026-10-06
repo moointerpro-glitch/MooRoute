@@ -7,6 +7,7 @@ import { parseDatabaseUrl } from "../src/server/config/environment";
 import { createDatabase } from "../src/server/persistence/database";
 import { installRoles } from "../src/server/auth/permissions";
 import { provisionAccount } from "../src/server/auth/provision";
+import { runtimeGrants } from "./runtime-grants";
 
 let db:ReturnType<typeof createDatabase>|undefined;
 try{
@@ -31,8 +32,7 @@ try{
       mkdirSync(".local/auth",{recursive:true});writeFileSync(`.local/auth/${code}-credentials.txt`,`LOCAL DEVELOPMENT ONLY\nEmail: ${email}\nPassword: ${password}\n`,{flag:"wx"});
     }
   }
-  const mutable=["Vehicle","VehicleType","Driver","Branch","BranchAlias","ProductCategory","StorageCondition","ConsignmentCategory","Warehouse","Department"];
-  const grants=[...["Route","ScheduleTemplate","DailyPlan","PlanRevision","Trip","VehicleReservation","ImportBatch","ImportRow"].map(t=>`GRANT INSERT, UPDATE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["RouteRevision","RouteStop","TemplateRevision","TemplateWeekday","TemplateStopCategory","TripRevision","TripStop","TripStopCategory","PlanBranch","ConsignmentAssignment","ConsignmentEvent","ConsignmentItem","AddressSnapshot","ReceiptLine","ReturnLine","Attachment","LabelVersion","LabelPackage","PrintEvent"].map(t=>`GRANT INSERT ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["Consignment","ConsignmentPackage"].map(t=>`GRANT INSERT ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["Consignment","ConsignmentPackage","LabelVersion"].map(t=>`GRANT UPDATE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...mutable.map(t=>`GRANT INSERT, UPDATE, DELETE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),...["AuthSession","AuthRateLimit","AuthVerification"].map(t=>`GRANT INSERT, UPDATE, DELETE ON moointer_dev.\`${t}\` TO 'moointer_app'@'127.0.0.1';`),"GRANT UPDATE ON moointer_dev.AuthAccount TO 'moointer_app'@'127.0.0.1';","GRANT INSERT ON moointer_dev.AuditLog TO 'moointer_app'@'127.0.0.1';","GRANT INSERT, UPDATE ON moointer_dev.IdempotencyRecord TO 'moointer_app'@'127.0.0.1';","GRANT UPDATE ON moointer_dev.EligibilityGuard TO 'moointer_app'@'127.0.0.1';"];
+  const grants=runtimeGrants("moointer_dev","moointer_app");
   const result=spawnSync(resolve(".local/tools/mysql-8.4.11-winx64/bin/mysql.exe"),[`--defaults-file=${resolve(".local/mysql/root-client.ini")}`,"--batch"],{input:grants.join("\n"),encoding:"utf8"});if(result.status!==0)throw new Error("GRANT_FAILED");
   console.log("PASS: secure local account and seven roles installed; scoped runtime grants applied. Credentials are only in ignored .local/auth/*-credentials.txt. No signup or authentication bypass.");
 }catch{console.error("AUTH_SETUP_FAILED (existing accounts and data retained)");process.exitCode=1;}finally{await db?.$disconnect();}

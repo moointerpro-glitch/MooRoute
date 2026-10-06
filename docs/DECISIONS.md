@@ -156,3 +156,46 @@ Status: Proposed (implemented under the explicit Phase 7 request).
 - Imports: approved fields only, 500 rows per file, staged then committed in one transaction, same file + edition = same batch. Contact name and phone are required for imported branches, matching the branch master form.
 - Schedule import creates recurring templates (not dated trips); repeated category pages merge into one template per code; unknown times and vehicles stay null.
 - Affected: migration 006, role capabilities, grants (INSERT on label tables, INSERT/UPDATE on import tables), print CSS, docs.
+
+## D212 — Phase 8 release verification choices (2026-10-06)
+
+Status: Proposed (implemented under the explicit Phase 8 request). No deployment was made.
+
+- Migration 007 recreates the 42 single-statement history triggers with compound bodies so that mysqldump output restores unmodified. Rules are unchanged. It supersedes the restore normalization noted in D210.
+- Migration 008 adds `AuditLog(entityId, createdAt)` for the planning history read, which filters by entity ID only.
+- Unexpected API failures, sign-in backend failures and page session-check failures are logged as one JSON line with error class, safe code and source location only (`api.unexpected_error`, `auth.unavailable`, `page.session_unavailable`). Messages, SQL and parameters are never logged. A 5xx from the authentication library is reported to the user as "service unavailable", never as wrong credentials.
+- Production builds send a Content-Security-Policy limited to same-origin sources. Inline scripts and styles stay allowed because Next.js hydration and the per-page print rule need them; a nonce-based policy is a later hardening option. HSTS is left to the TLS proxy.
+- `DATABASE_POOL_SIZE` (1–50, default 5) makes the connection pool configurable; the default is unchanged.
+- The staging rehearsal is a freshly migrated schema, the production build and the least-privilege runtime account on loopback. HTTPS, a reverse proxy and a company identity provider are not available locally and remain open.
+- A deployed authentication mode is not implemented. It depends on the owner's identity decision (D102, D207) and blocks a production release.
+- Load results are a single-machine baseline. No performance, availability, RPO or RTO target is claimed or accepted.
+
+## D213 — Phase 8 review fixes (2026-10-06)
+
+Status: Implemented under the explicit fix request; values marked proposed still await the owner.
+
+- Re-planning a published day requires an explicit move only for consignments that may still travel. CANCELLED and REJECTED consignments keep their assignment as history and are not moved. Loaded, in-transit and completed consignments still block re-planning until the owner decides how an operational change should work.
+- Branch postal codes follow the label rule everywhere: five digits, not starting with 0 (proposed; matches Thai postal codes).
+- Request bodies are read with a hard byte limit while streaming (attachments 10 MB + 64 KB, imports 2 MB + 64 KB, JSON mutations three bytes per allowed character, sign-in 12 KB). Content-Length is no longer trusted alone.
+- A backup restore is accepted only when the copy is usable: trigger definer accounts exist with TRIGGER and SELECT, and guarded writes behave as on the source. Accounts and grants are part of what a complete backup must cover.
+- Trigger creation on a binary-logging server needs `log_bin_trust_function_creators=ON` in the server configuration (or SUPER). The lab tools still set it at run time (D206) and now say so; the backup tool no longer touches it.
+
+## D214 — MOOROUTE brand assets and local mock-up data (2026-10-06)
+
+Status: Implemented on the owner's request. Brand placement follows the designer's usage sheet in `img/`; deviations are listed.
+
+- Source logos are the owner's files in `img1/` (PNG and the Illustrator source). They are not modified or served directly. Cropped copies live in `src/assets/brand/` (wordmark, stacked logo, company banner), `src/app/` (`favicon.ico` 16/32/48 px, `icon.png`, `apple-icon.png`) and `public/brand/` (192/512 px install icons), generated reproducibly from the originals.
+- Placement: wordmark in the site header (designer: side menu); stacked logo on the sign-in page; pin as browser and home-screen icon (designer: favicon); company + product banner in the footer and on the printed trip manifest. The designer suggested the stacked logo for the mobile header; at 34 px its text would be unreadable, so the wordmark is used at every width.
+- Labels keep the text brand line: they are printed on monochrome label printers and their layout was verified at actual size in Phase 7.
+- The supplied PNGs are low resolution (wordmark 97 px tall). Displayed sizes stay at or below the source pixels; an SVG or 2× export from the Illustrator file would sharpen high-density screens and print.
+- `npm run db:seed:mockup` adds clearly fictitious master data (labelled ทดสอบ) and one account per role to `moointer_dev` through the audited master service. It creates no route, template, plan, trip, reservation or consignment. Passwords are written only to ignored `.local/auth/mockup-logins.txt`; a mock account without a recorded password is reset and audited. Seed manifest key `mockup-dev-v1`.
+
+## D215 — Administrator can do and see everything (owner decision, 2026-10-06)
+
+Status: Accepted by the owner ("แอดมินควรทำได้ทุกอย่างและเห็นทุกอย่างในระบบ"). Supersedes the earlier rule that the administrator has no operational capabilities (Phase 3 PERMISSIONS.md, OPERATIONS §4).
+
+- `rolePermissions.ADMINISTRATOR` is derived as the union of every other role's capabilities plus full master maintenance (`master.*.write/delete`), `identity.manage` and the new `consignment.read.drafts`. A capability added to any role reaches the administrator automatically; an integration test asserts the superset.
+- With GLOBAL scope the administrator can plan and publish, assign, run warehouse, loading, departure and receipt steps, issue and print labels, read manifests, import every kind, and search with full contact visibility.
+- `consignment.read.drafts` lets the administrator read other users' consignment drafts (detail, list, export, files, labels page). Drafts stay invisible to every other role. Editing, submitting or cancelling a request remains reserved to its own requester.
+- Conflict recorded: one administrator account can now prepare and publish its own daily plan, so separation of duties no longer covers that account. Every action still records the actor in the audit log and events. Recommendation: give the administrator role to as few people as possible and review its use.
+- Tests that asserted administrator denials were changed to assert the new access; their denial checks moved to roles that genuinely lack the capability (warehouse for search, another branch's receiver for QR lookup, supervisor for schedule import, branch receiver for import templates).

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { requirePageActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
@@ -6,6 +7,7 @@ import { DomainError } from "@/server/domain/errors";
 import { PrintToolbar } from "@/components/print-toolbar";
 import { statusText, unitText } from "@/lib/consignment-format";
 import { beDate, roundLabel, thaiDateTime, UNKNOWN_TIME } from "@/lib/trip-format";
+import banner from "@/assets/brand/moointer-mooroute-banner.png";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ใบคุมรถ" };
@@ -25,7 +27,8 @@ export default async function ManifestPage({ params }: { params: Promise<{ tripI
     <div className="container no-print"><PrintToolbar format="MANIFEST" printed={0} formats={[]} back={{ href: `/trips/${encodeURIComponent(m.tripId)}`, label: "กลับไปรายละเอียดรอบรถ" }} /></div>
     <div className="print-scroll" role="region" aria-label="ใบคุมรถขนาด A4 เลื่อนแนวนอนได้" tabIndex={0}><article className="manifest">
       <header className="manifest-head">
-        <div><h1>ใบคุมรถฝากของส่งสาขา</h1><p>หมูอินเตอร์ · {m.routeName ?? m.code}</p></div>
+        {/* Original-size PNG (no resizing service) and eager loading so the logo is present when printing starts. */}
+        <div><Image src={banner} alt="หมูอินเตอร์ | MOOROUTE" unoptimized loading="eager" className="manifest-logo" /><h1>ใบคุมรถฝากของส่งสาขา</h1><p>หมูอินเตอร์ · {m.routeName ?? m.code}</p></div>
         <dl>
           <div><dt>รอบรถ</dt><dd>{m.code}</dd></div><div><dt>วันที่ให้บริการ</dt><dd>{beDate(m.serviceDate)} (พ.ศ.) · {roundLabel(m.roundNo)}</dd></div>
           <div><dt>เวลาเริ่มขึ้นของ / ออกรถ</dt><dd>{clock(m.loadingAt)} / {clock(m.departureAt)}</dd></div>

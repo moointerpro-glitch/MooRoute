@@ -98,6 +98,7 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   for (const label of ["ส่งคำขอ", "จัดรถ", "คลังรับของ", "ขึ้นรถ", "รถออก", "สาขารับของ", "ปิดงาน"]) await expect(page.locator(".timeline strong", { hasText: label }).first()).toBeVisible();
   const download = await page.request.get(await page.getByRole("link", { name: "แบบโปสเตอร์.png" }).getAttribute("href") ?? "");
   expect(download.status()).toBe(200); expect(download.headers()["content-type"]).toBe("image/png"); expect(download.headers()["cache-control"]).toContain("no-store");
+  expect(download.headers()["content-security-policy"]).toBe("default-src 'none'; sandbox"); expect(download.headers()["content-disposition"]).toContain("attachment");
   await shot(page, `${evidence}/consignment-detail-1440.png`);
 });
 

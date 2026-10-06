@@ -14,6 +14,8 @@ import {
   loadConsignment, departTrip, reportIssue, resolveIssue, recordReturn, closeConsignment, listConsignments, consignmentDetail, eligibleTrips, addAttachment, attachmentForDownload,
 } from "../../src/server/services/consignments";
 import { receiveConsignment } from "../../src/server/services/receipts";
+import { planningData } from "../../src/server/services/planning-read";
+import { rolePermissions } from "../../src/server/auth/permissions";
 import { requireConsignmentAccess } from "../../src/server/auth/resource-policy";
 import { seedMasters, synthetic, completeDraft } from "../fixtures/synthetic";
 
@@ -52,7 +54,7 @@ before(async () => {
   const password = randomBytes(24).toString("base64url");
   const plan: Array<[string, string, "GLOBAL" | "BRANCH" | "DEPARTMENT" | "DRIVER" | "WAREHOUSE", string | undefined]> = [
     ["REQUESTER", "REQUESTER", "DEPARTMENT", "synthetic-department"], ["DISPATCHER", "DISPATCHER", "GLOBAL", undefined], ["WAREHOUSE", "WAREHOUSE", "WAREHOUSE", "synthetic-warehouse"],
-    ["DRIVER", "DRIVER", "DRIVER", "p6-driver"], ["BRANCH_A", "BRANCH_RECEIVER", "BRANCH", A], ["BRANCH_B", "BRANCH_RECEIVER", "BRANCH", B], ["SUPERVISOR", "SUPERVISOR", "GLOBAL", undefined],
+    ["DRIVER", "DRIVER", "DRIVER", "p6-driver"], ["BRANCH_A", "BRANCH_RECEIVER", "BRANCH", A], ["BRANCH_B", "BRANCH_RECEIVER", "BRANCH", B], ["SUPERVISOR", "SUPERVISOR", "GLOBAL", undefined], ["ADMIN", "ADMINISTRATOR", "GLOBAL", undefined],
   ];
   for (const [name, role, scope, scopeId] of plan) accounts[name] = (await provisionAccount(db, { email: `p6-${name.toLowerCase()}@synthetic.test`, name: `ผู้ทดสอบฝากส่ง ${name}`, password, role, scope, scopeId })).id;
   for (const date of [D6, D7, PAST]) {
@@ -202,6 +204,68 @@ test("T08: eligibility, capacity, cutoff, reassignment, cancellation and plan re
   assert.equal(wNow.currentAssignment!.tripId, replacement.tripId); assert.equal(wNow.currentAssignment!.tripRevision.planRevisionId, draftRevision.revisionId);
   const orphans = await db.consignment.count({ where: { status: { in: ["ASSIGNED", "WAREHOUSE_RECEIVED"] }, currentAssignment: { tripRevision: { cancelled: true } } } });
   assert.equal(orphans, 0, "no active consignment points at a cancelled trip");
+});
+
+test("T08: a cancelled consignment never blocks re-planning its date; active ones still need an explicit move", async () => {
+  // Phase 8 review R1: the same date holds one cancelled and one active consignment.
+  const D8 = "2028-06-03";
+  const seed = completeDraft(D8, `p6-${D8}`); seed.reason = "แผนสังเคราะห์สำหรับทดสอบการปรับแผน";
+  const seeded = await saveDraft(db, synthetic.actorId, `p6-plan-${D8}`, seed);
+  await publishPlan(db, synthetic.actorId, `p6-publish-${D8}`, { revisionId: seeded.revisionId, expectedVersion: seeded.version });
+  const gone = await submitted({ requestedServiceDate: D8 });
+  const goneVersion = (await assignConsignment(db, accounts.DISPATCHER, key(), { id: gone.id, expectedVersion: gone.version, tripId: trip(D8, 1) })).version;
+  await cancelConsignment(db, accounts.DISPATCHER, key(), { id: gone.id, expectedVersion: goneVersion, reason: "สาขาแจ้งยกเลิก" });
+  const cancelledAssignment = (await db.consignment.findUniqueOrThrow({ where: { id: gone.id } })).currentAssignmentId;
+  const active = await submitted({ requestedServiceDate: D8 });
+  const activeVersion = (await assignConsignment(db, accounts.DISPATCHER, key(), { id: active.id, expectedVersion: active.version, tripId: trip(D8, 2) })).version;
+
+  // The planner lists only the consignment that really has to move.
+  assert.deepEqual((await planningData(db, accounts.DISPATCHER, D8)).linked.map((c) => c.id), [active.id]);
+
+  const plan = await db.dailyPlan.findUniqueOrThrow({ where: { serviceDate: new Date(`${D8}T00:00:00Z`) } });
+  const candidate = completeDraft(D8, `p6-${D8}`, plan.version); candidate.trips[2].driverId = "p6-driver"; candidate.reason = "เปลี่ยนพนักงานขับรถรอบ ๓";
+  const draftRevision = await saveDraft(db, accounts.DISPATCHER, key(), candidate);
+  const publish = (reassignments: { consignmentId: string; expectedVersion: number; tripId: string; stopSequence: number }[]) =>
+    publishPlan(db, accounts.SUPERVISOR, key(), { revisionId: draftRevision.revisionId, expectedVersion: draftRevision.version, reason: "ปรับแผนหลังมีรายการยกเลิก", reassignments });
+  await assert.rejects(publish([]), rejected("REASSIGNMENT_REQUIRED"), "the active consignment still needs an explicit move");
+  await assert.rejects(publish([{ consignmentId: active.id, expectedVersion: activeVersion, tripId: trip(D8, 2), stopSequence: 1 }, { consignmentId: gone.id, expectedVersion: goneVersion + 1, tripId: trip(D8, 1), stopSequence: 1 }]), rejected("REASSIGNMENT_REQUIRED"), "a move for a cancelled record is refused, not applied");
+  await publish([{ consignmentId: active.id, expectedVersion: activeVersion, tripId: trip(D8, 2), stopSequence: 1 }]);
+
+  const after = await db.consignment.findUniqueOrThrow({ where: { id: gone.id } });
+  assert.equal(after.status, "CANCELLED"); assert.equal(after.currentAssignmentId, cancelledAssignment, "cancelled history is left untouched");
+  assert.equal(await db.consignmentAssignment.count({ where: { consignmentId: gone.id } }), 1);
+  const moved = await db.consignment.findUniqueOrThrow({ where: { id: active.id }, include: { currentAssignment: { include: { tripRevision: true } } } });
+  assert.equal(moved.currentAssignment!.tripRevision.planRevisionId, draftRevision.revisionId);
+});
+
+test("T13: the eligible-trip lookup hides another user's private draft", async () => {
+  // Phase 8 review R4.
+  const privateDraft = await saveConsignmentDraft(db, accounts.REQUESTER, key(), draft());
+  await assert.rejects(eligibleTrips(db, accounts.DISPATCHER, privateDraft.id, D6), rejected("NOT_FOUND"));
+  const submittedRequest = await submitConsignment(db, accounts.REQUESTER, key(), { id: privateDraft.id, expectedVersion: privateDraft.version });
+  assert.ok((await eligibleTrips(db, accounts.DISPATCHER, submittedRequest.id, D6)).trips.length > 0, "submitted requests are visible to the dispatcher");
+});
+
+test("T13 (D215): the administrator holds every capability, reads private drafts and can run the whole lifecycle", async () => {
+  const admin = new Set(rolePermissions.ADMINISTRATOR);
+  for (const [role, capabilities] of Object.entries(rolePermissions)) for (const capability of capabilities) assert.ok(admin.has(capability), `${role} capability ${capability} is missing for the administrator`);
+  const privateDraft = await saveConsignmentDraft(db, accounts.REQUESTER, key(), draft());
+  assert.equal((await consignmentDetail(db, accounts.ADMIN, privateDraft.id)).status, "DRAFT", "the administrator reads other users' drafts");
+  assert.ok((await listConsignments(db, accounts.ADMIN, { query: privateDraft.code, status: [], branchId: null, categoryId: null, date: null, tripCode: null, mine: false, page: 1 })).rows.some((r) => r.id === privateDraft.id));
+  await assert.rejects(consignmentDetail(db, accounts.DISPATCHER, privateDraft.id), rejected("NOT_FOUND"), "drafts stay private for every other role");
+  await assert.rejects(submitConsignment(db, accounts.ADMIN, key(), { id: privateDraft.id, expectedVersion: privateDraft.version }), rejected("FORBIDDEN"), "only the requester submits a request");
+
+  const x = await submitted();
+  let v = (await assignConsignment(db, accounts.ADMIN, key(), { id: x.id, expectedVersion: x.version, tripId: trip(D6, 1) })).version;
+  v = (await warehouseReceiveConsignment(db, accounts.ADMIN, key(), { id: x.id, expectedVersion: v, packageIds: await packagesOf(x.id) })).version;
+  await loadConsignment(db, accounts.ADMIN, key(), { id: x.id, expectedVersion: v, packageIds: await packagesOf(x.id) });
+  assert.ok((await departTrip(db, accounts.ADMIN, key(), { tripId: trip(D6, 1) })).departed.includes(x.id));
+  const items = await db.consignmentItem.findMany({ where: { consignmentId: x.id } });
+  await receiveConsignment(db, accounts.ADMIN, key(), { consignmentId: x.id, expectedVersion: await version(x.id), lines: items.map((i) => ({ itemId: i.id, quantity: i.sentQuantity.toString(), unit: i.unit })) });
+  const packages = await packagesOf(x.id);
+  await receiveConsignment(db, accounts.ADMIN, key(), { consignmentId: x.id, expectedVersion: await version(x.id), lines: packages.map((packageId) => ({ packageId, quantity: "1", unit: "PACKAGE" })) });
+  assert.equal((await closeConsignment(db, accounts.ADMIN, key(), { id: x.id, expectedVersion: await version(x.id) })).status, "CLOSED");
+  assert.equal((await planningData(db, accounts.ADMIN, D6)).serviceDate, D6, "planning is open to the administrator");
 });
 
 test("T13/T18: scoped history and export, private attachments and invalid uploads", async () => {

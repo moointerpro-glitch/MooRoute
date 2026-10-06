@@ -227,7 +227,8 @@ test("T23: repeated category pages become one template per code; reference dates
     rows.push({ templateCode, routeCode: "P7-RT-A", routeName: "เส้นทางนำเข้าสังเคราะห์", roundNo, weekdays: "1-7", loadingTime: roundNo === "1" ? "07:00" : "11:00", departureTime, arrivalTime: "", vehiclePlate: "", vehicleProvince: "", stopSequence: String(i + 1), branchCode, categories, effectiveFrom: "01/10/2569", sourcePage });
   }
   const file = csv("schedule", rows);
-  await assert.rejects(stageImport(db, accounts.ADMINISTRATOR, key(), { kind: "schedule", sourceEdition: "ใบจัดรถสังเคราะห์ 18/09/2569", ...file }), rejected("FORBIDDEN"));
+  // A role without import.manage is refused (the administrator now holds every capability, D215).
+  await assert.rejects(stageImport(db, accounts.SUPERVISOR, key(), { kind: "schedule", sourceEdition: "ใบจัดรถสังเคราะห์ 18/09/2569", ...file }), rejected("FORBIDDEN"));
   const staged = await stageImport(db, accounts.DISPATCHER, key(), { kind: "schedule", sourceEdition: "ใบจัดรถสังเคราะห์ 18/09/2569", ...file });
   assert.deepEqual([staged.summary.rows, staged.summary.groups, staged.summary.create, staged.summary.merged, staged.summary.errors, staged.status], [18, 2, 6, 12, 0, "VALIDATED"]);
   const detail = await importBatchDetail(db, accounts.DISPATCHER, staged.batchId);

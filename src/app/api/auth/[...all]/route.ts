@@ -1,5 +1,9 @@
 import { getAuth } from "@/server/auth/auth";
 import { authConfiguration } from "@/server/auth/config";
+import { logUnexpected } from "@/server/logging";
+import { readBodyWithin, utf8BytesFor } from "@/server/request-body";
+
+class AuthBackendError extends Error { name = "AuthBackendError"; }
 
 async function handler(request: Request) {
   try {
@@ -12,12 +16,19 @@ async function handler(request: Request) {
     const safeHeaders = new Headers(request.headers);
     // This local-only deployment has a single trusted peer. Never trust forwarded client IPs.
     safeHeaders.set("x-moointer-peer", "127.0.0.1");
-    const body = request.method === "POST" ? await request.text() : undefined;
-    if (body && body.length > 4096) return Response.json({message:"ข้อมูลมีขนาดเกินกำหนด"},{status:413});
+    // Read with a hard cap: this route is reachable without a session, so an endless body must not be buffered.
+    const bytes = request.method === "POST" ? await readBodyWithin(request, utf8BytesFor(4096)) : undefined;
+    const body = bytes ? new TextDecoder().decode(bytes) : undefined;
+    if (bytes === null || (body && body.length > 4096)) return Response.json({message:"ข้อมูลมีขนาดเกินกำหนด"},{status:413});
     const response = await getAuth().handler(new Request(request.url, { method: request.method, headers: safeHeaders, body }));
+    // A server-side failure is not a wrong password: report it to operators and do not blame the credentials.
+    if (response.status >= 500) throw new AuthBackendError();
     if (!response.ok) return Response.json({ code: response.status === 429 ? "TOO_MANY_ATTEMPTS" : "AUTH_FAILED", message: response.status === 429 ? "ลองเข้าสู่ระบบหลายครั้งเกินไป กรุณารอสักครู่" : "เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบบัญชีและรหัสผ่าน" }, { status: response.status, headers: { "Cache-Control": "no-store" } });
     response.headers.set("Cache-Control", "no-store"); return response;
-  } catch { return Response.json({ code: "AUTH_UNAVAILABLE", message: "ระบบเข้าสู่ระบบยังไม่พร้อม กรุณาติดต่อผู้ดูแล" }, { status: 503 }); }
+  } catch (error) {
+    logUnexpected("auth.unavailable", error);
+    return Response.json({ code: "AUTH_UNAVAILABLE", message: "ระบบเข้าสู่ระบบยังไม่พร้อม กรุณาติดต่อผู้ดูแล" }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
 }
 export const GET=handler;
 export const POST=handler;

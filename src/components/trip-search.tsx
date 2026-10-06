@@ -80,7 +80,10 @@ export function TripSearch({ today, options, params }: { today: string; options:
     fetch(`/api/search?${search.toString()}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const data = await response.json().catch(() => null);
-        if (!response.ok) { setStatus({ state: "error", message: data?.message ?? "ค้นหาไม่สำเร็จ กรุณาลองอีกครั้ง", unauthenticated: response.status === 401 }); return; }
+        // A newer search can abort this one while its body is still being read. A superseded response
+        // must not touch the state: clearing the result would unmount the filters and drop keyboard focus.
+        if (controller.signal.aborted) return;
+        if (!response.ok || !data) { setStatus({ state: "error", message: data?.message ?? "ค้นหาไม่สำเร็จ กรุณาลองอีกครั้ง", unauthenticated: response.status === 401 }); return; }
         setResult(data as SearchResult); setStatus({ state: "ready" });
       })
       .catch((error: unknown) => { if ((error as Error)?.name !== "AbortError") setStatus({ state: "error", message: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบเครือข่ายแล้วลองอีกครั้ง", unauthenticated: false }); });

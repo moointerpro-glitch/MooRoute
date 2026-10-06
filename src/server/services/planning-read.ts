@@ -6,6 +6,7 @@ import { authorize } from "./transaction";
 import { principal } from "../auth/permissions";
 import { candidateCoverage } from "./plans";
 import { draftTrips } from "./planning-catalog";
+import { requiresMove } from "./planning-reassignment";
 
 export async function planningData(db:PrismaClient,actorId:string,dateValue:string,revisionId?:string|null){
  const date=serviceDate(dateValue);
@@ -23,7 +24,7 @@ export async function planningData(db:PrismaClient,actorId:string,dateValue:stri
   const templates=await tx.scheduleTemplate.findMany({orderBy:{code:"asc"},include:{templateRevision_templateId:{orderBy:{number:"desc"},include:{templateWeekday_templateRevisionId:true,templateStopCategory_templateRevisionId:true}}}});
   const trips=selected?await draftTrips(tx,selected.id):[];
   const coverage=selected?await candidateCoverage(tx,selected.id):null;
-  const linked=plan?.publishedRevisionId?await tx.consignment.findMany({where:{currentAssignment:{tripRevision:{planRevisionId:plan.publishedRevisionId}}},select:{id:true,code:true,version:true,status:true,destinationBranchId:true,currentAssignment:{select:{tripId:true,tripRevisionId:true}}},orderBy:{code:"asc"}}):[];
+  const linked=plan?.publishedRevisionId?await tx.consignment.findMany({where:requiresMove({tripRevision:{planRevisionId:plan.publishedRevisionId}}),select:{id:true,code:true,version:true,status:true,destinationBranchId:true,currentAssignment:{select:{tripId:true,tripRevisionId:true}}},orderBy:{code:"asc"}}):[];
   const issues:string[]=[];
   const reservations=await tx.vehicleReservation.findMany({where:{active:true,tripRevision:{planRevisionId:{not:plan?.publishedRevisionId??""}}}});
   for(const t of trips.filter(t=>!t.cancelled)){

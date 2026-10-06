@@ -1,12 +1,12 @@
 import "server-only";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../../generated/prisma/client";
-import { parseDatabaseUrl, type DatabaseConfiguration } from "../config/environment";
+import { databasePoolSize, parseDatabaseUrl, type DatabaseConfiguration } from "../config/environment";
 
 export function createDatabase(config: DatabaseConfiguration) {
   const adapter = new PrismaMariaDb({
     ...config,
-    connectionLimit: 5,
+    connectionLimit: databasePoolSize(process.env),
     connectTimeout: 5000,
     acquireTimeout: 5000,
     timezone: "+00:00",

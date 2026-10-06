@@ -16,9 +16,9 @@ const [A, B] = synthetic.branchIds, TRIP = "s5-2028-03-01-trip-1", TRIP_TWO = "s
 try {
   await seedSearchFixture(db); await installRoles(db);
   const password = randomBytes(24).toString("base64url");
-  const accounts = { requester: "requester@e2e.synthetic.test", branch: "branch@e2e.synthetic.test", dispatcher: "dispatcher@e2e.synthetic.test", warehouse: "warehouse@e2e.synthetic.test", admin: "admin@e2e.synthetic.test" };
+  const accounts = { requester: "requester@e2e.synthetic.test", branch: "branch@e2e.synthetic.test", dispatcher: "dispatcher@e2e.synthetic.test", warehouse: "warehouse@e2e.synthetic.test", admin: "admin@e2e.synthetic.test", otherBranch: "branch-b@e2e.synthetic.test" };
   const ids: Record<string, string> = {};
-  for (const [name, role, scope, scopeId] of [["requester", "REQUESTER", "DEPARTMENT", "synthetic-department"], ["branch", "BRANCH_RECEIVER", "BRANCH", A], ["dispatcher", "DISPATCHER", "GLOBAL", undefined], ["warehouse", "WAREHOUSE", "WAREHOUSE", "synthetic-warehouse"], ["admin", "ADMINISTRATOR", "GLOBAL", undefined]] as const) {
+  for (const [name, role, scope, scopeId] of [["requester", "REQUESTER", "DEPARTMENT", "synthetic-department"], ["branch", "BRANCH_RECEIVER", "BRANCH", A], ["dispatcher", "DISPATCHER", "GLOBAL", undefined], ["warehouse", "WAREHOUSE", "WAREHOUSE", "synthetic-warehouse"], ["admin", "ADMINISTRATOR", "GLOBAL", undefined], ["otherBranch", "BRANCH_RECEIVER", "BRANCH", B]] as const) {
     ids[name] = (await provisionAccount(db, { email: accounts[name], name: `ผู้ทดสอบสังเคราะห์ ${name}`, password, role, scope, scopeId })).id;
   }
   // A deliberately long Thai address (just under the label limit) to prove it fits without shrinking.

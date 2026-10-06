@@ -71,7 +71,8 @@ function validate(kind:string,raw:unknown){
   if(data.code)data.code=String(data.code).toUpperCase();
   for(const [start,end] of [["activeFrom","activeTo"],["availableFrom","availableTo"],["receivingFromMinute","receivingToMinute"]]) if(data[start]!=null&&data[end]!=null)requireCondition(data[end]!>=data[start]!,"INVALID_DATE","วันหรือเวลาสิ้นสุดต้องไม่ก่อนวันหรือเวลาเริ่มต้น");
   if(kind==="vehicles")requireCondition(!!data.capacity===!!data.capacityUnit,"INVALID_UNIT","กรุณาระบุความจุและหน่วยให้ครบคู่");
-  if(kind==="branches")requireCondition(/^\d{5}$/.test(String(data.postalCode)),"INVALID_POSTCODE","รหัสไปรษณีย์ต้องเป็นตัวเลข ๕ หลัก");
+  // Same rule as label issue (domain/labels.ts): Thai postal codes are five digits and never start with 0.
+  if(kind==="branches")requireCondition(/^[1-9]\d{4}$/.test(String(data.postalCode)),"INVALID_POSTCODE","รหัสไปรษณีย์ต้องเป็นตัวเลข ๕ หลักและไม่ขึ้นต้นด้วย ๐");
   for(const field of ["phone","contactPhone"])if(data[field])requireCondition(/^[+\d ()-]{7,32}$/.test(String(data[field])),"INVALID_PHONE","เบอร์ติดต่อไม่ถูกต้อง");
   return data;
 }

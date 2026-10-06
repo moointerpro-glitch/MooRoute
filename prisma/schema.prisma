@@ -866,6 +866,7 @@ model AuditLog {
   actor User @relation("AuditLog_actorId", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   idempotency IdempotencyRecord? @relation("AuditLog_idempotencyId", fields: [idempotencyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@index([entityType, entityId, createdAt])
+  @@index([entityId, createdAt])
 }
 
 model SeedManifest {

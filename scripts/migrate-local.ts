@@ -24,6 +24,8 @@ try {
   }
   const migration=parseDatabaseUrl(migrationUrl);
   if(migration.database!==app.database || migration.host!==app.host || migration.port!==app.port || migration.user!=="moointer_migrate") throw new Error("MIGRATION_CONFIGURATION_INVALID");
+  // Binary logging is on, so the non-SUPER migrator may only create the guard triggers with this server-wide flag (D206).
+  console.log("Notice: setting the lab server's global log_bin_trust_function_creators=1 so the migration account can create triggers (see OPERATIONS.md §5).");
   const configure=spawnSync(client,[`--defaults-file=${defaults}`,"--batch"],{input:"SET GLOBAL log_bin_trust_function_creators=1;",encoding:"utf8"});
   if(configure.status!==0) throw new Error("MIGRATION_TRIGGER_SETUP_FAILED");
   const result=spawnSync(process.execPath,["node_modules/prisma/build/index.js","migrate","deploy"],{env:{...process.env,MIGRATION_DATABASE_URL:migrationUrl},encoding:"utf8"});

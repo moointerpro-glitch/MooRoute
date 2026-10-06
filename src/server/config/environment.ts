@@ -50,6 +50,15 @@ export function parseDatabaseUrl(value: string | undefined): DatabaseConfigurati
   };
 }
 
+/** Connection pool size per application process; tune from measured load, default 5. */
+export function databasePoolSize(env: Record<string, string | undefined>): number {
+  const raw = env.DATABASE_POOL_SIZE;
+  if (raw === undefined || raw === "") return 5;
+  const value = Number(raw);
+  if (!/^\d{1,2}$/.test(raw) || value < 1 || value > 50) throw new ConfigurationError("DATABASE_POOL_SIZE_INVALID");
+  return value;
+}
+
 export function testDatabaseConfiguration(env: Record<string, string | undefined>): DatabaseConfiguration {
   const config = parseDatabaseUrl(env.TEST_DATABASE_URL);
   if (!/^moointer_test(?:_run_[a-z0-9]{1,24})?$/.test(config.database) || !["127.0.0.1", "localhost", "::1"].includes(config.host)) {

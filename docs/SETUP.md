@@ -30,6 +30,9 @@ npm run test:planning:e2e
 npm run test:search:e2e
 npm run test:consignment:e2e
 npm run test:labels:e2e
+npm run test:staging
+npm run db:backup:verify
+npm run test:load
 npm run test:auth:e2e
 npm run test:e2e
 ```
@@ -174,7 +177,7 @@ No operational tables, seed or applied migrations exist in Phase 1. Schema desig
 
 ## Phase 6 consignments (local)
 
-1. Back up `moointer_dev` first. Use `mysqldump --single-transaction --routines --triggers --set-gtid-purged=OFF --no-tablespaces --result-file=<file>`; `--result-file` avoids Windows CRLF conversion. Known limitation (Phase 8): the single-statement history triggers end with `;` inside their body, so mysqldump emits `...'IMMUTABLE_HISTORY'; */;;`. Restore through `sed "s/'; */;;$/' */;;/"`, which was verified to restore all tables and triggers into a disposable schema.
+1. Back up `moointer_dev` first with `npm run db:backup:verify`. It dumps the database, restores the dump into a new disposable schema and compares tables, triggers, constraints and row counts. Since migration 007 the dump restores unmodified.
 2. Run `npm run db:migrate:local` (applies migration 005) and then `npm run auth:setup:local` (safe rerun: installs warehouse/department master capabilities and the new INSERT/UPDATE grants; no DELETE on history).
 3. As the administrator, create at least one คลังต้นทาง (warehouse) and one แผนก (department) under จัดการหลังบ้าน. Then create a requester with `{"action":"create","email":"requester@example.test","name":"ผู้ฝากส่ง","role":"REQUESTER","scope":"DEPARTMENT","scopeId":"<department id>"}`, and similarly WAREHOUSE (scope WAREHOUSE), BRANCH_RECEIVER (scope BRANCH) and DRIVER (scope DRIVER) accounts as needed.
 4. Attachments are stored in `UPLOAD_DIR` (default `.local/uploads`, ignored). Browser tests use `.local/uploads-e2e`.
@@ -185,3 +188,14 @@ No operational tables, seed or applied migrations exist in Phase 1. Schema desig
 2. Printing: open a consignment, choose ฉลากหีบห่อ, issue the label and print. Set the printer to actual size (100%) with no margins. A4 holds four labels; the sticker format is 100 × 150 mm. Margins and QR size must be checked on the real printer before production use.
 3. The QR points to `BETTER_AUTH_URL`/l/<token>. Use the address that scanning devices can reach when a non-local environment is configured.
 4. Imports: จัดการหลังบ้าน → นำเข้าข้อมูล. Download the template, fill it from the reviewed source, upload, fix or skip flagged rows, then commit. PDFs and images are not read.
+
+## Phase 8 release verification commands
+
+- `npm run test:staging` runs every authenticated browser suite on freshly migrated schemas while the production build connects with the least-privilege runtime account.
+- `npm run db:backup:verify` (optionally `-- --database=<name>`) proves a backup restores into a usable copy: identical contents and checksums, existing trigger definers with the needed privileges, and guarded writes that behave as on the source. `-- --check-restored=<schema>` checks an existing restored copy without changing anything.
+- `npm run test:load` builds a disposable 100,000-trip dataset and measures search latency with 50 concurrent users for pool sizes 5 and 20. Options: `--days`, `--trips`, `--users`, `--seconds`. Seeding takes several minutes. Run `npm run build` first and keep port 3012 free.
+- Operator procedures are in [OPERATIONS.md](OPERATIONS.md); release state is in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
+## Local mock-up data (owner request, 2026-10-06)
+
+`npm run db:seed:mockup` (local `APP_ENV`, `moointer_dev` only) adds fictitious masters — 9 destinations (8 branches and 1 DC), 6 vehicles, 6 drivers, 3 vehicle types, 3 storage conditions, 4 product categories including PORK and CHICKEN, 2 warehouses, 3 departments, 4 consignment categories — and the seven `mock.*@moointer.test` role accounts. Logins are in ignored `.local/auth/mockup-logins.txt`. Planning and consignments stay empty for manual testing. Re-running is safe. Take a backup first with `npm run db:backup:verify`.

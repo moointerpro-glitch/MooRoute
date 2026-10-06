@@ -1,12 +1,19 @@
 import "server-only";
-import type { TripRevision } from "../../generated/prisma/client";
+import type { Prisma, TripRevision } from "../../generated/prisma/client";
 import { requireCondition, versionMatches } from "../domain/errors";
 import type { Transaction } from "./transaction";
 
 export interface Reassignment { consignmentId: string; expectedVersion: number; tripId: string; stopSequence: number }
+/**
+ * Consignments a replacement plan must move: current assignment on the replaced revision, excluding
+ * terminal records that never moved. A cancelled consignment keeps its assignment only as history.
+ * Shared by publication and the planner read so both list exactly the same records.
+ */
+export const requiresMove = (assignment: Prisma.ConsignmentAssignmentWhereInput): Prisma.ConsignmentWhereInput =>
+  ({ currentAssignment: assignment, status: { notIn: ["CANCELLED", "REJECTED"] } });
 export async function reassignForPublication(tx: Transaction, actorId: string, idempotencyId: string, oldIds: string[], trips: TripRevision[], moves: Reassignment[], reason?: string) {
   requireCondition(Array.isArray(moves)&&moves.length<=500&&moves.every(m=>m&&typeof m.consignmentId==="string"&&typeof m.tripId==="string"&&Number.isInteger(m.expectedVersion)&&Number.isInteger(m.stopSequence)),"INVALID_INPUT","ข้อมูลย้ายพัสดุไม่ถูกต้อง");
-  const linked = await tx.consignment.findMany({where:{currentAssignment:{tripRevisionId:{in:oldIds}}},orderBy:{id:"asc"}});
+  const linked = await tx.consignment.findMany({where:requiresMove({tripRevisionId:{in:oldIds}}),orderBy:{id:"asc"}});
   requireCondition(moves.length===linked.length && new Set(moves.map(m=>m.consignmentId)).size===moves.length && linked.every(c=>moves.some(m=>m.consignmentId===c.id)),"REASSIGNMENT_REQUIRED","กรุณาระบุเที่ยวและจุดส่งใหม่ให้พัสดุที่ผูกกับแผนเดิมครบทุกใบ");
   if(!linked.length)return;
   requireCondition(typeof reason==="string"&&reason.trim().length>=3&&reason.length<=500,"REASON_REQUIRED","กรุณาระบุเหตุผลการย้ายพัสดุ");

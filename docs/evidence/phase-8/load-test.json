@@ -1,0 +1,550 @@
+{
+  "measuredAt": "2026-10-06T05:11:14.348Z",
+  "database": "moointer_test_run_loade3072a6f07",
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) Ultra 5 225U",
+    "logicalCores": 14,
+    "memoryGb": 31,
+    "platform": "Windows_NT 10.0.26300",
+    "node": "v24.14.0",
+    "note": "Load generator, Next.js server and MySQL all ran on this one machine."
+  },
+  "dataset": {
+    "trips": 100000,
+    "stops": 500000,
+    "stopCategories": 849781,
+    "days": 1000,
+    "branches": 60,
+    "tripsPerDay": 100,
+    "stopsPerTrip": 5,
+    "seedSeconds": 300
+  },
+  "workload": "35% branch, 20% branch+category+rounds, 17% exact times, 15% loading range, 7% alias text, 6% autocomplete; 70% global supervisor, 20% department requester, 10% branch receiver; random service date over the whole dataset",
+  "serviceLevelMs": {
+    "count": 274,
+    "p50": 14,
+    "p90": 18,
+    "p95": 19,
+    "p99": 26,
+    "max": 46,
+    "mean": 14
+  },
+  "queryPlans": {
+    "branch + category (same stop)": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "p",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "DailyPlan_serviceDate_key,DailyPlan_publishedRevisionId_key,DailyPlan_publishedRevisionId_id_fkey",
+        "key": "DailyPlan_serviceDate_key",
+        "key_len": "3",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": "Using filesort"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "r",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "PRIMARY,PlanRevision_id_planId_key",
+        "key": "PRIMARY",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "t",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "PRIMARY,TripRevision_planRevisionId_tripId_key,TripRevision_id_tripId_key,TripRevision_planRevisionId_departureAt_tripId_idx,TripRevision_planRevisionId_planId_fkey",
+        "key": "TripRevision_planRevisionId_tripId_key",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 100,
+        "filtered": 2.5,
+        "Extra": "Using index condition; Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "s",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "PRIMARY,TripStop_tripRevisionId_sequence_key,TripStop_id_tripRevisionId_key,TripStop_branchId_tripRevisionId_idx",
+        "key": "TripStop_branchId_tripRevisionId_idx",
+        "key_len": "292",
+        "ref": "const,moointer_test_run_loade3072a6f07.t.id",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": "Using index"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "sc",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "TripStopCategory_stopId_categoryId_key,TripStopCategory_categoryId_stopId_idx",
+        "key": "TripStopCategory_stopId_categoryId_key",
+        "key_len": "292",
+        "ref": "moointer_test_run_loade3072a6f07.s.id,const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": "Using index; FirstMatch(t)"
+      }
+    ],
+    "departure range": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "p",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "DailyPlan_serviceDate_key,DailyPlan_publishedRevisionId_key,DailyPlan_publishedRevisionId_id_fkey",
+        "key": "DailyPlan_serviceDate_key",
+        "key_len": "3",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": "Using filesort"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "r",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "PRIMARY,PlanRevision_id_planId_key",
+        "key": "PRIMARY",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "t",
+        "partitions": null,
+        "type": "range",
+        "possible_keys": "TripRevision_planRevisionId_tripId_key,TripRevision_planRevisionId_departureAt_tripId_idx,TripRevision_planRevisionId_planId_fkey",
+        "key": "TripRevision_planRevisionId_departureAt_tripId_idx",
+        "key_len": "154",
+        "ref": null,
+        "rows": 16,
+        "filtered": 2.5,
+        "Extra": "Using index condition; Using where"
+      }
+    ],
+    "count": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "p",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "DailyPlan_serviceDate_key,DailyPlan_publishedRevisionId_key,DailyPlan_publishedRevisionId_id_fkey",
+        "key": "DailyPlan_serviceDate_key",
+        "key_len": "3",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "r",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "PRIMARY,PlanRevision_id_planId_key",
+        "key": "PRIMARY",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "t",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "TripRevision_planRevisionId_tripId_key,TripRevision_planRevisionId_departureAt_tripId_idx,TripRevision_planRevisionId_planId_fkey",
+        "key": "TripRevision_planRevisionId_tripId_key",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 100,
+        "filtered": 2.5,
+        "Extra": "Using index condition; Using where"
+      }
+    ],
+    "facets": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "p",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "DailyPlan_serviceDate_key,DailyPlan_publishedRevisionId_key,DailyPlan_publishedRevisionId_id_fkey",
+        "key": "DailyPlan_serviceDate_key",
+        "key_len": "3",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "r",
+        "partitions": null,
+        "type": "const",
+        "possible_keys": "PRIMARY,PlanRevision_id_planId_key",
+        "key": "PRIMARY",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "t",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "TripRevision_planRevisionId_tripId_key,TripRevision_planRevisionId_departureAt_tripId_idx,TripRevision_planRevisionId_planId_fkey",
+        "key": "TripRevision_planRevisionId_departureAt_tripId_idx",
+        "key_len": "146",
+        "ref": "const",
+        "rows": 100,
+        "filtered": 2.5,
+        "Extra": "Using index condition; Using where"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "poolSize": 5,
+      "closedLoop": {
+        "users": 50,
+        "seconds": 60,
+        "thinkMs": 0,
+        "requests": 8271,
+        "throughputPerSecond": 137.9,
+        "statuses": {
+          "200": 8271
+        },
+        "successWithResults": 7520,
+        "latencyMs": {
+          "count": 8271,
+          "p50": 361,
+          "p90": 393,
+          "p95": 413,
+          "p99": 484,
+          "max": 541,
+          "mean": 364
+        },
+        "byKind": {
+          "times": {
+            "count": 1355,
+            "p50": 355,
+            "p90": 390,
+            "p95": 407,
+            "p99": 483,
+            "max": 517,
+            "mean": 360
+          },
+          "alias text": {
+            "count": 577,
+            "p50": 363,
+            "p90": 391,
+            "p95": 414,
+            "p99": 484,
+            "max": 521,
+            "mean": 365
+          },
+          "branch+category": {
+            "count": 1663,
+            "p50": 363,
+            "p90": 395,
+            "p95": 417,
+            "p99": 499,
+            "max": 519,
+            "mean": 366
+          },
+          "branch": {
+            "count": 2936,
+            "p50": 364,
+            "p90": 394,
+            "p95": 414,
+            "p99": 479,
+            "max": 541,
+            "mean": 367
+          },
+          "range": {
+            "count": 1239,
+            "p50": 364,
+            "p90": 398,
+            "p95": 417,
+            "p99": 497,
+            "max": 524,
+            "mean": 367
+          },
+          "autocomplete": {
+            "count": 501,
+            "p50": 336,
+            "p90": 367,
+            "p95": 383,
+            "p99": 437,
+            "max": 480,
+            "mean": 340
+          }
+        }
+      },
+      "paced": {
+        "users": 50,
+        "seconds": 60,
+        "thinkMs": 1000,
+        "requests": 2951,
+        "throughputPerSecond": 49.2,
+        "statuses": {
+          "200": 2951
+        },
+        "successWithResults": 2700,
+        "latencyMs": {
+          "count": 2951,
+          "p50": 18,
+          "p90": 30,
+          "p95": 40,
+          "p99": 195,
+          "max": 312,
+          "mean": 24
+        },
+        "byKind": {
+          "alias text": {
+            "count": 228,
+            "p50": 20,
+            "p90": 32,
+            "p95": 83,
+            "p99": 195,
+            "max": 240,
+            "mean": 27
+          },
+          "branch": {
+            "count": 1012,
+            "p50": 19,
+            "p90": 30,
+            "p95": 39,
+            "p99": 187,
+            "max": 287,
+            "mean": 25
+          },
+          "times": {
+            "count": 478,
+            "p50": 15,
+            "p90": 24,
+            "p95": 29,
+            "p99": 175,
+            "max": 312,
+            "mean": 21
+          },
+          "branch+category": {
+            "count": 590,
+            "p50": 19,
+            "p90": 30,
+            "p95": 48,
+            "p99": 218,
+            "max": 283,
+            "mean": 26
+          },
+          "range": {
+            "count": 449,
+            "p50": 21,
+            "p90": 34,
+            "p95": 54,
+            "p99": 204,
+            "max": 302,
+            "mean": 27
+          },
+          "autocomplete": {
+            "count": 194,
+            "p50": 7,
+            "p90": 12,
+            "p95": 18,
+            "p99": 245,
+            "max": 257,
+            "mean": 13
+          }
+        }
+      }
+    },
+    {
+      "poolSize": 20,
+      "closedLoop": {
+        "users": 50,
+        "seconds": 60,
+        "thinkMs": 0,
+        "requests": 7917,
+        "throughputPerSecond": 132,
+        "statuses": {
+          "200": 7917
+        },
+        "successWithResults": 7198,
+        "latencyMs": {
+          "count": 7917,
+          "p50": 379,
+          "p90": 423,
+          "p95": 439,
+          "p99": 516,
+          "max": 579,
+          "mean": 380
+        },
+        "byKind": {
+          "autocomplete": {
+            "count": 477,
+            "p50": 303,
+            "p90": 341,
+            "p95": 355,
+            "p99": 420,
+            "max": 447,
+            "mean": 307
+          },
+          "times": {
+            "count": 1307,
+            "p50": 369,
+            "p90": 413,
+            "p95": 429,
+            "p99": 500,
+            "max": 539,
+            "mean": 374
+          },
+          "alias text": {
+            "count": 548,
+            "p50": 385,
+            "p90": 427,
+            "p95": 440,
+            "p99": 528,
+            "max": 558,
+            "mean": 388
+          },
+          "branch": {
+            "count": 2808,
+            "p50": 384,
+            "p90": 425,
+            "p95": 440,
+            "p99": 520,
+            "max": 579,
+            "mean": 388
+          },
+          "branch+category": {
+            "count": 1592,
+            "p50": 384,
+            "p90": 429,
+            "p95": 445,
+            "p99": 532,
+            "max": 551,
+            "mean": 388
+          },
+          "range": {
+            "count": 1185,
+            "p50": 380,
+            "p90": 421,
+            "p95": 437,
+            "p99": 509,
+            "max": 555,
+            "mean": 382
+          }
+        }
+      },
+      "paced": {
+        "users": 50,
+        "seconds": 60,
+        "thinkMs": 1000,
+        "requests": 2951,
+        "throughputPerSecond": 49.2,
+        "statuses": {
+          "200": 2951
+        },
+        "successWithResults": 2700,
+        "latencyMs": {
+          "count": 2951,
+          "p50": 19,
+          "p90": 29,
+          "p95": 35,
+          "p99": 213,
+          "max": 350,
+          "mean": 23
+        },
+        "byKind": {
+          "branch": {
+            "count": 1011,
+            "p50": 20,
+            "p90": 31,
+            "p95": 35,
+            "p99": 176,
+            "max": 350,
+            "mean": 24
+          },
+          "times": {
+            "count": 479,
+            "p50": 16,
+            "p90": 26,
+            "p95": 29,
+            "p99": 163,
+            "max": 342,
+            "mean": 20
+          },
+          "branch+category": {
+            "count": 590,
+            "p50": 19,
+            "p90": 31,
+            "p95": 38,
+            "p99": 259,
+            "max": 348,
+            "mean": 26
+          },
+          "range": {
+            "count": 449,
+            "p50": 21,
+            "p90": 32,
+            "p95": 36,
+            "p99": 243,
+            "max": 345,
+            "mean": 25
+          },
+          "alias text": {
+            "count": 228,
+            "p50": 21,
+            "p90": 29,
+            "p95": 40,
+            "p99": 183,
+            "max": 304,
+            "mean": 27
+          },
+          "autocomplete": {
+            "count": 194,
+            "p50": 8,
+            "p90": 13,
+            "p95": 17,
+            "p99": 222,
+            "max": 312,
+            "mean": 12
+          }
+        }
+      }
+    }
+  ]
+}
