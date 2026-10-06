@@ -1,0 +1,15 @@
+import Link from "next/link";
+import { requirePageActor } from "@/server/auth/session";
+import { getDatabase } from "@/server/persistence/database";
+import { listMasters } from "@/server/services/masters";
+import { masterDefinitions } from "@/lib/master-definitions";
+import { DomainError } from "@/server/domain/errors";
+export default async function MasterList({params,searchParams}:{params:Promise<{kind:string}>;searchParams:Promise<{q?:string;status?:string;page?:string}>}){
+  const actor=await requirePageActor(),{kind}=await params,query=await searchParams;
+  let result;try{result=await listMasters(getDatabase(),actor.id,kind,{q:query.q,status:query.status,page:Number(query.page??1)});}catch(error){return <div className="admin-card" role="alert"><h1>ไม่สามารถเปิดรายการได้</h1><p>{error instanceof DomainError?error.message:"ระบบไม่พร้อมใช้งาน กรุณาลองอีกครั้ง"}</p><Link href="/admin">กลับหน้าจัดการข้อมูล</Link></div>;}
+  const d=masterDefinitions[kind],link=(page:number)=>`/admin/${kind}?${new URLSearchParams({q:query.q??"",status:query.status??"active",page:String(page)})}`;
+  return <><div className="admin-heading"><div><h1>{d.title}</h1><p className="muted">เก็บประวัติการเปลี่ยนแปลงและตรวจสอบรายการที่เกี่ยวข้องก่อนลบ</p></div>{result.canWrite&&<Link className="primary-button" href={`/admin/${kind}/new`}>เพิ่มข้อมูล</Link>}</div>
+    <form className="admin-toolbar"><label>ค้นหา<input name="q" defaultValue={query.q} placeholder="พิมพ์รหัสหรือชื่อ" maxLength={100}/></label><label>สถานะ<select name="status" defaultValue={query.status??"active"}><option value="active">ใช้งาน</option><option value="archived">เก็บเข้าคลัง</option><option value="all">ทั้งหมด</option></select></label><button className="primary-button">ค้นหา</button>{result.canExport&&<a className="secondary-button" href={`/api/masters/${kind}/export?${new URLSearchParams({q:query.q??"",status:query.status??"active"})}`}>ส่งออกข้อมูล</a>}</form>
+    <div className="admin-card"><p className="result-count">พบ {result.total.toLocaleString("th-TH")} รายการ</p><div className="table-scroll" role="region" aria-label={`รายการ${d.title}`} tabIndex={0}><table className="admin-table"><thead><tr><th>รหัส / ทะเบียน</th><th>ชื่อ / จังหวัด</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody>{result.rows.map(row=><tr key={row.id}><td>{String(row.code??row.plateNormalized)}</td><td>{String(row.name??row.province)}</td><td><span className={!!row[d.active] !== (d.active==="archived")?"status-active":"status-archived"}>{!!row[d.active] !== (d.active==="archived")?"ใช้งาน":"เก็บเข้าคลัง"}</span></td><td><Link href={`/admin/${kind}/${row.id}`}>{result.canWrite?"ดู / แก้ไข":"ดูรายละเอียด"}</Link></td></tr>)}</tbody></table>{!result.rows.length&&<p className="empty-list">ไม่พบข้อมูลตามเงื่อนไข ลองเปลี่ยนคำค้นหรือสถานะ</p>}</div>
+    <nav className="pagination" aria-label="แบ่งหน้า">{result.page>1&&<Link href={link(result.page-1)}>หน้าก่อน</Link>}<span>หน้า {result.page} จาก {Math.max(1,Math.ceil(result.total/20))}</span>{result.page*20<result.total&&<Link href={link(result.page+1)}>หน้าถัดไป</Link>}</nav></div></>;
+}

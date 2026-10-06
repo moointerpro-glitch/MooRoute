@@ -1,0 +1,110 @@
+# Decisions and unresolved settings
+
+## Confirmed by the user
+
+- D001: MySQL is the required database. Earlier PostgreSQL recommendations no longer control this pack.
+- D002: All application and printed user-facing content is Thai. AI prompts are English.
+- D003: Every active branch receives both pork and chicken in each of three rounds every day.
+- D004: Preserve the supplied mockup's search UI style, add complete backend administration, vehicle master data, branch master data, product categories, consignments and history.
+- D005: Deliver phase prompts and Markdown rules with a Word edition for review.
+
+## Proposed implementation defaults
+
+These defaults are design choices for initial development, not confirmed operational facts. Codex may implement them when they do not conflict with the existing repository; record changes with reasons.
+
+- D101: Modular monolith with Next.js, TypeScript, Tailwind CSS, Prisma and MySQL/InnoDB/utf8mb4. Verify exact versions during setup.
+- D102: Internal authenticated application with explicit role and branch/department/warehouse scope. Identity provider remains to be selected.
+- D103: Asia/Bangkok display and input, Gregorian DATE internally, UTC event timestamps, consistent Thai Buddhist-era display.
+- D104: One destination branch per consignment; package-based receipt by default; optional detailed item receipt frozen before submission.
+- D105: Source warehouse to branch transport in v1; no arbitrary external recipient destination flow.
+- D106: A4 four-label sheets and 100 x 150 mm label printing. Hardware margins and QR size must be tested with the actual printer before production use.
+- D107: JPG/PNG/PDF attachments, 10 MB each and five files per request, configurable.
+- D108: Search p95 <= 2 seconds for 100,000 trips and 50 concurrent users is a proposed benchmark. Availability/RPO/RTO targets require operating-owner acceptance.
+
+## Operational values still to confirm
+
+- Exact time windows for rounds 1/2/3 by branch/route; do not guess them from the requirement for three rounds.
+- Actual departure and occupancy end times; loading sheets alone do not establish them.
+- Consignment cutoff rules, turnaround buffers, capacity units and handling constraints.
+- Verified branch aliases, printable addresses, contacts, driver assignments and vehicle details.
+- Meaning of source colors/handwriting and ambiguous DC times.
+- Authentication provider, deployment host, backup retention, upload retention and authorized contact visibility.
+
+Use clearly labeled synthetic defaults in development and keep unverified operational values out of production seeds. These questions do not prevent building configuration screens or core workflows. Do not weaken the confirmed daily coverage rule while waiting for operational data.
+
+## D201 Source edition differences observed during study
+
+- Date: 2026-10-06.
+- Status: Proposed (implementation precedence based on README.md; no new user-confirmed business rule).
+- Question: How should differences between the Markdown development pack v2.0 and Moointer_Webapp_Requirements_v1.0.docx be handled?
+- Observation: The DOCX is a Thai requirements document with 20 numbered sections, U01–U24 acceptance cases and eight embedded UI images. It is not an identical Word reproduction of the English prompts/rules as README.md describes.
+- Conflicts: DOCX section 6 defaults time search to loading start, while PROJECT_CONTEXT.md defaults to departure. DOCX allows a next-day selection for a reversed time range, while Markdown rejects a reversed range in this release. DOCX permits Gregorian display or explicitly labeled Buddhist-era display, while UI_SPEC.md specifies consistent Buddhist-era display. DOCX tests 360/768/1440 px and uses primary #E50922; Markdown specifies 390/768/1440 px and proposes #E60023.
+- Additional details needing phase-specific reconciliation: DOCX describes in-app notifications, optional category-specific branch rules, package/item allocation, actual food-delivery results and a proposed 24-month history retention. These are reference requirements to trace against the requested phase, not automatically implemented scope. DOCX also requires an eligible selected trip before submission, whereas Markdown permits dispatcher assignment during review; the submission/assignment contract must be made explicit before Phase 6.
+- Choice: Use Markdown as the editable implementation source, as README.md directs, and retain the DOCX as business/visual reference. Follow current explicit user instructions first. Preserve these differences for review before the relevant phase; do not silently merge incompatible defaults, create coverage exemptions, or treat proposed retention/operational values as confirmed.
+- Reason: Avoid contradictory search and workflow behavior while retaining source evidence. This session authorizes study only.
+- Source/owner: README.md, PROMPTS.md, docs/PROJECT_CONTEXT.md, docs/UI_SPEC.md and the supplied DOCX; operational owner confirmation remains pending where materially required.
+- Affected files: docs/DECISIONS.md, docs/PROGRESS.md, docs/HANDOFF.md. No application requirements or original references were rewritten.
+- Migration impact: None; no schema or application implementation exists in this workspace.
+
+## D202 Phase 1 authorization and reference availability
+
+- Date: 2026-10-06. Status: Confirmed.
+- Question/choice: The user selected Phase 1 explicitly in the follow-up and supplied the Phase 1 prompt. Implement foundation only; the earlier study-only scope is superseded for this work session.
+- Reason/source: Current user instructions and PROMPTS.md Phase 1. JPG/PNG originals are now present in the workspace root; identical ignored copies are retained in references/. The operational PDF is still absent.
+- Affected files: Phase 1 source, tests, configuration, references/README.md and handoff documents.
+- Migration impact: No operational models, migrations or seeds. No existing database migration was performed.
+
+## D203 Foundation technology and isolated native MySQL
+
+- Date: 2026-10-06. Status: Proposed (implemented engineering choice under the user's routine-decision authority).
+- Question/choice: Pin Node 24.14.0, Next.js 16.3.8, React 19.3.0, TypeScript 5.9.3, Tailwind 4.3.3 and Prisma 7.10.0. Use Oracle MySQL 8.4.11 with InnoDB/utf8mb4/utf8mb4_0900_ai_ci in a project-local Windows process on loopback 3307. Use web port 3010 and browser-test port 3011.
+- Reason: Installed Node satisfies the verified framework/Prisma requirements. Prisma 8 was still an npm release candidate. XAMPP supplies MariaDB 10.4.32, not the requested MySQL; port 3000 already belongs to another application. An independent MySQL data directory avoids touching that service and its data. Prisma's adapter-mariadb is the documented connector to the actual Oracle MySQL server.
+- Security/maintenance: Random local credentials, separate development/test accounts, no root web connection, verified TLS for remote databases, loopback-only local public-key retrieval. Pin compatible ESLint 10 plugins directly. Scope audited transitive overrides as described in ARCHITECTURE.md; the remaining braces advisory is confined to trusted lint patterns and requires upstream follow-up.
+- Source/owner: Repository inspection, npm metadata, official framework/Prisma/MySQL documentation linked in ARCHITECTURE.md; engineering default, not an operational business rule.
+- Affected files: package files, Prisma configuration, scripts/mysql-local.ps1, src/server, .env.example, .gitignore, .htaccess and setup/architecture documents.
+- Migration impact: Creates only new isolated development/test databases and accounts; no operational tables or existing-data migration.
+
+## D204 Foundation UI and access boundary
+
+- Date: 2026-10-06. Status: Proposed (implemented Phase 1 scope).
+- Question/choice: Build a Thai responsive shell and guide with working navigation and three keyboard-operable tabs. Disable unavailable operational actions with Thai explanations. Use a development text wordmark, local licensed Thai font, Markdown visual tokens and departure as the initial time basis.
+- Reason: Phase 1 cannot truthfully expose live route search, publish plans or accept consignments before their data/authentication phases. No illustrative counts, plates, phone numbers or source rows become operational data. The three-round card describes policy, not completed coverage.
+- Access boundary: Public shell and minimal liveness only; database readiness is an operator-only server CLI. No private data, operational mutation route, backend button or authentication bypass exists. .htaccess prevents Apache from serving repository files through XAMPP.
+- Source/owner: Current phase prompt, UI_SPEC.md, PROJECT_CONTEXT.md, supplied mockup and D201 precedence. Full authorization remains Phase 3.
+- Affected files: src/app, src/components, src/server/domain/transport-policy.ts, docs/API_CONTRACTS.md and visual evidence.
+- Migration impact: None.
+
+## Decision record format
+
+## D207 Phase 3 authentication and master administration
+
+- Date: 2026-10-06. Status: Proposed, implemented under the explicit Phase 3 request and routine engineering authority.
+- Choice: Better Auth 1.7.7, Prisma/MySQL adapter, database sessions and password authentication for a documented local-account development path. No company IdP configuration was found; an optional IdP question was sent and no answer was available during implementation. Public signup and unsupported auth endpoints are closed. The local account configuration accepts only APP_ENV=local and an exact loopback origin; deployed production configuration must be implemented explicitly, without any login bypass.
+- Reason: Reuse maintained authentication with the existing Node/Prisma architecture while making the fallback usable and testable. The initial administrator has explicit master capabilities but no operational privileges. Persisted scopes include driver identity. One local rate-limit bucket avoids trusting forwarded IPs; distributed production throttling is not claimed.
+- Master policy: versioned/audited server mutations, shared eligibility guard and vehicle locks, dependency-aware archive fallback, protected PORK/CHICKEN codes, active lookup enforcement, private/no-store APIs, scoped export. Alias updates belong to the branch aggregate. Existing historical snapshots are never rewritten. Changes to eligibility of any published date fail closed until a coordinated plan revision exists.
+- UI choice: Thai labels/errors, Buddhist-era DD/MM/YYYY input translated to Gregorian API DATE, Bangkok local time input translated to UTC; shared responsive tokens. No national identity data collected.
+- Source/owner: Current user Phase 3 instructions, PROJECT_CONTEXT.md/UI_SPEC.md, maintained Better Auth documentation linked in Phase 3 verification; engineering default, not a confirmed production identity provider choice.
+- Affected paths: authentication/session/policy modules, master definitions/services, Thai admin/login pages and API routes, local operator scripts, permission matrix, tests/evidence and updated setup/contracts.
+- Migration impact: Additive migration 003 (four auth tables, user email metadata, DRIVER scope/FK, per-vehicle wheels, master active/version/timestamps); no applied migration rewrite, no reset, no source data import. Narrow runtime grants only for implemented auth/master writes; local credentials remain ignored.
+
+## D205 Phase 2 revision identity, transaction guards and fail-closed scope
+
+- Date: 2026-10-06. Status: Proposed (implemented engineering choice under the user's Phase 2 authorization).
+- Choice: Stable Trip identities belong to a service date; immutable TripRevision/TripStop rows belong to numbered PlanRevision records. DailyPlan points to the current published revision. Publish under eligibility/day/sorted vehicle locks, with six-cell validation and half-open occupancy including explicit trailing buffer. Receipts lock a consignment and append immutable event/line records; detailed completion requires items and packages. Persist idempotency results and retry bounded deadlocks.
+- Reason: Preserve operational identities, prevent reservation/receipt races and retain historical labels/snapshots. Unknown departure/occupancy blocks publication. No operational buffer/time values are invented; synthetic examples use zero buffer and fixed explicit times.
+- Scope: Internal services resolve stored permissions/scopes; no public mutation endpoint or production auth bypass. Existing assignments block replacement until an audited reassignment workflow is implemented in its later phase. Global eligibility serialization is a deliberate correctness-first default, not a performance claim.
+- Source/owner: Current Phase 2 request, DATA_MODEL.md and PROJECT_CONTEXT.md; engineering review documented in PHASE2_DESIGN.md.
+- Affected paths: prisma/schema.prisma, two migrations, src/server/domain, src/server/services, tests/fixtures, tests/integration and schema/API/architecture docs.
+- Migration impact: New relational schema in previously empty local development/test databases; no reset or source-data migration. CHECK constraints and triggers preserve immutable history and ownership.
+
+## D206 Scoped local migration and disposable-test lifecycle
+
+- Date: 2026-10-06. Status: Proposed (implemented local development choice).
+- Choice: Dedicated development migration user, SELECT-only web user until authenticated mutation routes exist, disposable test user scoped per generated test schema. Operator CLI secrets remain only in ignored local configuration. Fresh integration schemas are created and retained; never reset existing schemas.
+- Reason: Real MySQL trigger migrations require explicit operator policy. The project-owned loopback lab enables log_bin_trust_function_creators for these migrations without granting global SUPER to migration users. External environments must follow their administrator's migration policy.
+- Seed: Deterministic synthetic namespace/date and manifest; three active branches, one separate expired fixture branch, pork/chicken in three rounds, three synthetic vehicles; reruns preserve published history. No production seed or unverified plates/contacts.
+- Source/owner: Phase 2 acceptance and observed MySQL 1419 during clean migration; local engineering default.
+- Affected paths: scripts/migrate-local.ts, migrate-test.ts, run-integration.ts, seed.ts, environment validation, .env.example, setup/evidence docs.
+- Migration impact: Both migrations applied forward to local development and disposable test databases; failed disposable attempts retained for inspection.
+
+For each new decision record: ID, date, status (Confirmed, Proposed or Superseded), question, choice, reason, source/owner, affected files and migration impact. Explicit user changes supersede older decisions; retain the old entry with its replacement reference.

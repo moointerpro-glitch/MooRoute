@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+coverage/
+test-results/
+playwright-report/
+.local/
+.env*
+!.env.example
+*.tsbuildinfo
+src/generated/prisma/
+references/*
+!references/README.md
+/*.jpg
+/*.png
+

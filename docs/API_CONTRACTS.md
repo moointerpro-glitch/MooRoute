@@ -1,0 +1,72 @@
+# API and operator contracts
+
+## Phase 3 implemented routes
+
+| Route | Contract |
+| --- | --- |
+| `/login` | Thai email/password login; no signup/reset-by-email form |
+| `/admin`, `/admin/[kind]`, `/admin/[kind]/[id]` | Verified active session; permitted master list/detail/edit; `new` requires write capability; Thai permission/error states |
+| `POST /api/auth/sign-in/email` | Better Auth password authentication; exact configured origin; 5 attempts/minute; generic Thai failures |
+| `POST /api/auth/sign-out` | Revokes current session; same origin required |
+| `GET /api/auth/get-session` | Better Auth session contract; no-store; all other auth endpoints unavailable |
+| `GET /api/session` | Active actor display name and canOpenBackend; no role editing or permission grant |
+| `GET /api/masters/[kind]` | q <=100 chars, status active/archived/all, page positive integer; rows/total/page/pageSize=20 and allowed UI actions |
+| `GET /api/masters/[kind]/[id]` | Same row policy as list; branch includes active aliases; missing or out-of-scope returns 404 |
+| `POST /api/masters/[kind]` | JSON `{id?, expectedVersion, reason, action: save or delete, values?}`; Idempotency-Key header; same origin; trusted session actor only |
+| `GET /api/masters/[kind]/export` | Same filters/scope plus explicit export capability; <=1,000 rows, UTF-8 BOM CSV, Thai headers/enums/dates, formula-prefix escaping; no-store |
+
+Kinds: vehicles, vehicle-types, drivers, branches, product-categories, storage-conditions, consignment-categories. Field allowlists/Thai labels live in `src/lib/master-definitions.ts`; values must include a boolean active. Alias lines are part of the branch aggregate. The API uses Gregorian YYYY-MM-DD and local ISO YYYY-MM-DDTHH:mm for form dates; the UI accepts/displays explicit Buddhist-year DD/MM/YYYY and translates before submission. Event persistence remains UTC DATETIME(3).
+
+Mutations return `{id, version, outcome}` where outcome is saved/deleted/archived. A delete with retained FK dependencies archives instead; conflicts with published branch eligibility, active reservations or current dependencies reject the whole transaction. Required PORK/CHICKEN codes cannot be disabled/renamed. Every successful mutation writes actor, reason, before/after and idempotency reference in the same transaction. Duplicate normalized plate/province or code returns 409; stale version returns 409; forbidden 403; unauthenticated 401; invalid input 400; unexpected persistence/configuration error 503 with generic Thai text.
+
+See [actual permission matrix](PERMISSIONS.md). All current API paths derive the actor from a database-backed session; local-account provisioning remains CLI-only. Phase 2 statements below describe that phase's original exposure boundary; Phase 3 now exposes authenticated master mutations only. Public operational plan/consignment/file/print endpoints remain unavailable.
+
+## GET /api/health/live
+
+Public process liveness only. Returns HTTP 200, `Content-Type: application/json` and `Cache-Control: no-store`:
+
+```json
+{"status":"ok"}
+```
+
+This response says that the web handler is running. It does not claim database readiness, authentication, published coverage or operational availability. It contains no environment values, database versions or diagnostics. `status` is a machine contract, not visible application copy.
+
+There is no `/api/health/ready` endpoint. `npm run db:check` is an operator-only server-side CLI and returns exit code 0 on a real MySQL check, otherwise 1 with a safe error code. It validates MySQL 8.4, InnoDB, utf8mb4, collation and a parameterized Thai/emoji round trip. Full exceptions, credentials and connection strings are suppressed.
+
+## Web routes
+
+| Route | Behavior | Data access |
+| --- | --- | --- |
+| `/` | Thai shell, current Bangkok date, keyboard-operable search tabs, time-basis choice and unavailable search controls | No operational data; no writes |
+| `/guide` | Thai introductory guide and accurate feature availability | Static public guidance |
+| Unknown path | HTTP 404 and Thai recovery link | None |
+
+Shared response headers include `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy: same-origin`. The Next.js powered-by header is disabled. Search engines are told not to index this internal-app shell.
+
+## Deferred contracts
+
+Master CRUD, trip search, coverage preview/publication, consignment submission/events/receipt, labels and imports are not exposed in Phase 1. Implement them only in their requested phases with authenticated scope, server input validation and the documented transaction guards. Never treat a disabled button as authorization. Routes proposed in the source DOCX remain reference proposals until implemented and documented here.
+
+## Phase 2 internal server contracts
+
+These are implemented TypeScript services, not public HTTP endpoints or server actions. The future authenticated adapter must derive `actorId` from the verified session, never from request JSON. Each call resolves active identity, persisted permissions and scope inside the transaction. Phase 3 owns login/session integration. No production authentication bypass exists. Application credentials remain read-only until the authenticated mutation surface is introduced.
+
+| Function | Input / result | Permission and transaction |
+| --- | --- | --- |
+| `saveDraft` | `DraftInput`: serviceDate, expectedVersion (0 for new day), trips; returns planId/revisionId/version | `plan.write`, global scope; eligibility + daily-plan locks; creates a new draft revision, retaining stable trip IDs |
+| `publishPlan` | revisionId, expectedVersion; returns revisionId/version | `plan.publish`, global scope; eligibility + plan + sorted old/new vehicle locks; validates all six cells per eligible branch, occupancy and assigned consignments; publishes and switches reservations atomically |
+| `changeBranchEligibility` | branchId, expectedVersion, activeFrom/activeTo, archived; returns version | `master.write`, global scope; eligibility lock; changes affecting existing published dates are rejected pending coordinated revision workflow |
+| `receiveConsignment` | consignmentId, expectedVersion, lines with exactly itemId or packageId, decimal string quantity, unit, optional note; returns eventId/status/version | `consignment.receive`, destination branch or global scope; consignment lock; requires departed event; appends receipt/event/audit, updates custody and optimistic version |
+| `findPublishedTripIds` | serviceDate, branchId, categoryCode; returns ordered stable trip IDs | `trip.read`, branch or global scope; published pointer, exact service date, same-stop EXISTS; repeatable-read transaction |
+
+All mutation calls also require an idempotency key (1–100 ASCII letters, digits, colon, underscore or hyphen). Unique actor/operation/key, canonical SHA-256 payload hash, and stored JSON result live in the same transaction. Exact replay reauthorizes and returns the stored result; a changed payload conflicts. Failed transactions leave no success record. Bounded retries handle MySQL deadlocks and unique-insert races; callbacks must never perform external side effects.
+
+Safe domain failures use `DomainError.code` and Thai `message`, optionally a structured missing-coverage list. Important codes: `FORBIDDEN`, `VERSION_CONFLICT`, `COVERAGE_MISSING`, `UNKNOWN_OCCUPANCY`, `VEHICLE_OVERLAP`, `REASSIGNMENT_REQUIRED`, `RECEIPT_STATE`, `RECEIPT_EXCEEDS_SENT`, `RECEIPT_UNIT`, `IDEMPOTENCY_CONFLICT`. A future HTTP adapter must redact unexpected persistence errors; the current public liveness endpoint never calls these operations.
+
+Time contracts: serviceDate is Gregorian YYYY-MM-DD in Bangkok; event/planning instants are ISO UTC strings with millisecond precision. Unknown instants are null. Quantities are positive decimal strings with up to 11 integer/3 fractional digits; package receipt is exactly `1 PACKAGE` per stable package ID. An item is measured in its sent unit. Detailed mode completes only when both all item balances and all packages are received and no issue is open. A partial receipt stays `PARTIALLY_RECEIVED`.
+
+## Versioned JSON evidence
+
+JSON is not used for stop/category relationships or quantity balances. Frozen payloads carry `schemaVersion: 1`. Address snapshot payloads contain sender/recipient name, address components and contact as known at assignment; transport snapshots contain stable trip ID, trip revision ID, service date, round and vehicle details. Receipt event payloads contain the validated lines; the normalized `ReceiptLine` table is the authoritative balance ledger. Audit before/after objects identify the changed revision/version and relevant input; imports retain raw source rows and validation issues, never executable instructions. Print/label payload rendering, upload validation and full lifecycle endpoints remain their later requested phases; Phase 2 provides storage and ownership/history constraints only.
+
+T08 currently fails closed with `REASSIGNMENT_REQUIRED` when a published replacement affects assigned consignments. It does not implement the later cancellation/merge/reassignment UI or silently move labels. Authentication, complete search filters/counts/pagination, master CRUD, submission/loading, corrections/returns, label printing and import commit routes are not exposed.

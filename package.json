@@ -1,0 +1,74 @@
+{
+  "name": "moointer-route",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.14.0 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.9.0",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3010",
+    "build": "prisma generate && next build",
+    "start": "next start --hostname 127.0.0.1 --port 3010",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --import tsx --test tests/unit/*.test.ts",
+    "test:e2e": "playwright test",
+    "test:install-browser": "playwright install chromium",
+    "test:db": "node --conditions=react-server --import tsx scripts/test-database.ts",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:check": "node --conditions=react-server --import tsx scripts/check-database.ts",
+    "db:setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mysql-local.ps1 -Action setup",
+    "db:start:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mysql-local.ps1 -Action start",
+    "db:stop:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mysql-local.ps1 -Action stop",
+    "postinstall": "prisma generate",
+    "db:migrate:test": "node --import tsx scripts/migrate-test.ts",
+    "db:seed": "node --conditions=react-server --import tsx scripts/seed.ts",
+    "test:integration": "node --import tsx scripts/run-integration.ts",
+    "db:migrate:local": "node --import tsx scripts/migrate-local.ts",
+    "auth:setup:local": "node --conditions=react-server --import tsx scripts/setup-auth.ts",
+    "test:auth:e2e": "node --import tsx scripts/run-integration.ts --browser",
+    "auth:account:local": "node --conditions=react-server --import tsx scripts/account-local.ts"
+  },
+  "dependencies": {
+    "@fontsource/noto-sans-thai": "5.3.0",
+    "@prisma/adapter-mariadb": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "better-auth": "1.7.7",
+    "dotenv": "17.2.3",
+    "lucide-react": "1.52.0",
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "16.3.8",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prisma": "7.10.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1"
+  },
+  "overrides": {
+    "@prisma/adapter-mariadb": {
+      "mariadb": "3.5.4"
+    },
+    "prisma": {
+      "mysql2": "3.24.5"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    }
+  }
+}
