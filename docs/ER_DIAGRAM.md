@@ -1,5 +1,14 @@
 # Phase 2 ER diagram
 
+Phase 3 adds the following relationships; the Phase 2 operational graph below is unchanged. AuthVerification/AuthRateLimit are independent ephemeral tables. Master fields added in Phase 3 are detailed in FIELD_DICTIONARY.md.
+
+```mermaid
+erDiagram
+  User ||--o{ AuthSession : userId
+  User ||--o{ AuthAccount : userId
+  Driver |o--o{ UserScope : driverId
+```
+
 Reviewed 2026-10-06. Each line is a physical FK (optional targets permit NULL); composite ownership keys are detailed in schema.prisma. Every child references a stable parent with RESTRICT deletion. See FIELD_DICTIONARY.md for fields.
 
 ```mermaid
