@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, CalendarRange, ChevronRight, Eye, FileSpreadsheet, IdCard, Package, Store, Tags, ThermometerSnowflake, Truck, Van, Warehouse, type LucideIcon } from "lucide-react";
+import { Building2, CalendarRange, ChevronRight, Eye, FileSpreadsheet, IdCard, Package, Store, Tags, ThermometerSnowflake, Truck, UsersRound, Van, Warehouse, type LucideIcon } from "lucide-react";
 import { requirePageActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
 import { accountSummary } from "@/server/services/account";
@@ -9,11 +9,12 @@ export const metadata = { title: "จัดการหลังบ้าน" };
 
 // One icon per kind of work or data, so each card is recognised before its title is read.
 const icons: Record<string, LucideIcon> = {
-  planning: CalendarRange, imports: FileSpreadsheet, vehicles: Truck, "vehicle-types": Van, drivers: IdCard, branches: Store,
+  planning: CalendarRange, imports: FileSpreadsheet, users: UsersRound, vehicles: Truck, "vehicle-types": Van, drivers: IdCard, branches: Store,
   "product-categories": Tags, "storage-conditions": ThermometerSnowflake, "consignment-categories": Package, warehouses: Warehouse, departments: Building2,
 };
 const summaries: Record<string, string> = {
   planning: "เส้นทาง แม่แบบ ความครบถ้วนหมูและไก่ทั้ง ๓ รอบ และประวัติแผน", imports: "ไฟล์ CSV / XLSX ตรวจทีละแถวก่อนนำเข้าทั้งชุด",
+  users: "เพิ่มบัญชี กำหนดประเภทและขอบเขต ปิดใช้งาน และออกรหัสผ่านชั่วคราว",
 };
 
 /** One card per work area: icon, title and a short summary. */

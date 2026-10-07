@@ -34,5 +34,5 @@ try{
   }
   const grants=runtimeGrants("moointer_dev","moointer_app");
   const result=spawnSync(resolve(".local/tools/mysql-8.4.11-winx64/bin/mysql.exe"),[`--defaults-file=${resolve(".local/mysql/root-client.ini")}`,"--batch"],{input:grants.join("\n"),encoding:"utf8"});if(result.status!==0)throw new Error("GRANT_FAILED");
-  console.log("PASS: secure local account and seven roles installed; scoped runtime grants applied. Credentials are only in ignored .local/auth/*-credentials.txt. No signup or authentication bypass.");
+  console.log("PASS: secure local account and the account types installed; scoped runtime grants applied. Credentials are only in ignored .local/auth/*-credentials.txt. No signup or authentication bypass.");
 }catch{console.error("AUTH_SETUP_FAILED (existing accounts and data retained)");process.exitCode=1;}finally{await db?.$disconnect();}

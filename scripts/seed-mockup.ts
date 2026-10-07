@@ -1,24 +1,20 @@
 import "dotenv/config";
-import { randomBytes, createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createDatabase } from "../src/server/persistence/database";
 import { parseDatabaseUrl } from "../src/server/config/environment";
 import { installRoles } from "../src/server/auth/permissions";
-import { provisionAccount, assignAccountDepartment } from "../src/server/auth/provision";
 import { mutateMaster } from "../src/server/services/masters";
-import { hashPassword } from "better-auth/crypto";
-import type { ScopeKind } from "../src/generated/prisma/client";
+import { MOCK_ACCOUNTS, MOCK_LOGIN_FILE, ensureMockAccounts } from "./mock-accounts";
 
 /**
  * MOCK-UP data for hands-on testing of the local development database (moointer_dev).
  * Every record is fictitious and labelled ทดสอบ; no real branch, person, phone or plate is used.
- * Only master data and 7 role accounts are created. No route, template, plan, trip, reservation or
+ * Only master data and the mock accounts in mock-accounts.ts are created. No route, template, plan, trip, reservation or
  * consignment is created, so the owner can try those flows from an empty state.
  * Masters go through the same audited service as the admin screens. Re-running is safe: writes replay
- * by idempotency key and existing accounts are kept. Passwords go only to ignored .local/auth/mockup-logins.txt.
+ * by idempotency key and existing accounts are kept. Passwords go only to the ignored login file (see mock-accounts.ts).
  */
 const MANIFEST_KEY = "mockup-dev-v1", ACTIVE_FROM = "2026-10-01", REASON = "ข้อมูล mock up สำหรับทดสอบระบบ (ไม่ใช่ข้อมูลจริง)";
-const LOGIN_FILE = ".local/auth/mockup-logins.txt";
 
 type Values = Record<string, string | boolean>;
 const storage = [["CHILLED", "แช่เย็น 0–4 °C (ทดสอบ)"], ["FROZEN", "แช่แข็ง −18 °C (ทดสอบ)"], ["AMBIENT", "อุณหภูมิห้อง (ทดสอบ)"]];
@@ -55,45 +51,23 @@ try {
   db = createDatabase(config);
   await installRoles(db);
 
-  const roles: Array<[string, string, string]> = [
-    ["mock.admin@moointer.test", "ผู้ดูแลระบบ", "ทั้งบริษัท (ทำงานได้ทุกประเภท)"], ["mock.dispatcher@moointer.test", "ผู้วางแผนขนส่ง", "ทั้งบริษัท"],
-    ["mock.supervisor@moointer.test", "ผู้วางแผนขนส่ง (เดิม หัวหน้างาน)", "ทั้งบริษัท"], ["mock.requester@moointer.test", "พนักงานทั่วไป", "ฝ่ายการตลาด (ทดสอบ)"],
-    ["mock.warehouse@moointer.test", "คลังและรถขนส่ง", "คลังกลางทดสอบ (WH-T01)"], ["mock.driver@moointer.test", "คลังและรถขนส่ง (คนขับ)", "สมชาย ขับดี (DRV-T01)"],
-    ["mock.branch@moointer.test", "พนักงานสาขา", "สาขาทดสอบ สันทราย (BR-T01)"],
-  ];
   // Accounts first: the mock administrator is the audited actor of every master write.
-  const logins = new Map<string, string>();
-  if (existsSync(LOGIN_FILE)) for (const line of readFileSync(LOGIN_FILE, "utf8").split(/\r?\n/)) { const m = line.match(/^(\S+@\S+)\t(\S+)$/); if (m) logins.set(m[1], m[2]); }
-  // The login file is rewritten after every new password so an interrupted run never loses one.
-  const saveLogins = () => {
-    mkdirSync(".local/auth", { recursive: true });
-    writeFileSync(LOGIN_FILE, [
-      "LOCAL DEVELOPMENT ONLY — บัญชีทดสอบ mock up ของ moointer_dev (ห้ามใช้กับระบบจริง)", "เข้าสู่ระบบที่ http://127.0.0.1:3010/login · จำกัด 5 ครั้งต่อนาทีรวมทุกบัญชี", "",
-      ...roles.flatMap(([email, role, scope]) => [`# ${role} — ขอบเขต: ${scope}`, logins.has(email) ? `${email}\t${logins.get(email)}` : `${email}\t(ยังไม่ได้สร้าง)`, ""]),
-    ].join("\n"), { mode: 0o600 });
-  };
-  const account = async (email: string, name: string, role: string, scope: ScopeKind, scopeId?: string) => {
-    const existing = await db!.user.findUnique({ where: { email } });
-    if (existing && logins.has(email)) return existing.id;
-    const password = randomBytes(12).toString("base64url");
-    let id: string;
-    if (existing) {
-      // A mock account whose password was never recorded gets a new one; its sessions are revoked and audited.
-      const hash = await hashPassword(password);
-      await db!.$transaction(async (tx) => {
-        await tx.authSession.deleteMany({ where: { userId: existing.id } });
-        await tx.authAccount.updateMany({ where: { userId: existing.id, providerId: "credential" }, data: { password: hash } });
-        await tx.auditLog.create({ data: { actorId: existing.id, action: "LOCAL_OPERATOR_PASSWORD_RESET", entityType: "User", entityId: existing.id, reason: "Mock-up seed: password not recorded", after: { sessionsRevoked: true } } });
-      });
-      id = existing.id;
-    } else id = (await provisionAccount(db!, { email, name, password, role, scope, scopeId })).id;
-    logins.set(email, password); saveLogins();
-    return id;
-  };
-  const admin = await account("mock.admin@moointer.test", "ผู้ดูแลระบบ (บัญชีทดสอบ)", "ADMINISTRATOR", "GLOBAL");
+  const { admin } = await ensureMockAccounts(db, ["admin"]);
 
   const ids = new Map<string, string>();
+  // A master that already exists (for example after the development reset cleared replay records) is reused as is.
+  const existing = async (kind: string, code: string) => {
+    const byCode = { where: { code }, select: { id: true } } as const;
+    const row = kind === "vehicles" ? await db!.vehicle.findFirst({ where: { plateNormalized: code.replace(/[\s-]/g, "").toUpperCase() }, select: { id: true } })
+      : kind === "storage-conditions" ? await db!.storageCondition.findUnique(byCode) : kind === "vehicle-types" ? await db!.vehicleType.findUnique(byCode)
+      : kind === "product-categories" ? await db!.productCategory.findUnique(byCode) : kind === "consignment-categories" ? await db!.consignmentCategory.findUnique(byCode)
+      : kind === "warehouses" ? await db!.warehouse.findUnique(byCode) : kind === "departments" ? await db!.department.findUnique(byCode)
+      : kind === "drivers" ? await db!.driver.findUnique(byCode) : kind === "branches" ? await db!.branch.findUnique(byCode) : null;
+    return row?.id;
+  };
   const save = async (kind: string, code: string, values: Values) => {
+    const found = await existing(kind, code);
+    if (found) { ids.set(`${kind}:${code}`, found); return; }
     // Idempotency keys are ASCII only; Thai codes such as vehicle plates are replaced by a stable hash.
     const keyPart = /^[A-Za-z0-9_-]{1,40}$/.test(code) ? code : createHash("sha256").update(code).digest("hex").slice(0, 24);
     const result = await mutateMaster(db!, admin, kind, `${MANIFEST_KEY}:${kind}:${keyPart}`, { action: "save", expectedVersion: 0, reason: REASON, values: { ...values, active: true } });
@@ -118,21 +92,13 @@ try {
       contactName: `ผู้รับทดสอบ ${name.replace(/^สาขาทดสอบ |ทดสอบ$/g, "")}`, contactPhone: `000-000-${String(index + 201).padStart(4, "0")}`, receivingFromMinute: "06:00", receivingToMinute: "18:00", activeFrom: ACTIVE_FROM });
   }
 
-  // One account per D221 account type (two each for planning and warehouse/vehicle); scoped types get a concrete scope from the mock master data.
-  await account("mock.dispatcher@moointer.test", "ผู้จัดรถ (บัญชีทดสอบ)", "DISPATCHER", "GLOBAL");
-  await account("mock.supervisor@moointer.test", "หัวหน้างาน (บัญชีทดสอบ)", "DISPATCHER", "GLOBAL");
-  await account("mock.requester@moointer.test", "ผู้ฝากส่ง ฝ่ายการตลาด (บัญชีทดสอบ)", "REQUESTER", "DEPARTMENT", ids.get("departments:DEP-MKT"));
-  await account("mock.warehouse@moointer.test", "เจ้าหน้าที่คลังกลาง (บัญชีทดสอบ)", "WAREHOUSE", "WAREHOUSE", ids.get("warehouses:WH-T01"));
-  await account("mock.driver@moointer.test", "พนักงานขับรถ สมชาย (บัญชีทดสอบ)", "WAREHOUSE", "DRIVER", ids.get("drivers:DRV-T01"));
-  await account("mock.branch@moointer.test", "ผู้รับประจำสาขาสันทราย (บัญชีทดสอบ)", "BRANCH_RECEIVER", "BRANCH", ids.get("branches:BR-T01"));
+  // The other mock accounts need the branch, warehouse, driver and department created above.
+  await ensureMockAccounts(db);
 
-  for (const [email] of roles) if (!email.includes("mock.requester")) await assignAccountDepartment(db, email, ids.get("departments:DEP-OPS")!, "D216: explicit synthetic sender department for every mock role");
-
-  const payload = { storage: storage.length, vehicleTypes: vehicleTypes.length, productCategories: productCategories.length, warehouses: warehouses.length, departments: departments.length, drivers: drivers.length, vehicles: vehicles.length, branches: branches.length, accounts: 7, planning: "none", consignments: "none" };
+  const payload = { storage: storage.length, vehicleTypes: vehicleTypes.length, productCategories: productCategories.length, warehouses: warehouses.length, departments: departments.length, drivers: drivers.length, vehicles: vehicles.length, branches: branches.length, accounts: MOCK_ACCOUNTS.length, planning: "none", consignments: "none" };
   if (!await db.seedManifest.findUnique({ where: { key: MANIFEST_KEY } })) await db.seedManifest.create({ data: { key: MANIFEST_KEY, version: 1, checksum: createHash("sha256").update(JSON.stringify(payload)).digest("hex"), payload } });
 
-  saveLogins();
-  console.log(`PASS: mock-up master data and 7 mock accounts (five account types) are in moointer_dev (manifest ${MANIFEST_KEY}). No route, template, plan, trip or consignment was created. Logins are in ignored ${LOGIN_FILE}; values not printed.`);
+  console.log(`PASS: mock-up master data and ${MOCK_ACCOUNTS.length} mock accounts (five account types) are in moointer_dev (manifest ${MANIFEST_KEY}). No route, template, plan, trip or consignment was created. Logins are in ignored ${MOCK_LOGIN_FILE}; values not printed.`);
 } catch (error) {
   // Business errors carry a safe Thai message; anything else is reported by class and code only.
   const e = error as Error & { code?: string };

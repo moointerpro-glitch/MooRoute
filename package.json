@@ -42,7 +42,9 @@
     "db:seed:mockup": "node --conditions=react-server --import tsx scripts/seed-mockup.ts",
     "auth:sync:local": "node --conditions=react-server --import tsx scripts/sync-access-local.ts",
     "test:access:integration": "node --import tsx scripts/run-integration.ts --access",
-    "db:seed:mockup:plans": "node --conditions=react-server --import tsx scripts/seed-mockup-plans.ts"
+    "db:seed:mockup:plans": "node --conditions=react-server --import tsx scripts/seed-mockup-plans.ts",
+    "db:reset:dev-operations": "node --conditions=react-server --import tsx scripts/reset-dev-operations.ts",
+    "test:users:e2e": "node --import tsx scripts/run-integration.ts --users-browser"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "5.3.0",

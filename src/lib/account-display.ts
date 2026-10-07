@@ -10,7 +10,7 @@ export const ACCOUNT_TYPES: readonly AccountType[] = [
   { code: "BRANCH_RECEIVER", name: "พนักงานสาขา", does: "รับของ แจ้งปัญหา และปิดงานของสาขาตนเอง", scope: "สาขาที่ประจำ" },
   { code: "WAREHOUSE", name: "คลังและรถขนส่ง", does: "รับของเข้าคลัง ขึ้นรถ ออกและพิมพ์ฉลาก ใบคุมรถ และบันทึกรถออก", scope: "คลังที่ประจำ หรือรถที่ตนเองขับ" },
   { code: "DISPATCHER", name: "ผู้วางแผนขนส่ง", does: "จัดทำและเผยแพร่แผนรถ จัดรถให้คำขอ แก้ไขปัญหาและการคืนของ นำเข้าตาราง", scope: "ทั้งบริษัท" },
-  { code: "ADMINISTRATOR", name: "ผู้ดูแลระบบ", does: "ทำงานได้ทุกประเภท และดูแลข้อมูลหลักทั้งหมด", scope: "ทั้งบริษัท" },
+  { code: "ADMINISTRATOR", name: "ผู้ดูแลระบบ", does: "ทำงานได้ทุกประเภท ดูแลบัญชีผู้ใช้ และข้อมูลหลักทั้งหมด", scope: "ทั้งบริษัท" },
 ];
 
 /** Retired codes and the type that absorbed them (mirrors retiredRoles on the server). */

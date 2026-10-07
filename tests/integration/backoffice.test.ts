@@ -6,7 +6,7 @@ import { backofficeAreas, navigationAccess } from "../../src/lib/navigation";
 // D218: the back office lists only what an account is responsible for. D221: retired codes match the type that absorbed them.
 const masters = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories", "warehouses", "departments"];
 const expected: Record<string, { global: boolean; work: string[]; reference: string[] }> = {
-  ADMINISTRATOR: { global: true, work: ["planning", "imports", ...masters], reference: [] },
+  ADMINISTRATOR: { global: true, work: ["planning", "users", "imports", ...masters], reference: [] },
   DISPATCHER: { global: true, work: ["planning", "imports"], reference: masters },
   SUPERVISOR: { global: true, work: ["planning", "imports"], reference: masters },
   WAREHOUSE: { global: false, work: [], reference: [] },

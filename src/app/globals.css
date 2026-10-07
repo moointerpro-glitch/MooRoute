@@ -713,7 +713,7 @@ input::placeholder { color: #718096; }
 .account-facts dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
 .account-facts dt { font-size: 13px; color: var(--color-muted); }
 .account-facts dd { margin: 4px 0 0; }
-.account-page .form-grid { align-items: start; }
+.account-page .form-grid, .user-form .form-grid { align-items: start; }
 @media (min-width: 1200px) and (max-width: 1320px) { .profile-text { display: none; } .profile-trigger { gap: 6px; padding-right: 8px; } }
 /* Six menu items, the guide and the profile need about 1200px; below that the menu collapses behind the toggle. */
 @media (max-width: 1199px) {
@@ -728,3 +728,50 @@ input::placeholder { color: #718096; }
 }
 @media (max-width: 600px) { .profile-text { display: none; } .profile-trigger { padding-right: 7px; gap: 4px; } }
 @media (max-width: 600px) { .account-facts dl { grid-template-columns: 1fr; } .account-head h1 { font-size: 22px; } }
+
+/* D223 user management. */
+.type-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.type-filter a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: #334155; font-size: 14px; }
+.type-filter a span { min-width: 22px; padding: 0 6px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+.type-filter a:hover { border-color: #ffc2cc; color: var(--color-primary); }
+.type-filter a[aria-current="page"] { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.type-filter a[aria-current="page"] span { background: #ffffff33; color: #fff; }
+.cell-sub { display: block; font-size: 13px; }
+.user-table td { vertical-align: top; }
+.user-fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 14px; min-width: 0; }
+.user-fieldset legend { padding: 0; margin-bottom: 12px; font-size: 16px; font-weight: 600; }
+.type-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.type-card { position: relative; display: grid !important; gap: 4px !important; align-content: start; padding: 16px 16px 16px 44px; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; cursor: pointer; font-weight: 400 !important; }
+/* Radios must not inherit the full-width text-input sizing of .admin-form. */
+.admin-form .type-card input[type="radio"] { position: absolute; left: 16px; top: 19px; width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; border-radius: 50%; accent-color: var(--color-primary); }
+.type-card strong { font-size: 15px; }
+.type-card span { font-size: 13px; color: #475569; line-height: 1.55; }
+.type-card small { font-size: 12px; color: var(--color-muted); }
+.type-card:hover { border-color: #ffc2cc; }
+.type-card.selected { border-color: var(--color-primary); background: #fff7f8; box-shadow: 0 0 0 1px var(--color-primary) inset; }
+.type-card:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.type-card:has(input:focus-visible) { outline: 3px solid #b00025; outline-offset: 2px; }
+.scope-note { align-self: end; padding: 12px 14px; border-radius: 10px; background: #f6f8fa; color: #475569; font-size: 14px; }
+.password-reveal { display: grid; gap: 12px; padding: 20px; border: 1px solid #b7e2c8; border-radius: 14px; background: #f1faf4; }
+.password-reveal h2 { display: flex; align-items: center; gap: 8px; color: #166534; font-size: 18px; }
+.password-reveal dl { display: grid; gap: 10px; margin: 0; }
+.password-reveal dt { font-size: 13px; color: var(--color-muted); }
+.password-reveal dd { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; overflow-wrap: anywhere; }
+.password-reveal code { padding: 8px 14px; border-radius: 8px; background: #fff; border: 1px dashed #86c9a1; font-family: ui-monospace, Consolas, monospace; font-size: 20px; letter-spacing: .06em; user-select: all; }
+.password-reveal .secondary-button { min-height: 40px; gap: 6px; }
+.admin-card a.primary-button, .admin-card a.primary-button:hover { color: #fff; }
+.password-reveal + .form-actions { margin-top: 16px; }
+.user-head { margin-block: 16px 20px; }
+.user-head > div { flex: 1; min-width: 0; }
+.user-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.user-layout > .admin-card, .user-side > .admin-card { margin: 0; }
+.user-side { display: grid; gap: 20px; }
+.user-actions h2, .user-history h2 { font-size: 17px; margin-bottom: 12px; }
+.user-actions .form-actions button { gap: 8px; }
+.user-actions .delete-confirm label { display: grid; gap: 6px; margin-top: 10px; font-size: 14px; }
+.user-actions .delete-confirm input { min-height: 44px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font: inherit; }
+.user-history ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.user-history li { display: grid; gap: 1px; padding-left: 14px; border-left: 2px solid var(--color-border); font-size: 14px; }
+.user-history li .muted { font-size: 12px; }
+@media (max-width: 1100px) { .user-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .user-head { flex-wrap: wrap; } .password-reveal code { font-size: 17px; } }

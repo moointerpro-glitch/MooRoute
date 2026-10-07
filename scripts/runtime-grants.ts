@@ -14,8 +14,13 @@ const groups: Array<[string, string[]]> = [
   // Authentication runtime state.
   ["INSERT, UPDATE, DELETE", ["AuthSession", "AuthRateLimit", "AuthVerification"]],
   ["UPDATE", ["AuthAccount", "EligibilityGuard"]],
-  // Self-service contact defaults (D220); User itself stays read-only to the application.
+  // Self-service contact defaults (D220).
   ["INSERT, UPDATE", ["UserProfile"]],
+  // Administrator user management (D223): accounts are created and disabled, never deleted; the current role and
+  // scope rows are replaced on change while AuditLog keeps the before/after history.
+  ["INSERT, UPDATE", ["User"]],
+  ["INSERT", ["AuthAccount"]],
+  ["INSERT, DELETE", ["UserRole", "UserScope"]],
 ];
 const identifier = (value: string) => { if (!/^[A-Za-z0-9_]{1,64}$/.test(value)) throw new Error("INVALID_IDENTIFIER"); return value; };
 

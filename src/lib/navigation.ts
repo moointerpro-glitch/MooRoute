@@ -14,6 +14,8 @@ export function backofficeAreas(permissions: ReadonlySet<string>, global: boolea
     const does = [has("plan.write") && "จัดทำแผน", has("plan.publish") && "ตรวจและเผยแพร่", (has("route.write") || has("template.write")) && "เส้นทางและแม่แบบ"].filter((v): v is string => !!v);
     areas.push({ id: "planning", title: "แผนเดินรถรายวัน", href: "/admin/planning", section: does.length ? "work" : "reference", does: does.length ? does : ["ดูแผน"] });
   }
+  // D223: accounts, account types and scopes; identity changes need the company-wide scope.
+  if (global && has("identity.manage")) areas.push({ id: "users", title: "ผู้ใช้งาน", href: "/admin/users", section: "work", does: ["เพิ่มบัญชี", "กำหนดประเภทและขอบเขต", "ปิดใช้งาน", "ออกรหัสผ่านชั่วคราว"] });
   if (canImport(permissions, global)) areas.push({ id: "imports", title: "นำเข้าข้อมูล", href: "/admin/imports", section: "work", does: ["พักไฟล์", "ตรวจรายแถว", "นำเข้าทั้งชุด"] });
   for (const [kind, d] of Object.entries(masterDefinitions)) {
     const write = has(`master.${kind}.write`), remove = has(`master.${kind}.delete`), exportable = has(`master.${kind}.export`);
