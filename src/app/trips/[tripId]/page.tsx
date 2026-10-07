@@ -62,6 +62,9 @@ export default async function TripDetailPage({ params, searchParams }: { params:
         <p><CheckCircle2 size={16} aria-hidden="true" className="inline-icon ok" />รอบรถนี้แวะส่ง <strong>{matched.name}</strong> และยังไม่ถึงเวลาออกรถ ตรวจสอบเบื้องต้นแล้ว</p>
         <Link className="primary-button" href={`/consign?trip=${encodeURIComponent(trip.tripId)}&branch=${encodeURIComponent(matched.branchId)}`}>ฝากของกับรอบนี้</Link>
         <p className="field-hint">ระบบจะกรอกสาขาและรอบรถนี้ในคำขอให้ ผู้วางแผนขนส่งจะตรวจสอบและยืนยันรอบรถอีกครั้ง</p>
+      </> : !matched && trip.eligibility.reasons.length === 1 && trip.kind === "BRANCH_DELIVERY" && trip.status.code === "WAITING" ? <>
+        <p>เลือกสาขาปลายทางที่รอบรถนี้แวะส่ง ระบบจะกรอกสาขาและรอบรถนี้ในคำขอให้</p>
+        <ul className="consign-stops">{trip.stops.filter((s, n) => trip.stops.findIndex((x) => x.branchId === s.branchId) === n).map((s) => <li key={s.branchId}><Link className="secondary-button" href={`/consign?trip=${encodeURIComponent(trip.tripId)}&branch=${encodeURIComponent(s.branchId)}`}>ฝากของไป {s.name}</Link></li>)}</ul>
       </> : <>
         <button type="button" className="primary-button" disabled aria-describedby="consign-reasons">ฝากของกับรอบนี้</button>
         <ul id="consign-reasons" className="reason-list">{trip.eligibility.reasons.map((r) => <li key={r}>{r}</li>)}</ul>

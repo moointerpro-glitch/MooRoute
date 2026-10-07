@@ -664,17 +664,13 @@ input::placeholder { color: #718096; }
 .time-list button.is-selected { background: var(--color-primary); color: #fff; font-weight: 700; }
 @media (max-width: 600px) { .calendar { width: min(300px, calc(100vw - 40px)); } .dt-pair { grid-template-columns: 1fr; } }
 
-/* Back-office desk: work first, read-only reference data second (src/app/admin/page.tsx). */
+/* Back-office desk: the areas where the account has a job (src/app/admin/page.tsx). */
 .backoffice-head { margin-bottom: 8px; }
 .backoffice-head p strong { color: #1e293b; font-weight: 600; }
 .backoffice-section { margin-top: 28px; }
 .backoffice-section .admin-grid { margin-top: 14px; }
 .section-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 17px; font-weight: 700; color: #1e293b; }
 .readonly-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 3px 10px; }
-.reference-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 14px 0 0; }
-.reference-list a { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 14px; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; color: #334155; font-size: 14px; }
-.reference-list a .tile-chevron { margin-left: auto; }
-.reference-list a:hover, .reference-list a:focus-visible { border-color: #cbd5e1; color: var(--color-primary); }
 .empty-backoffice { margin-top: 24px; display: grid; gap: 10px; justify-items: start; }
 
 
@@ -875,3 +871,19 @@ input::placeholder { color: #718096; }
 .departure-status { display: inline-grid; gap: 3px; justify-items: start; }
 .departure-status small { color: var(--color-muted); font-size: 12px; line-height: 1.4; }
 .detail-departure { margin: 0 0 12px; }
+
+/* D226: consign straight from a trip row. */
+.row-do { display: grid; gap: 4px; justify-items: start; }
+.consign-link, .consign-pick > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 12px; border: 1px solid var(--color-primary); border-radius: 8px; background: #fff; color: var(--color-primary); font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.consign-link:hover, .consign-pick > summary:hover, .consign-pick[open] > summary { background: var(--color-primary); color: #fff; }
+.consign-pick > summary { list-style: none; }
+.consign-pick > summary::-webkit-details-marker { display: none; }
+.consign-pick > summary::after { content: "▾"; font-size: 12px; }
+.consign-pick > ul { min-width: 200px; margin: 6px 0 0; padding: 6px; list-style: none; background: #fff; border: 1px solid var(--color-border); border-radius: 10px; }
+.consign-pick > ul a { display: block; min-height: 40px; padding: 9px 12px; border-radius: 7px; color: #334155; font-size: 14px; white-space: nowrap; }
+.consign-pick > ul a:hover { background: #fff1f3; color: var(--color-primary); }
+.card-do { justify-items: stretch; gap: 8px; margin-top: 8px; }
+.card-do .card-detail { margin-top: 0; }
+.card-do .consign-link, .card-do .consign-pick > summary { width: 100%; justify-content: center; min-height: 44px; }
+
+.consign-stops { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }

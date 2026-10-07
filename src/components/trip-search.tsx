@@ -282,7 +282,7 @@ export function TripSearch({ today, options, params }: { today: string; options:
           : !result.published ? <div className="results-state"><CalendarDays size={26} aria-hidden="true" /><div><h3>ยังไม่มีแผนเดินรถที่เผยแพร่</h3><p>{thaiLongDate(result.serviceDate)} ยังไม่มีรอบรถที่เผยแพร่ กรุณาเลือกวันอื่นหรือติดต่อผู้วางแผนขนส่ง</p></div></div>
           : result.total === 0 ? <div className="results-state"><Route size={26} aria-hidden="true" /><div><h3>ไม่พบรอบรถที่ตรงกับเงื่อนไข</h3><p>ลองเลือกเวลาอื่น ขยายช่วงเวลา หรือล้างตัวกรองบางรายการ</p><button type="button" className="secondary-button" onClick={clearAll}>ล้างตัวกรองทั้งหมด</button></div></div>
           : <div className={busy ? "results-body is-refreshing" : "results-body"}>
-            <TripResults rows={result.rows} branchId={result.resolution.branch?.id} caption={`ผลการค้นหารอบรถ ${filterText || "ทั้งหมด"}`} />
+            <TripResults rows={result.rows} branchId={result.resolution.branch?.id} canConsign={options.canConsign} caption={`ผลการค้นหารอบรถ ${filterText || "ทั้งหมด"}`} />
             <div className="results-foot">
               <span>แสดง {showing} จาก {result.total.toLocaleString("th-TH")} รายการ{filterText ? ` · ${filterText}` : ""}</span>
               <nav className="pager" aria-label="เลือกหน้าผลการค้นหา">

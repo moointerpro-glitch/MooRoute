@@ -342,3 +342,11 @@ Owner request: do phase A professionally, give tables column lines, and say clea
 Not done: round time rules, mandatory arrival and driver, receiving-hours check, past-date lock (need the owner's round times and back-dating limit); actual departure/arrival recording per trip (owner decision); `test:staging` aggregate and `test:load` not rerun.
 
 Next three actions: owner tries the planning screen with demo.planner1 (date bar, strip, multi-day tools); owner gives the usual departure window of each round and how many days back a plan may be changed; decide who records actual departure and arrival on site.
+
+## Back office without reference lists; consign from a trip row (D226) — 2026-10-07
+
+Owner request. `src/lib/navigation.ts` and `src/app/admin/page.tsx` (reference section and its CSS removed; `BackofficeArea.section` dropped), `src/components/trip-results.tsx` (`ConsignAction`, "ดำเนินการ" column), `src/app/trips/page.tsx`, `src/components/trip-search.tsx`, `src/app/trips/[tripId]/page.tsx` (choice of stops), `src/app/globals.css`. No schema, data or capability change.
+
+Tests: `tests/integration/backoffice.test.ts` (areas per account type, planner no longer lists read-only masters), `tests/e2e/search.spec.ts` (trip detail offers the stops; trip list shows the departure status and the row action leads to the consignment form with a destination). Checks on the final build: typecheck, lint, build PASS; unit 37/37; integration 41/41; access 16/16; browser search 8/8, consignment 7/7, planning 2/2, labels 6/6, users 2/2, auth 4/4, shell 5/5. One search browser check failed first because it expected the old disabled button; updated to the new behaviour. Evidence: [evidence/planning-redesign](evidence/planning-redesign) (`backoffice-planner-1440.png`, `trips-consign-1440.png`).
+
+Next three actions: unchanged from the D225 entry (owner tries the planning screen; round times and back-dating limit for the rule changes; decide who records actual departure and arrival).

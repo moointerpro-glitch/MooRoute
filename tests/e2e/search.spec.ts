@@ -74,12 +74,21 @@ test("T04/T05/T06/T19/T20: three search modes, aliases, chips, range validation,
   await page.getByRole("link", { name: /ดูรายละเอียดรอบรถ s5-2028-03-01-1530/ }).first().click();
   await expect(page.getByRole("heading", { name: "จุดส่งตามลำดับ (1 จุด)" })).toBeVisible();
   await expect(page.getByText("ข้อมูลติดต่อแสดงเฉพาะผู้มีสิทธิ์ของสาขานี้")).toBeVisible();
-  await expect(page.getByRole("button", { name: "ฝากของกับรอบนี้" })).toBeDisabled();
+  // D226: without a chosen destination the page offers this trip's stops instead of a disabled button.
+  await expect(page.getByRole("link", { name: /^ฝากของไป / })).toHaveCount(1);
   await page.goto(`/trips/s5-2028-03-01-trip-1?branch=${A}`);
   await expect(page.getByText("สาขาที่เลือก")).toBeVisible();
   await page.getByRole("link", { name: "ฝากของกับรอบนี้" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "ฝากของส่งรถ" })).toBeVisible();
   await expect(page.getByLabel("สาขาปลายทาง")).toHaveValue(A);
+  // D226: the trip list shows the departure status and offers the same action per row; a multi-stop trip asks for the destination.
+  await page.goto("/trips?date=2028-03-01");
+  await expect(page.locator(".results-table .departure-status").first()).toContainText("ยังไม่ถึงเวลาออก");
+  const action = page.locator(".results-table .row-do").filter({ has: page.locator(".consign-pick, .consign-link") }).first();
+  if (await action.locator(".consign-pick").count()) { await action.locator("summary").click(); await action.locator(".consign-pick a").first().click(); }
+  else await action.locator(".consign-link").click();
+  await expect(page.getByRole("heading", { level: 1, name: "ฝากของส่งรถ" })).toBeVisible();
+  await expect(page.getByLabel("สาขาปลายทาง")).not.toHaveValue("");
   await expect(page.getByLabel("วันที่ต้องการส่ง (พ.ศ.)")).toHaveValue("01/03/2571");
   await page.screenshot({ path: `${evidence}/consign-handoff-1440.png`, fullPage: true });
 });
