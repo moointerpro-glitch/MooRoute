@@ -20,11 +20,11 @@ export default async function LabelsPage({ params }: { params: Promise<{ id: str
   catch (error) { if (error instanceof DomainError && ["NOT_FOUND", "FORBIDDEN"].includes(error.code)) notFound(); throw error; }
   const formats = Object.keys(LABEL_FORMATS) as LabelFormat[];
   const blocked = !o.assigned ? "ยังไม่จัดรอบรถ จึงออกฉลากไม่ได้" : !o.issuable ? `ออกฉลากไม่ได้ในสถานะ “${statusText(o.consignment.status)}”` : o.current ? `มีฉลากฉบับที่ ${o.current.number} เป็นฉบับปัจจุบันแล้ว ให้ใช้การพิมพ์ซ้ำ`
-    : o.masterChanged ? "ข้อมูลสาขาถูกแก้ไขหลังจัดรถ ต้องให้ผู้จัดรถกด “อัปเดตที่อยู่” ก่อน" : o.problems.length ? `ข้อมูลไม่ครบ: ${o.problems.join(" · ")}` : null;
+    : o.masterChanged ? "ข้อมูลสาขาถูกแก้ไขหลังจัดรถ ต้องให้ผู้วางแผนขนส่งกด “อัปเดตที่อยู่” ก่อน" : o.problems.length ? `ข้อมูลไม่ครบ: ${o.problems.join(" · ")}` : null;
   return <div className="container detail-page">
     <Link href={`/consignments/${o.consignment.id}`} className="text-link"><ArrowLeft size={17} aria-hidden="true" />กลับไปรายการฝากส่ง</Link>
     <header className="detail-header"><div><p className="eyebrow"><span />ฉลากหีบห่อ</p><h1>{o.consignment.code}</h1><p className="muted">ถึง {o.consignment.branch} · {statusText(o.consignment.status)}</p></div></header>
-    {o.masterChanged && <p className="notice-panel"><TriangleAlert size={20} aria-hidden="true" /><span>ที่อยู่หรือผู้ติดต่อของสาขาในข้อมูลหลักต่างจากที่บันทึกไว้ตอนจัดรถ ฉลากที่ออกแล้วยังใช้ข้อมูลเดิม หากต้องการแก้ ให้ผู้จัดรถอัปเดตที่อยู่ ระบบจะยกเลิกฉลากเดิมและออกฉบับใหม่</span></p>}
+    {o.masterChanged && <p className="notice-panel"><TriangleAlert size={20} aria-hidden="true" /><span>ที่อยู่หรือผู้ติดต่อของสาขาในข้อมูลหลักต่างจากที่บันทึกไว้ตอนจัดรถ ฉลากที่ออกแล้วยังใช้ข้อมูลเดิม หากต้องการแก้ ให้ผู้วางแผนขนส่งอัปเดตที่อยู่ ระบบจะยกเลิกฉลากเดิมและออกฉบับใหม่</span></p>}
     <div className="consignment-layout">
       <div>
         <section className="detail-card" aria-labelledby="current-title"><h2 id="current-title"><Tag size={19} aria-hidden="true" />ฉลากฉบับปัจจุบัน</h2>

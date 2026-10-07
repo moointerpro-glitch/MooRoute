@@ -19,7 +19,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ tripI
   try { m = await tripManifest(getDatabase(), actor.id, tripId); }
   catch (error) {
     if (error instanceof DomainError && error.code === "NOT_FOUND") notFound();
-    if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="container message-page"><span className="eyebrow">ใบคุมรถ</span><h1>คุณไม่มีสิทธิ์ดูใบคุมรถ</h1><p>ใบคุมรถเปิดได้เฉพาะผู้จัดรถ หัวหน้างาน คลังต้นทาง และพนักงานขับรถของรอบนั้น</p></div>;
+    if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="container message-page"><span className="eyebrow">ใบคุมรถ</span><h1>คุณไม่มีสิทธิ์ดูใบคุมรถ</h1><p>ใบคุมรถเปิดได้เฉพาะผู้วางแผนขนส่ง คลังต้นทาง และคนขับของรอบนั้น</p></div>;
     throw error;
   }
   return <div className="print-page">

@@ -18,13 +18,13 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
   const actor = await requirePageActor(), { id, trip, branch } = await searchParams, db = getDatabase();
   let options;
   try { options = await consignmentFormOptions(db, actor.id); }
-  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return denied("บัญชีนี้ยังไม่มีสิทธิ์สร้างคำขอฝากส่ง", "กรุณาติดต่อผู้ดูแลเพื่อกำหนดบทบาทผู้ฝากส่งและแผนก"); throw error; }
+  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return denied("บัญชีนี้ยังไม่มีสิทธิ์สร้างคำขอฝากส่ง", "กรุณาติดต่อผู้ดูแลระบบเพื่อกำหนดประเภทบัญชีและแผนก"); throw error; }
   if (!options.departments.length) return denied("ยังไม่ได้กำหนดแผนกต้นสังกัด", "ทุกบัญชีฝากส่งได้ กรุณาติดต่อผู้ดูแลเพื่อกำหนดแผนกก่อนสร้างคำขอ");
   const today = bangkokServiceDate();
   let initial: ConsignInitial = {
-    id: null, code: null, version: 0, departmentId: options.departments.length === 1 ? options.departments[0].id : "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : "",
+    id: null, code: null, version: 0, departmentId: options.departments.length === 1 ? options.departments[0].id : "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : options.defaultWarehouseId,
     destinationBranchId: "", requestedServiceDate: "", requestedRoundNo: null, requestedTripId: null, tripLabel: null, tripProblems: [],
-    senderName: options.senderName, senderPhone: "", recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", packageCount: "1", packageWeight: "", packageWeightUnit: "KG",
+    senderName: options.senderName, senderPhone: options.senderPhone, recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", packageCount: "1", packageWeight: "", packageWeightUnit: "KG",
     items: [{ categoryId: "", name: "", quantity: "", unit: "" }], attachments: [],
   };
   if (id) {
@@ -51,7 +51,7 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
   return <div className="container detail-page">
     <p className="eyebrow"><span />ฝากของส่งรถ</p>
     <h1>{initial.id ? `แก้ไขฉบับร่าง ${initial.code}` : "ฝากของส่งรถ"}</h1>
-    <p className="muted">ฝากสื่อการตลาด เอกสาร หรืออุปกรณ์ไปกับรถส่งสาขา หนึ่งคำขอต่อหนึ่งสาขาปลายทาง ผู้จัดรถจะตรวจสอบและจัดรอบรถให้</p>
+    <p className="muted">ฝากสื่อการตลาด เอกสาร หรืออุปกรณ์ไปกับรถส่งสาขา หนึ่งคำขอต่อหนึ่งสาขาปลายทาง ผู้วางแผนขนส่งจะตรวจสอบและจัดรอบรถให้</p>
     <ConsignForm options={options} initial={initial} today={today} />
   </div>;
 }

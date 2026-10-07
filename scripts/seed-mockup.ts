@@ -56,10 +56,10 @@ try {
   await installRoles(db);
 
   const roles: Array<[string, string, string]> = [
-    ["mock.admin@moointer.test", "ผู้ดูแลระบบ", "ทั้งบริษัท (ข้อมูลหลัก ไม่มีสิทธิ์งานปฏิบัติการ)"], ["mock.dispatcher@moointer.test", "ผู้จัดรถ", "ทั้งบริษัท"],
-    ["mock.supervisor@moointer.test", "หัวหน้างาน", "ทั้งบริษัท"], ["mock.requester@moointer.test", "ผู้ฝากส่ง", "ฝ่ายการตลาด (ทดสอบ)"],
-    ["mock.warehouse@moointer.test", "เจ้าหน้าที่คลัง", "คลังกลางทดสอบ (WH-T01)"], ["mock.driver@moointer.test", "พนักงานขับรถ", "สมชาย ขับดี (DRV-T01)"],
-    ["mock.branch@moointer.test", "ผู้รับประจำสาขา", "สาขาทดสอบ สันทราย (BR-T01)"],
+    ["mock.admin@moointer.test", "ผู้ดูแลระบบ", "ทั้งบริษัท (ทำงานได้ทุกประเภท)"], ["mock.dispatcher@moointer.test", "ผู้วางแผนขนส่ง", "ทั้งบริษัท"],
+    ["mock.supervisor@moointer.test", "ผู้วางแผนขนส่ง (เดิม หัวหน้างาน)", "ทั้งบริษัท"], ["mock.requester@moointer.test", "พนักงานทั่วไป", "ฝ่ายการตลาด (ทดสอบ)"],
+    ["mock.warehouse@moointer.test", "คลังและรถขนส่ง", "คลังกลางทดสอบ (WH-T01)"], ["mock.driver@moointer.test", "คลังและรถขนส่ง (คนขับ)", "สมชาย ขับดี (DRV-T01)"],
+    ["mock.branch@moointer.test", "พนักงานสาขา", "สาขาทดสอบ สันทราย (BR-T01)"],
   ];
   // Accounts first: the mock administrator is the audited actor of every master write.
   const logins = new Map<string, string>();
@@ -118,12 +118,12 @@ try {
       contactName: `ผู้รับทดสอบ ${name.replace(/^สาขาทดสอบ |ทดสอบ$/g, "")}`, contactPhone: `000-000-${String(index + 201).padStart(4, "0")}`, receivingFromMinute: "06:00", receivingToMinute: "18:00", activeFrom: ACTIVE_FROM });
   }
 
-  // One account per role; scoped roles get a concrete scope from the mock master data.
+  // One account per D221 account type (two each for planning and warehouse/vehicle); scoped types get a concrete scope from the mock master data.
   await account("mock.dispatcher@moointer.test", "ผู้จัดรถ (บัญชีทดสอบ)", "DISPATCHER", "GLOBAL");
-  await account("mock.supervisor@moointer.test", "หัวหน้างาน (บัญชีทดสอบ)", "SUPERVISOR", "GLOBAL");
+  await account("mock.supervisor@moointer.test", "หัวหน้างาน (บัญชีทดสอบ)", "DISPATCHER", "GLOBAL");
   await account("mock.requester@moointer.test", "ผู้ฝากส่ง ฝ่ายการตลาด (บัญชีทดสอบ)", "REQUESTER", "DEPARTMENT", ids.get("departments:DEP-MKT"));
   await account("mock.warehouse@moointer.test", "เจ้าหน้าที่คลังกลาง (บัญชีทดสอบ)", "WAREHOUSE", "WAREHOUSE", ids.get("warehouses:WH-T01"));
-  await account("mock.driver@moointer.test", "พนักงานขับรถ สมชาย (บัญชีทดสอบ)", "DRIVER", "DRIVER", ids.get("drivers:DRV-T01"));
+  await account("mock.driver@moointer.test", "พนักงานขับรถ สมชาย (บัญชีทดสอบ)", "WAREHOUSE", "DRIVER", ids.get("drivers:DRV-T01"));
   await account("mock.branch@moointer.test", "ผู้รับประจำสาขาสันทราย (บัญชีทดสอบ)", "BRANCH_RECEIVER", "BRANCH", ids.get("branches:BR-T01"));
 
   for (const [email] of roles) if (!email.includes("mock.requester")) await assignAccountDepartment(db, email, ids.get("departments:DEP-OPS")!, "D216: explicit synthetic sender department for every mock role");
@@ -132,7 +132,7 @@ try {
   if (!await db.seedManifest.findUnique({ where: { key: MANIFEST_KEY } })) await db.seedManifest.create({ data: { key: MANIFEST_KEY, version: 1, checksum: createHash("sha256").update(JSON.stringify(payload)).digest("hex"), payload } });
 
   saveLogins();
-  console.log(`PASS: mock-up master data and 7 role accounts are in moointer_dev (manifest ${MANIFEST_KEY}). No route, template, plan, trip or consignment was created. Logins are in ignored ${LOGIN_FILE}; values not printed.`);
+  console.log(`PASS: mock-up master data and 7 mock accounts (five account types) are in moointer_dev (manifest ${MANIFEST_KEY}). No route, template, plan, trip or consignment was created. Logins are in ignored ${LOGIN_FILE}; values not printed.`);
 } catch (error) {
   // Business errors carry a safe Thai message; anything else is reported by class and code only.
   const e = error as Error & { code?: string };

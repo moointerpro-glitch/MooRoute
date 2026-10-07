@@ -113,6 +113,7 @@ model User {
   image String? @db.Text
   sessions AuthSession[]
   accounts AuthAccount[]
+  userProfile_userId UserProfile? @relation("UserProfile_userId")
 }
 
 model Role {
@@ -172,6 +173,7 @@ model Warehouse {
   active Boolean @default(true)
   userScope_warehouseId UserScope[] @relation("UserScope_warehouseId")
   consignment_sourceWarehouseId Consignment[] @relation("Consignment_sourceWarehouseId")
+  userProfile_defaultWarehouseId UserProfile[] @relation("UserProfile_defaultWarehouseId")
   version Int @default(1)
   updatedAt DateTime @default(now()) @updatedAt @db.DateTime(3)
 }
@@ -922,4 +924,47 @@ model AuthRateLimit {
   key String @unique @db.VarChar(191)
   count Int
   lastRequest BigInt
+}
+
+/// D220: self-service profile (migration 202610070009); separate from User so the runtime account never updates User.
+model UserProfile {
+  userId             String     @id @db.VarChar(36)
+  createdAt          DateTime   @default(now()) @db.DateTime(3)
+  phone              String?    @db.VarChar(32)
+  defaultWarehouseId String?    @db.VarChar(36)
+  version            Int        @default(1)
+  updatedAt          DateTime   @default(now()) @updatedAt @db.DateTime(3)
+  user               User       @relation("UserProfile_userId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  defaultWarehouse   Warehouse? @relation("UserProfile_defaultWarehouseId", fields: [defaultWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([defaultWarehouseId])
+}
+
+enum UnitUsage {
+  ITEM
+  WEIGHT
+  BOTH
+}
+
+/// D220 (migration 202610070009; tables only, not yet used by the application): units for consignment items and package weights (codes are immutable once created).
+model Unit {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime  @default(now()) @db.DateTime(3)
+  code      String    @unique @db.VarChar(64)
+  name      String    @db.VarChar(191)
+  usage     UnitUsage
+  active    Boolean   @default(true)
+  version   Int       @default(1)
+  updatedAt DateTime  @default(now()) @updatedAt @db.DateTime(3)
+}
+
+/// D220 (migration 202610070009; tables only, not yet used by the application): consignment issue types (codes are immutable once created).
+model IssueType {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  code      String   @unique @db.VarChar(64)
+  name      String   @db.VarChar(191)
+  active    Boolean  @default(true)
+  version   Int      @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @db.DateTime(3)
 }

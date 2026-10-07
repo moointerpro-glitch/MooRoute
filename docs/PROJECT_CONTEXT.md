@@ -72,7 +72,7 @@ Support A4 with four labels per page and 100 x 150 mm labels. Reprinting the sam
 
 ## Roles
 
-Current owner policy D215/D216: all seven predefined roles can view company-wide published trips and general branch data, and create their own consignments after explicit department assignment. Contacts and operational history/files remain scoped. The administrator holds all operational capabilities and can read other users' drafts, but draft editing/submission stays with the requester. Assignment/rejection/reassignment of one's own request is forbidden even for administrators. See [PERMISSIONS.md](PERMISSIONS.md) for the current matrix.
+Current owner policy D215/D216/D221: five account types (พนักงานทั่วไป, พนักงานสาขา, คลังและรถขนส่ง, ผู้วางแผนขนส่ง, ผู้ดูแลระบบ; retired code DRIVER maps to คลังและรถขนส่ง and SUPERVISOR to ผู้วางแผนขนส่ง) replace the seven roles. All types can view company-wide published trips and general branch data, and create their own consignments after explicit department assignment. Contacts and operational history/files remain scoped. The administrator holds all operational capabilities and can read other users' drafts, but draft editing/submission stays with the requester. Assignment/rejection/reassignment of one's own request is forbidden even for administrators. See [PERMISSIONS.md](PERMISSIONS.md) for the current matrix.
 
 - Requester: search trips and create/read permitted own or department consignments according to assigned scope.
 - Dispatcher: plan and assign trips/consignments within operational scope.

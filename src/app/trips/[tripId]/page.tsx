@@ -16,7 +16,7 @@ export default async function TripDetailPage({ params, searchParams }: { params:
   try { trip = await tripDetail(getDatabase(), actor.id, tripId, { branchId: branch ?? null }); }
   catch (error) {
     if (error instanceof DomainError && error.code === "NOT_FOUND") notFound();
-    if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="container message-page"><span className="eyebrow">รายละเอียดรอบรถ</span><h1>บัญชีนี้ยังไม่มีสิทธิ์ดูรอบรถ</h1><p>กรุณาติดต่อผู้ดูแลเพื่อกำหนดบทบาทและขอบเขตงาน</p></div>;
+    if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="container message-page"><span className="eyebrow">รายละเอียดรอบรถ</span><h1>บัญชีนี้ยังไม่มีสิทธิ์ดูรอบรถ</h1><p>กรุณาติดต่อผู้ดูแลเพื่อกำหนดประเภทบัญชีและขอบเขตงาน</p></div>;
     throw error;
   }
   const back = `/?date=${trip.serviceDate}${trip.branchId ? `&mode=branch&branch=${encodeURIComponent(trip.branchId)}` : ""}`;
@@ -59,13 +59,13 @@ export default async function TripDetailPage({ params, searchParams }: { params:
       {trip.eligibility.eligible && matched ? <>
         <p><CheckCircle2 size={16} aria-hidden="true" className="inline-icon ok" />รอบรถนี้แวะส่ง <strong>{matched.name}</strong> และยังไม่ถึงเวลาออกรถ ตรวจสอบเบื้องต้นแล้ว</p>
         <Link className="primary-button" href={`/consign?trip=${encodeURIComponent(trip.tripId)}&branch=${encodeURIComponent(matched.branchId)}`}>ฝากของกับรอบนี้</Link>
-        <p className="field-hint">ระบบจะกรอกสาขาและรอบรถนี้ในคำขอให้ ผู้จัดรถจะตรวจสอบและยืนยันรอบรถอีกครั้ง</p>
+        <p className="field-hint">ระบบจะกรอกสาขาและรอบรถนี้ในคำขอให้ ผู้วางแผนขนส่งจะตรวจสอบและยืนยันรอบรถอีกครั้ง</p>
       </> : <>
         <button type="button" className="primary-button" disabled aria-describedby="consign-reasons">ฝากของกับรอบนี้</button>
         <ul id="consign-reasons" className="reason-list">{trip.eligibility.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
       </>}
     </section>
-    <p><Link className="text-link" href={`/print/manifest/${encodeURIComponent(trip.tripId)}`}>ใบคุมรถฝากของของรอบนี้ (สำหรับผู้จัดรถ คลัง และพนักงานขับรถ)</Link></p>
+    <p><Link className="text-link" href={`/print/manifest/${encodeURIComponent(trip.tripId)}`}>ใบคุมรถฝากของของรอบนี้ (สำหรับผู้วางแผนขนส่ง คลัง และคนขับ)</Link></p>
     <p className="muted small">ข้อมูลจากแผนที่เผยแพร่{trip.published.publishedAt ? ` เมื่อ ${thaiDateTime(trip.published.publishedAt)} น.` : ""}</p>
   </div>;
 }

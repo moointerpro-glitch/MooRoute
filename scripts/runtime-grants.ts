@@ -14,6 +14,8 @@ const groups: Array<[string, string[]]> = [
   // Authentication runtime state.
   ["INSERT, UPDATE, DELETE", ["AuthSession", "AuthRateLimit", "AuthVerification"]],
   ["UPDATE", ["AuthAccount", "EligibilityGuard"]],
+  // Self-service contact defaults (D220); User itself stays read-only to the application.
+  ["INSERT, UPDATE", ["UserProfile"]],
 ];
 const identifier = (value: string) => { if (!/^[A-Za-z0-9_]{1,64}$/.test(value)) throw new Error("INVALID_IDENTIFIER"); return value; };
 

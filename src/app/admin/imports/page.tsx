@@ -17,7 +17,7 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
   const actor = await requirePageActor(), page = Math.max(1, Number.parseInt((await searchParams).page ?? "1", 10) || 1);
   let list;
   try { list = await listImportBatches(getDatabase(), actor.id, page); }
-  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="admin-card"><h1>ไม่มีสิทธิ์นำเข้าข้อมูล</h1><p>การนำเข้าข้อมูลทำได้เฉพาะผู้ดูแลระบบหรือผู้จัดรถที่มีขอบเขตงานส่วนกลาง</p></div>; throw error; }
+  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="admin-card"><h1>ไม่มีสิทธิ์นำเข้าข้อมูล</h1><p>การนำเข้าข้อมูลทำได้เฉพาะผู้ดูแลระบบหรือผู้วางแผนขนส่ง</p></div>; throw error; }
   return <>
     <h1>นำเข้าข้อมูล</h1>
     <p className="muted">นำเข้าเฉพาะช่องข้อมูลที่อนุมัติ จากไฟล์ CSV หรือ XLSX ที่ถอดความและตรวจทานแล้ว ระบบพักข้อมูลไว้ให้ตรวจ แสดงข้อผิดพลาดรายแถว และนำเข้าทั้งชุดพร้อมกันเท่านั้น</p>

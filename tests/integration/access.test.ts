@@ -5,7 +5,9 @@ import { randomBytes } from "node:crypto";
 import { createDatabase } from "../../src/server/persistence/database";
 import { testDatabaseConfiguration } from "../../src/server/config/environment";
 import { installRoles, principal } from "../../src/server/auth/permissions";
-import { provisionAccount, assignAccountDepartment } from "../../src/server/auth/provision";
+import { provisionAccount, assignAccountDepartment, consolidateRetiredRoles } from "../../src/server/auth/provision";
+import { authorize } from "../../src/server/services/transaction";
+import { accountSummary, updateMyProfile } from "../../src/server/services/account";
 import { DomainError } from "../../src/server/domain/errors";
 import type { DraftInput } from "../../src/server/domain/consignment";
 import { saveConsignmentDraft, submitConsignment, consignmentDetail, listConsignments, consignmentFormOptions,
@@ -111,4 +113,49 @@ test("D216: self-review and plan-based self-reassignment are blocked, including 
   const rows = await db.consignment.findMany({ where: { status: "ASSIGNED", code: { startsWith: "FS-" }, requestedServiceDate: new Date(date) } });
   await assert.rejects(publishPlan(db, actor, key(), { revisionId: d.revisionId, expectedVersion: d.version, reason: "ย้ายผ่านแผนทดสอบ", reassignments: rows.map((c) => ({ consignmentId: c.id, expectedVersion: c.version, tripId: "access-trip-1", stopSequence: 1 })) }), denied("SELF_REVIEW"));
   assert.equal((await db.dailyPlan.findUniqueOrThrow({ where: { id: plan.id } })).publishedRevisionId, plan.publishedRevisionId);
+});
+
+test("D221: retired codes become the absorbing type with audit; scope still decides whose records an account may touch", async () => {
+  const roleOf = async (userId: string) => (await db.userRole.findMany({ where: { userId }, include: { role: true } })).map((r) => r.role.code).sort();
+  // Provisioning with a retired code stores the absorbing type and records what was asked for.
+  assert.deepEqual(await roleOf(accounts.SUPERVISOR), ["DISPATCHER"]);
+  assert.deepEqual(await roleOf(accounts.DRIVER), ["WAREHOUSE"]);
+  const provisioned = await db.auditLog.findFirstOrThrow({ where: { action: "LOCAL_ACCOUNT_PROVISIONED", entityId: accounts.DRIVER } });
+  assert.deepEqual([(provisioned.after as Record<string, unknown>).role, (provisioned.after as Record<string, unknown>).requestedRole], ["WAREHOUSE", "DRIVER"]);
+
+  // An account created before D221 still holds the retired code directly; the operator step moves it once.
+  const legacy = (await provisionAccount(db, { email: "access-legacy-driver@synthetic.test", name: "คนขับบัญชีเดิม", password: randomBytes(24).toString("base64url"), role: "WAREHOUSE", scope: "DRIVER", scopeId: "access-driver" })).id;
+  const [driverRole, warehouseRole] = await Promise.all([db.role.findUniqueOrThrow({ where: { code: "DRIVER" } }), db.role.findUniqueOrThrow({ where: { code: "WAREHOUSE" } })]);
+  await db.userRole.deleteMany({ where: { userId: legacy, roleId: warehouseRole.id } });
+  await db.userRole.create({ data: { userId: legacy, roleId: driverRole.id } });
+  const before = await db.$transaction((tx) => principal(tx, legacy));
+  assert.ok(await consolidateRetiredRoles(db, "ทดสอบรวมประเภทบัญชี") >= 1);
+  assert.deepEqual(await roleOf(legacy), ["WAREHOUSE"]);
+  assert.deepEqual([...(await db.$transaction((tx) => principal(tx, legacy))).permissions].sort(), [...before.permissions].sort(), "capabilities unchanged");
+  const moved = await db.auditLog.findFirstOrThrow({ where: { action: "LOCAL_OPERATOR_ACCOUNT_TYPE_CONSOLIDATED", entityId: legacy } });
+  assert.deepEqual([(moved.before as Record<string, unknown>).role, (moved.after as Record<string, unknown>).role], ["DRIVER", "WAREHOUSE"]);
+  assert.equal(await consolidateRetiredRoles(db, "ทดสอบรวมประเภทบัญชีซ้ำ"), 0, "idempotent");
+
+  // A driver now holds warehouse capabilities but not the warehouse scope, so warehouse work is still refused.
+  await assert.rejects(db.$transaction((tx) => authorize(tx, accounts.DRIVER, "consignment.warehouse", { warehouseId: "synthetic-warehouse" })), denied("FORBIDDEN"));
+  await db.$transaction((tx) => authorize(tx, accounts.WAREHOUSE, "consignment.warehouse", { warehouseId: "synthetic-warehouse" }));
+  await db.$transaction((tx) => authorize(tx, accounts.DRIVER, "trip.move", { driverId: "access-driver" }));
+  await assert.rejects(db.$transaction((tx) => authorize(tx, accounts.WAREHOUSE, "trip.move", { driverId: "access-driver" })), denied("FORBIDDEN"));
+  await assert.rejects(db.$transaction((tx) => authorize(tx, accounts.WAREHOUSE, "consignment.receive", { branchId: B })), denied("FORBIDDEN"));
+
+  // The header shows one type and the working scope first.
+  const driver = await db.$transaction((tx) => accountSummary(tx, accounts.DRIVER));
+  assert.equal(driver.typeName, "คลังและรถขนส่ง");
+  assert.equal(driver.scopes[0], "รถที่ขับ: คนขับทดสอบสิทธิ์");
+  assert.equal((await db.$transaction((tx) => accountSummary(tx, accounts.SUPERVISOR))).typeName, "ผู้วางแผนขนส่ง");
+});
+
+test("D220/D221: saved contact details pre-fill a new request; versions are checked", async () => {
+  const actor = accounts.REQUESTER;
+  const saved = await updateMyProfile(db, actor, key(), { phone: "081-234-5678", defaultWarehouseId: "synthetic-warehouse", expectedVersion: 0 });
+  await assert.rejects(updateMyProfile(db, actor, key(), { phone: "081-000-0000", defaultWarehouseId: "", expectedVersion: 0 }), denied("VERSION_CONFLICT"));
+  await assert.rejects(updateMyProfile(db, actor, key(), { phone: "โทรหาฉัน", defaultWarehouseId: "", expectedVersion: saved.version }), denied("INVALID_PHONE"));
+  const options = await consignmentFormOptions(db, actor);
+  assert.deepEqual([options.senderPhone, options.defaultWarehouseId], ["081-234-5678", "synthetic-warehouse"]);
+  assert.deepEqual([(await consignmentFormOptions(db, accounts.BRANCH_RECEIVER)).senderPhone], [""], "only the owner's profile is used");
 });

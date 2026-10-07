@@ -46,7 +46,7 @@ function requireActor(p: Principal, actorId: string, action: string, c: Locked) 
   // Out-of-scope rows look missing to avoid disclosing their existence.
   if (!ok && c.status === "DRAFT" && c.requesterId !== actorId && !p.permissions.has("consignment.read.drafts")) throw new DomainError("NOT_FOUND", "ไม่พบรายการฝากส่ง");
   requireCondition(ok, "FORBIDDEN", "คุณไม่มีสิทธิ์ดำเนินการกับรายการฝากส่งนี้");
-  if (["assign", "reject", "reassign"].includes(action)) requireCondition(c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้จัดรถอีกคนตรวจและจัดรถ");
+  if (["assign", "reject", "reassign"].includes(action)) requireCondition(c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
 }
 async function bump(tx: Transaction, id: string, data: Prisma.ConsignmentUpdateInput) {
   return tx.consignment.update({ where: { id }, data: { ...data, version: { increment: 1 } } });
@@ -320,7 +320,7 @@ async function packageHandover(db: PrismaClient, actorId: string, key: string, i
     requireCondition(packages.length === packageIds.length && packages.every((x) => packageIds.includes(x.id) && x.custody === spec.from), "PACKAGE_HANDOVER", `กรุณาตรวจและยืนยันหีบห่อครบทั้ง ${packages.length} หีบห่อ หากขาดให้แจ้งปัญหา`);
     if (action === "load") {
       const plan = await tx.dailyPlan.findUnique({ where: { id: c.currentAssignment!.tripRevision.planId } });
-      requireCondition(plan?.publishedRevisionId === c.currentAssignment!.tripRevision.planRevisionId && !c.currentAssignment!.tripRevision.cancelled, "ASSIGNMENT_STALE", "รอบรถที่จัดไว้เปลี่ยนแปลงหรือถูกยกเลิกแล้ว กรุณาให้ผู้จัดรถย้ายรอบก่อนขึ้นรถ");
+      requireCondition(plan?.publishedRevisionId === c.currentAssignment!.tripRevision.planRevisionId && !c.currentAssignment!.tripRevision.cancelled, "ASSIGNMENT_STALE", "รอบรถที่จัดไว้เปลี่ยนแปลงหรือถูกยกเลิกแล้ว กรุณาให้ผู้วางแผนขนส่งย้ายรอบก่อนขึ้นรถ");
     }
     for (const x of packages) await tx.consignmentPackage.update({ where: { id: x.id }, data: { custody: spec.to } });
     const updated = await bump(tx, c.id, { status: spec.status });
@@ -468,12 +468,15 @@ export async function consignmentFormOptions(db: PrismaClient, actorId: string) 
   return db.$transaction(async (tx) => {
     const p = await principal(tx, actorId); requireCapability(p, "consignment.create");
     const departmentIds = p.scopes.flatMap((s) => s.kind === "DEPARTMENT" && s.departmentId ? [s.departmentId] : []);
+    // D220/D221: saved contact details pre-fill a new request; an archived default warehouse is ignored.
+    const profile = await tx.userProfile.findUnique({ where: { userId: actorId }, include: { defaultWarehouse: { select: { active: true } } } });
     return {
       departments: await tx.department.findMany({ where: { active: true, id: { in: departmentIds } }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
       warehouses: await tx.warehouse.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
       categories: await tx.consignmentCategory.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
       branches: (await tx.branch.findMany({ where: { archived: false, destinationType: "BRANCH" }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true, contactName: true, contactPhone: true } })).map((b) => ({ ...b, hasRecipient: !!(b.contactName && b.contactPhone), ...(contactPolicy(p).branch(b.id) ? {} : { contactName: null, contactPhone: null }) })),
       senderName: p.user.displayName,
+      senderPhone: profile?.phone ?? "", defaultWarehouseId: profile?.defaultWarehouse?.active ? profile.defaultWarehouseId! : "",
     };
   }, { isolationLevel: "RepeatableRead" });
 }
@@ -523,7 +526,7 @@ function actionAvailability(p: Principal, actorId: string, c: Locked, accounted:
     if (!rule.actors.some((a) => p.permissions.has(a.capability) && satisfies(p, actorId, a.scope, c))) continue;
     let reason = "";
     if (["assign", "reject", "reassign"].includes(action) && c.requesterId === actorId)
-      reason = "คำขอที่คุณสร้างต้องให้ผู้จัดรถอีกคนตรวจและจัดรถ";
+      reason = "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ";
     else if (!(rule.from as string[]).includes(c.status))
       reason = action === "receive" && ["ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED"].includes(c.status)
         ? "ต้องขึ้นรถและบันทึกรถออกก่อนรับของ"
@@ -582,7 +585,7 @@ export async function eligibleTrips(db: PrismaClient, actorId: string, id: strin
     // Someone else's draft is indistinguishable from a missing record, as in the detail view.
     requireCondition(c && (c.status !== "DRAFT" || c.requesterId === actorId || p.permissions.has("consignment.read.drafts")), "NOT_FOUND", "ไม่พบรายการฝากส่ง");
     requireCondition(p.permissions.has("consignment.assign") && p.global, "FORBIDDEN", "คุณไม่มีสิทธิ์จัดรถ");
-    requireCondition(c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้จัดรถอีกคนตรวจและจัดรถ");
+    requireCondition(c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
     const plan = await tx.dailyPlan.findUnique({ where: { serviceDate: serviceDate(date) } });
     if (!plan?.publishedRevisionId) return { published: false, trips: [] };
     const revisions = await tx.tripRevision.findMany({ where: { planRevisionId: plan.publishedRevisionId, kind: "BRANCH_DELIVERY", cancelled: false, tripStop_tripRevisionId: { some: { branchId: c.destinationBranchId } } }, include: { trip: { select: { code: true } }, routeRevision: { select: { name: true } } }, orderBy: [{ departureAt: "asc" }, { tripId: "asc" }] });

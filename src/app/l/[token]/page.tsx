@@ -24,7 +24,7 @@ export default async function LabelLookupPage({ params, searchParams }: { params
   catch (error) {
     if (!(error instanceof DomainError)) throw error;
     // Unknown and unauthorized labels are reported without any consignment detail.
-    return <div className="container message-page"><span className="eyebrow">ตรวจสอบฉลาก</span><h1>{error.code === "FORBIDDEN" ? "คุณไม่มีสิทธิ์ดูรายการของฉลากนี้" : "ไม่พบฉลากนี้ในระบบ"}</h1><p>ตรวจสอบว่าสแกนฉลากของสาขาหรือคลังที่คุณรับผิดชอบ หรือติดต่อผู้จัดรถ</p></div>;
+    return <div className="container message-page"><span className="eyebrow">ตรวจสอบฉลาก</span><h1>{error.code === "FORBIDDEN" ? "คุณไม่มีสิทธิ์ดูรายการของฉลากนี้" : "ไม่พบฉลากนี้ในระบบ"}</h1><p>ตรวจสอบว่าสแกนฉลากของสาขาหรือคลังที่คุณรับผิดชอบ หรือติดต่อผู้วางแผนขนส่ง</p></div>;
   }
   const current = result.state === "CURRENT";
   return <div className="container detail-page lookup-page">
@@ -33,7 +33,7 @@ export default async function LabelLookupPage({ params, searchParams }: { params
     {current ? <p className="form-success" role="status"><CheckCircle2 size={18} aria-hidden="true" className="inline-icon" />ฉลากฉบับที่ {result.number} เป็นฉบับปัจจุบัน ใช้งานได้</p>
       : <div className="form-error" role="alert"><p><TriangleAlert size={18} aria-hidden="true" className="inline-icon" /><strong>ฉลากฉบับที่ {result.number} ถูกยกเลิกแล้ว ห้ามใช้รับหรือส่งของ</strong></p>
         <p>ยกเลิกเมื่อ {result.revokedAt ? `${thaiDateTime(result.revokedAt)} น.` : "—"} · เหตุผล: {result.revocationReason ?? "ไม่ระบุ"}</p>
-        <p>{result.replacement ? `ฉบับปัจจุบันคือฉบับที่ ${result.replacement.number} กรุณาใช้ฉลากฉบับนั้น` : "ยังไม่มีฉลากฉบับใหม่ กรุณาติดต่อผู้จัดรถ"}</p></div>}
+        <p>{result.replacement ? `ฉบับปัจจุบันคือฉบับที่ ${result.replacement.number} กรุณาใช้ฉลากฉบับนั้น` : "ยังไม่มีฉลากฉบับใหม่ กรุณาติดต่อผู้วางแผนขนส่ง"}</p></div>}
     <section className="detail-card"><dl className="fact-list">
       <div><dt>สถานะรายการ</dt><dd>{statusText(result.consignment.status)}</dd></div>
       {result.package && <div><dt>หีบห่อ</dt><dd>{result.package.label} · {custodyLabels[result.package.custody]}</dd></div>}

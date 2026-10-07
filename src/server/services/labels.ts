@@ -61,11 +61,11 @@ export async function issueLabel(db: PrismaClient, actorId: string, key: string,
     versionMatches(c.version, input.expectedVersion);
     requireCondition(ISSUABLE.includes(c.status) && c.currentAssignment, "INVALID_TRANSITION", "ออกฉลากได้หลังจัดรถและก่อนรถออกเท่านั้น");
     const plan = await tx.dailyPlan.findUnique({ where: { id: c.currentAssignment.tripRevision.planId } });
-    requireCondition(plan?.publishedRevisionId === c.currentAssignment.tripRevision.planRevisionId && !c.currentAssignment.tripRevision.cancelled, "ASSIGNMENT_STALE", "รอบรถที่จัดไว้เปลี่ยนแปลงหรือถูกยกเลิกแล้ว กรุณาให้ผู้จัดรถย้ายรอบก่อนออกฉลาก");
+    requireCondition(plan?.publishedRevisionId === c.currentAssignment.tripRevision.planRevisionId && !c.currentAssignment.tripRevision.cancelled, "ASSIGNMENT_STALE", "รอบรถที่จัดไว้เปลี่ยนแปลงหรือถูกยกเลิกแล้ว กรุณาให้ผู้วางแผนขนส่งย้ายรอบก่อนออกฉลาก");
     const existing = await versionsOf(tx, c.id);
     // One current version per consignment: the same version is reprinted, never re-issued.
     requireCondition(!existing.some((v) => !v.revokedAt), "LABEL_EXISTS", "รายการนี้มีฉลากฉบับปัจจุบันแล้ว ให้ใช้การพิมพ์ซ้ำ");
-    requireCondition(!masterChanged(c), "ADDRESS_CHANGED", "ที่อยู่หรือผู้ติดต่อของสาขาถูกแก้ไขหลังจัดรถ กรุณาให้ผู้จัดรถกด “แก้ไขที่อยู่บนฉลาก” ก่อนออกฉลาก");
+    requireCondition(!masterChanged(c), "ADDRESS_CHANGED", "ที่อยู่หรือผู้ติดต่อของสาขาถูกแก้ไขหลังจัดรถ กรุณาให้ผู้วางแผนขนส่งกด “แก้ไขที่อยู่บนฉลาก” ก่อนออกฉลาก");
     const number = (existing.at(-1)?.number ?? 0) + 1, token = randomBytes(24).toString("base64url"), now = new Date();
     const payload = buildPayload(c, number, token, p.user.displayName, now);
     const problems = labelProblems(payload);

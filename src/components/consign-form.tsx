@@ -10,7 +10,7 @@ import { DateInput } from "./date-time-inputs";
 
 type Option = { id: string; code: string; name: string };
 type BranchOption = Option & { contactName: string | null; contactPhone: string | null; hasRecipient: boolean };
-export type ConsignOptions = { departments: Option[]; warehouses: Option[]; categories: Option[]; branches: BranchOption[]; senderName: string };
+export type ConsignOptions = { departments: Option[]; warehouses: Option[]; categories: Option[]; branches: BranchOption[]; senderName: string; senderPhone: string; defaultWarehouseId: string };
 type Item = { categoryId: string; name: string; quantity: string; unit: string };
 export type ConsignInitial = {
   id: string | null; code: string | null; version: number; departmentId: string; sourceWarehouseId: string; destinationBranchId: string; requestedServiceDate: string;
@@ -100,11 +100,11 @@ export function ConsignForm({ options, initial, today }: { options: ConsignOptio
         <label>วันที่ต้องการส่ง (พ.ศ.)<span className="required">*</span><DateInput value={dateText} onChange={setDateText} min={today} aria-describedby="date-hint" />
           <span id="date-hint" className="field-hint">{requestedDate ? thaiLongDate(requestedDate) : dateText ? "รูปแบบวันที่ไม่ถูกต้อง" : "เช่น " + beDate(today)}</span></label>
         <label>รอบที่ต้องการ<select value={form.requestedRoundNo ?? ""} onChange={(e) => set("requestedRoundNo", e.target.value ? Number(e.target.value) : null)}>
-          <option value="">ไม่ระบุ ให้ผู้จัดรถเลือก</option>{[1, 2, 3].map((r) => <option key={r} value={r}>{roundLabel(r)}</option>)}</select></label>
+          <option value="">ไม่ระบุ ให้ผู้วางแผนขนส่งเลือก</option>{[1, 2, 3].map((r) => <option key={r} value={r}>{roundLabel(r)}</option>)}</select></label>
         <div className="trip-pick">
           <span className="field-label">รอบรถที่เลือกจากหน้าค้นหา</span>
           {form.requestedTripId ? <p className="picked-trip"><strong>{form.tripLabel ?? form.requestedTripId}</strong> <button type="button" className="link-button" onClick={() => setForm((f) => ({ ...f, requestedTripId: null, tripLabel: null, tripProblems: [] }))}>ไม่ระบุรอบรถ</button></p>
-            : <p className="field-hint">ไม่ได้เลือก ผู้จัดรถจะเลือกรอบรถที่เหมาะสมให้ <Link href="/">ค้นหารอบรถ</Link></p>}
+            : <p className="field-hint">ไม่ได้เลือก ผู้วางแผนขนส่งจะเลือกรอบรถที่เหมาะสมให้ <Link href="/">ค้นหารอบรถ</Link></p>}
           {form.tripProblems.length > 0 && <ul className="field-error reason-list" role="alert">{form.tripProblems.map((p) => <li key={p}>{p}</li>)}</ul>}
         </div>
         <label>ชื่อผู้รับ<input value={form.recipientName} maxLength={191} placeholder={branch?.contactName ?? (branch?.hasRecipient ? "เว้นว่างเพื่อใช้ผู้ติดต่อสาขาที่บันทึกไว้" : "ยังไม่มีผู้ติดต่อของสาขา")} onChange={(e) => set("recipientName", e.target.value)} /></label>
@@ -154,7 +154,7 @@ export function ConsignForm({ options, initial, today }: { options: ConsignOptio
         <div><dt>หีบห่อ</dt><dd>{form.packageCount || 0} หีบห่อ · {receiptModeLabels[form.receiptMode]}</dd></div>
       </dl>
       {problems.length > 0 ? <ul className="problem-list" aria-label="สิ่งที่ต้องแก้ก่อนส่งคำขอ">{problems.map((p) => <li key={p}><AlertCircle size={15} aria-hidden="true" />{p}</li>)}</ul>
-        : <p className="ok-line"><CheckCircle2 size={16} aria-hidden="true" />ข้อมูลครบ พร้อมส่งให้ผู้จัดรถตรวจสอบ</p>}
+        : <p className="ok-line"><CheckCircle2 size={16} aria-hidden="true" />ข้อมูลครบ พร้อมส่งให้ผู้วางแผนขนส่งตรวจสอบ</p>}
       {message && <p ref={messageRef} tabIndex={-1} className={message.tone === "ok" ? "form-success" : "form-error"} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</p>}
       <div className="form-actions">
         <button type="button" className="secondary-button" disabled={busy !== ""} onClick={() => void onSave()}><Save size={17} aria-hidden="true" />{busy === "save" ? "กำลังบันทึก…" : "บันทึกฉบับร่าง"}</button>

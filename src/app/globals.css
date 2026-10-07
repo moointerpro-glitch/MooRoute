@@ -371,7 +371,6 @@ input::placeholder { color: #718096; }
 .pager { display:flex; align-items:center; gap:10px; }
 .pager .secondary-button { min-height:44px; padding:8px 14px; }
 .pager button:disabled, .pager [aria-disabled="true"] { opacity:.5; cursor:not-allowed; }
-.nav-logout .secondary-button { min-height:40px; padding:6px 12px; font-size:13px; white-space:nowrap; }
 .detail-page, .list-page { padding-block:28px 48px; }
 .detail-header, .list-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:16px 0 22px; flex-wrap:wrap; }
 .detail-header h1, .list-header h1 { overflow-wrap:anywhere; }
@@ -678,3 +677,54 @@ input::placeholder { color: #718096; }
 .reference-list a:hover, .reference-list a:focus-visible { border-color: #cbd5e1; color: var(--color-primary); }
 .empty-backoffice { margin-top: 24px; display: grid; gap: 10px; justify-items: start; }
 
+
+/* D221 header profile: who is signed in, one account type, account and sign-out actions. */
+.header-tools { order: 2; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.main-nav { order: 1; margin-left: auto; gap: 3px; }
+.main-nav > .guide-link { margin-left: 4px; }
+.profile-menu { position: relative; }
+.profile-trigger { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 5px 10px 5px 5px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-ink); text-align: left; }
+.profile-trigger:hover, .profile-trigger[aria-expanded="true"] { border-color: #ffc2cc; background: #fff7f8; }
+.profile-badge { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--color-primary); color: #fff; font-size: 15px; font-weight: 600; line-height: 1; flex-shrink: 0; }
+.profile-badge-large { width: 52px; height: 52px; font-size: 21px; }
+.profile-text { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+/* A signed-in header carries the menu and the profile; the brand tagline would push them off the 1248px container. */
+.site-header:has(.profile-menu) .brand-tagline { display: none; }
+.profile-chevron { color: #64748b; transition: transform .15s; }
+.profile-trigger[aria-expanded="true"] .profile-chevron { transform: rotate(180deg); }
+.profile-panel { position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; width: 330px; max-width: calc(100vw - 32px); padding: 18px; background: #fff; border: 1px solid var(--color-border); border-radius: 16px; box-shadow: 0 18px 40px #0f172a24; }
+.profile-panel-head { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); }
+.profile-panel-head > div { display: grid; min-width: 0; }
+.profile-panel-head strong { font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
+.profile-panel-head .muted { font-size: 13px; overflow-wrap: anywhere; }
+.profile-facts { display: grid; gap: 10px; margin: 14px 0; }
+.profile-facts div { display: grid; gap: 2px; }
+.profile-facts dt { font-size: 12px; color: var(--color-muted); }
+.profile-facts dd { margin: 0; font-size: 14px; }
+.type-chip { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; background: #fff1f3; color: #b00020; font-size: 13px; font-weight: 600; }
+.type-does { display: block; margin-top: 6px; color: #475569; font-size: 14px; }
+.profile-actions { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--color-border); }
+.profile-actions a, .profile-actions button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 9px; background: none; color: #334155; font-size: 14px; text-align: left; }
+.profile-actions a:hover, .profile-actions button:hover:not(:disabled) { background: #fff1f3; color: var(--color-primary); }
+.profile-actions .profile-signout { color: #b00020; }
+.profile-panel .form-error { margin-top: 10px; padding: 10px 12px; font-size: 13px; }
+.account-head { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+.account-head h1 { font-size: 26px; }
+.account-facts dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.account-facts dt { font-size: 13px; color: var(--color-muted); }
+.account-facts dd { margin: 4px 0 0; }
+.account-page .form-grid { align-items: start; }
+@media (min-width: 1200px) and (max-width: 1320px) { .profile-text { display: none; } .profile-trigger { gap: 6px; padding-right: 8px; } }
+/* Six menu items, the guide and the profile need about 1200px; below that the menu collapses behind the toggle. */
+@media (max-width: 1199px) {
+  .header-inner { min-height: 78px; flex-wrap: wrap; position: relative; gap: 16px; }
+  .menu-toggle { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--color-border); border-radius: 9px; background: #fff; color: #475569; }
+  .main-nav { display: none; order: 2; width: 100%; margin-left: 0; padding-bottom: 16px; flex-wrap: wrap; gap: 1px; }
+  .main-nav.expanded { display: flex; }
+  .main-nav > a { font-size: 14px; padding-inline: 14px; }
+  .main-nav > .guide-link { margin-left: 0; }
+  .header-tools { order: 1; margin-left: auto; }
+  .profile-trigger { min-height: 44px; padding: 3px 9px 3px 3px; }
+}
+@media (max-width: 600px) { .profile-text { display: none; } .profile-trigger { padding-right: 7px; gap: 4px; } }
+@media (max-width: 600px) { .account-facts dl { grid-template-columns: 1fr; } .account-head h1 { font-size: 22px; } }

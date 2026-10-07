@@ -17,7 +17,7 @@ type Snapshot = { branch?: Record<string, string>; warehouse?: Record<string, st
 const clock = (iso: unknown) => typeof iso === "string" ? new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso)) + " น." : "ยังไม่ระบุ";
 function eventDetail(kind: string, p: Record<string, unknown>) {
   if (kind === "ISSUE") return `${issueTypes[String(p.type)] ?? ""}: ${String(p.description ?? "")}`;
-  if (kind === "RECEIPT") return `${Array.isArray(p.lines) ? p.lines.length : 0} รายการ${p.correction ? ` · แก้ไขโดยหัวหน้างาน: ${String(p.correction)}` : ""}`;
+  if (kind === "RECEIPT") return `${Array.isArray(p.lines) ? p.lines.length : 0} รายการ${p.correction ? ` · แก้ไขโดยผู้วางแผนขนส่ง: ${String(p.correction)}` : ""}`;
   return typeof p.reason === "string" ? p.reason : typeof p.type === "string" && p.type === "RECEIPT_BEFORE_DEPARTURE" ? "บันทึกรับของก่อนมีบันทึกรถออก" : "";
 }
 
@@ -34,14 +34,14 @@ export default async function ConsignmentPage({ params, searchParams }: { params
   const receivedCount = d.packages.filter((p) => p.received).length;
   return <div className="container detail-page">
     <Link href="/consignments" className="text-link"><ArrowLeft size={17} aria-hidden="true" />กลับไปประวัติฝากส่ง</Link>
-    {submitted && <p className="form-success" role="status"><CheckCircle2 size={16} aria-hidden="true" className="inline-icon" />ส่งคำขอแล้ว ผู้จัดรถจะตรวจสอบและจัดรอบรถให้</p>}
+    {submitted && <p className="form-success" role="status"><CheckCircle2 size={16} aria-hidden="true" className="inline-icon" />ส่งคำขอแล้ว ผู้วางแผนขนส่งจะตรวจสอบและจัดรอบรถให้</p>}
     <header className="detail-header">
       <div><p className="eyebrow"><span />ฝากของส่งรถ</p><h1>{d.code}</h1>
         <p className="muted">โดย {d.requester} · {d.department} · สร้าง {thaiDateTime(d.createdAt)} น.</p></div>
       <div className="status-stack"><span className={`status-pill large ${statusTone(d.status)}`}>{statusText(d.status)}</span>
         {d.status === "ISSUE" && d.resumeStatus && <span className="muted small">สถานะการขนส่งก่อนพบปัญหา: {statusText(d.resumeStatus)}</span>}</div>
     </header>
-    {d.hasOpenIssue && <p className="notice-panel"><TriangleAlert size={20} aria-hidden="true" /><span>มีปัญหาที่ยังไม่ได้ปิด รายการนี้ปิดงานไม่ได้จนกว่าหัวหน้างานจะบันทึกผลการแก้ไข</span></p>}
+    {d.hasOpenIssue && <p className="notice-panel"><TriangleAlert size={20} aria-hidden="true" /><span>มีปัญหาที่ยังไม่ได้ปิด รายการนี้ปิดงานไม่ได้จนกว่าผู้วางแผนขนส่งจะบันทึกผลการแก้ไข</span></p>}
     <div className="consignment-layout">
       <div>
         <div className="detail-grid">

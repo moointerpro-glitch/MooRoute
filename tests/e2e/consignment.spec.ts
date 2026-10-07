@@ -31,7 +31,7 @@ test("D216: dispatcher self-review is disabled in the UI and denied by the mutat
   const categoryId = await page.getByLabel("หมวดของรายการที่ 1").inputValue();
   const post = (action: string, input: unknown) => page.request.post("/api/consignments", { headers: { Origin: "http://127.0.0.1:3011", "Idempotency-Key": `self-${action}-${Date.now()}` }, data: { action, input } });
   const created = await post("saveDraft", { expectedVersion: 0, departmentId: "synthetic-department", sourceWarehouseId: "synthetic-warehouse", destinationBranchId: A,
-    requestedServiceDate: "2028-03-01", requestedRoundNo: 1, requestedTripId: null, senderName: "ผู้จัดรถฝากเอง (สังเคราะห์)", senderPhone: "000-000-1000",
+    requestedServiceDate: "2028-03-01", requestedRoundNo: 1, requestedTripId: null, senderName: "ผู้วางแผนขนส่งฝากเอง (สังเคราะห์)", senderPhone: "000-000-1000",
     recipientName: null, recipientPhone: null, receiptMode: "PACKAGES", packageCount: 1, packageWeight: null, packageWeightUnit: null, notes: null,
     items: [{ categoryId, name: "เอกสารสังเคราะห์", quantity: "1", unit: "SHEET" }] });
   expect(created.status()).toBe(200);
@@ -42,7 +42,7 @@ test("D216: dispatcher self-review is disabled in the UI and denied by the mutat
   await page.goto(`/consignments/${d.id}`);
   await page.getByText("ขั้นตอนที่ยังดำเนินการไม่ได้", { exact: true }).click();
   await expect(page.getByRole("button", { name: "จัดรถ", exact: true })).toBeDisabled();
-  await expect(page.getByText("คำขอที่คุณสร้างต้องให้ผู้จัดรถอีกคนตรวจและจัดรถ").first()).toBeVisible();
+  await expect(page.getByText("คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "แสดงรอบรถ" })).toHaveCount(0);
   mkdirSync("docs/evidence/access-policy", { recursive: true });
   await page.screenshot({ path: "docs/evidence/access-policy/self-review-blocked.png", fullPage: true });
@@ -87,7 +87,7 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   await page.getByLabel("หน่วยของรายการที่ 1").selectOption("SHEET");
   await page.getByRole("textbox", { name: /^จำนวนหีบห่อ/ }).fill("3");
   await page.getByLabel("ตรวจรับทั้งหีบห่อและจำนวนสิ่งของ").check();
-  await expect(page.getByText("ข้อมูลครบ พร้อมส่งให้ผู้จัดรถตรวจสอบ")).toBeVisible();
+  await expect(page.getByText("ข้อมูลครบ พร้อมส่งให้ผู้วางแผนขนส่งตรวจสอบ")).toBeVisible();
   await page.getByRole("button", { name: "บันทึกฉบับร่าง" }).click();
   await expect(success(page)).toContainText("บันทึกฉบับร่างแล้ว");
   await expect(page).toHaveURL(/\/consign\?id=/);
@@ -102,7 +102,7 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   await expect(status(page)).toHaveText("รอตรวจสอบ");
   consignmentUrl = page.url().split("?")[0]; code = (await page.getByRole("heading", { level: 1 }).textContent()) ?? "";
   expect(code).toMatch(/^FS-\d{8}-/);
-  await expect(page.getByText("ส่งคำขอแล้ว ผู้จัดรถจะตรวจสอบ")).toBeVisible();
+  await expect(page.getByText("ส่งคำขอแล้ว ผู้วางแผนขนส่งจะตรวจสอบ")).toBeVisible();
 
   await login(page, account.dispatcher);
   await page.goto(consignmentUrl);

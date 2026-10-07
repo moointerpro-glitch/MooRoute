@@ -27,7 +27,11 @@ test("unauthenticated/cross-role/cross-branch/CSRF and mass assignment requests 
   expect((await page.request.get("/api/masters/branches/export")).status()).toBe(403);
   expect((await page.request.post("/api/masters/drivers",{headers:{origin:"http://127.0.0.1:3011","idempotency-key":"e2e-forbidden"},data:{action:"save",expectedVersion:0,reason:"ทดสอบสิทธิ์",values:{code:"FORGED",name:"ปลอมสิทธิ์",active:true}}})).status()).toBe(403);
   expect((await page.request.post("/api/masters/drivers",{headers:{origin:"https://attacker.example"},data:{}})).status()).toBe(403);
-  await page.getByRole("button",{name:"ออกจากระบบ"}).click();await expect(page).toHaveURL(/\/login$/);expect((await page.request.get("/api/masters/branches")).status()).toBe(401);
+  // D221 header profile: one account type, the working scope, and the account page.
+  const trigger=page.getByRole("button",{name:/^บัญชี /});await expect(trigger).toHaveAccessibleName(/พนักงานสาขา$/);await trigger.click();
+  await expect(page.locator(".profile-facts")).toContainText("ประเภทบัญชี");await expect(page.locator(".profile-facts")).toContainText("สาขา");
+  await page.getByRole("link",{name:"บัญชีของฉัน"}).click();await expect(page).toHaveURL(/\/account$/);await expect(page.getByRole("heading",{name:"สิทธิ์การใช้งาน"})).toBeVisible();await expect(page.locator(".account-facts .type-chip")).toHaveText("พนักงานสาขา");
+  await page.getByRole("button",{name:/^บัญชี /}).click();await page.getByRole("button",{name:"ออกจากระบบ"}).click();await expect(page).toHaveURL(/\/login$/);expect((await page.request.get("/api/masters/branches")).status()).toBe(401);
 });
 test("Thai vehicle and branch forms at desktop/mobile sizes with no horizontal page overflow",async({page})=>{
   await login(page);mkdirSync("docs/evidence/phase-3",{recursive:true});

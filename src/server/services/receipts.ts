@@ -34,7 +34,7 @@ export async function receiveConsignment(db: PrismaClient, actorId: string, key:
     const movement = consignment.status === "ISSUE" ? consignment.resumeStatus : consignment.status;
     if (correction) {
       // Controlled exception: receipt before a recorded departure, with reason and CORRECTION event.
-      requireCondition(!departed && ["LOADED", "ISSUE"].includes(consignment.status) && movement === "LOADED", "RECEIPT_STATE", "ใช้การแก้ไขโดยหัวหน้างานได้เฉพาะรายการที่ขึ้นรถแล้วแต่ยังไม่มีบันทึกรถออก");
+      requireCondition(!departed && ["LOADED", "ISSUE"].includes(consignment.status) && movement === "LOADED", "RECEIPT_STATE", "ใช้การแก้ไขโดยผู้วางแผนขนส่งได้เฉพาะรายการที่ขึ้นรถแล้วแต่ยังไม่มีบันทึกรถออก");
     } else {
       requireCondition(["IN_TRANSIT", "PARTIALLY_RECEIVED"].includes(movement ?? ""), "RECEIPT_STATE", "ยังรับสินค้าในสถานะนี้ไม่ได้");
       requireCondition(departed, "DEPARTURE_REQUIRED", "ยังไม่มีบันทึกออกเดินทาง");

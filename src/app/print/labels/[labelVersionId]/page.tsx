@@ -20,7 +20,7 @@ export default async function PrintLabelsPage({ params, searchParams }: { params
   try { sheet = await labelSheet(getDatabase(), actor.id, labelVersionId); }
   catch (error) {
     if (error instanceof DomainError && error.code === "NOT_FOUND") notFound();
-    if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="container message-page"><span className="eyebrow">พิมพ์ฉลาก</span><h1>คุณไม่มีสิทธิ์พิมพ์ฉลากนี้</h1><p>การพิมพ์ฉลากทำได้เฉพาะผู้จัดรถ หัวหน้างาน หรือคลังต้นทางของรายการ</p></div>;
+    if (error instanceof DomainError && error.code === "FORBIDDEN") return <div className="container message-page"><span className="eyebrow">พิมพ์ฉลาก</span><h1>คุณไม่มีสิทธิ์พิมพ์ฉลากนี้</h1><p>การพิมพ์ฉลากทำได้เฉพาะผู้วางแผนขนส่ง หรือคลังต้นทางของรายการ</p></div>;
     throw error;
   }
   const back = { href: `/consignments/${sheet.consignmentId}/labels`, label: "กลับไปหน้าฉลาก" };

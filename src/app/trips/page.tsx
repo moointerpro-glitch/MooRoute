@@ -37,7 +37,7 @@ export default async function AllTripsPage({ searchParams }: { searchParams: Pro
       </nav></header>
     <section className="search-card results" aria-label="รายการรอบรถ">
       <div className="results-head"><p className="count-badge" role="status">พบ {result.total.toLocaleString("th-TH")} รอบรถ</p>{date !== today && <Link className="text-link" href="/trips">กลับไปวันนี้</Link>}</div>
-      {!result.published ? <div className="results-state"><div><h2>ยังไม่มีแผนเดินรถที่เผยแพร่</h2><p>เลือกวันอื่น หรือติดต่อผู้จัดรถ</p></div></div>
+      {!result.published ? <div className="results-state"><div><h2>ยังไม่มีแผนเดินรถที่เผยแพร่</h2><p>เลือกวันอื่น หรือติดต่อผู้วางแผนขนส่ง</p></div></div>
         : result.total === 0 ? <div className="results-state"><div><h2>ไม่มีรอบรถที่คุณมีสิทธิ์ดูในวันนี้</h2><p>รอบรถที่แสดงขึ้นกับขอบเขตงานของบัญชี</p></div></div>
         : <><TripResults rows={result.rows} caption={`รอบรถทั้งหมด ${thaiLongDate(date)}`} />
           <div className="results-foot"><span>หน้า {result.page} จาก {result.pageCount}</span><nav className="pager" aria-label="เลือกหน้า">

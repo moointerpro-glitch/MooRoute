@@ -39,7 +39,7 @@ export const statusLabels: Record<ConsignmentState, string> = {
 };
 export const eventLabels: Record<string, string> = {
   SUBMITTED: "ส่งคำขอ", ASSIGNED: "จัดรถ", WAREHOUSE_RECEIVED: "คลังรับของ", LOADED: "ขึ้นรถ", DEPARTED: "รถออก", RECEIPT: "สาขารับของ",
-  ISSUE: "แจ้งปัญหา", CORRECTION: "แก้ไขโดยหัวหน้างาน", RETURNED: "ส่งคืน", CLOSED: "ปิดงาน", CANCELLED: "ยกเลิก", REJECTED: "ไม่อนุมัติ", ISSUE_RESOLVED: "แก้ไขปัญหาแล้ว",
+  ISSUE: "แจ้งปัญหา", CORRECTION: "แก้ไขโดยผู้วางแผนขนส่ง", RETURNED: "ส่งคืน", CLOSED: "ปิดงาน", CANCELLED: "ยกเลิก", REJECTED: "ไม่อนุมัติ", ISSUE_RESOLVED: "แก้ไขปัญหาแล้ว",
 };
 export const custodyLabels: Record<string, string> = { SENDER: "ผู้ฝาก", WAREHOUSE: "คลัง", VEHICLE: "บนรถ", BRANCH: "สาขารับแล้ว", RETURNED: "ส่งคืนแล้ว" };
 /** Explicit item units; quantities of different units are never summed. */
@@ -50,7 +50,7 @@ export const receiptModeLabels: Record<string, string> = { PACKAGES: "ตรว�
 
 export const idPattern = /^[A-Za-z0-9_-]{1,36}$/;
 export const quantityPattern = /^(?:0|[1-9]\d{0,10})(?:\.\d{1,3})?$/;
-const phonePattern = /^[+\d ()-]{7,32}$/;
+export const phonePattern = /^[+\d ()-]{7,32}$/;
 
 export function requireTransition(action: string, status: string) {
   const rule = transitionMatrix[action];

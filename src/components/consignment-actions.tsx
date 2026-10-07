@@ -71,7 +71,7 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
       setScan("");
       if (!response.ok) { setMessage({ tone: "error", text: data?.message ?? "ตรวจสอบฉลากไม่สำเร็จ" }); return; }
       if (data.consignment.id !== d.id) { setMessage({ tone: "error", text: `ฉลากนี้เป็นของรายการ ${data.consignment.code} ไม่ใช่รายการนี้` }); return; }
-      if (data.state !== "CURRENT") { setMessage({ tone: "error", text: `ฉลากฉบับที่ ${data.number} ถูกยกเลิกแล้ว${data.replacement ? ` กรุณาใช้ฉลากฉบับที่ ${data.replacement.number}` : " กรุณาติดต่อผู้จัดรถ"}` }); return; }
+      if (data.state !== "CURRENT") { setMessage({ tone: "error", text: `ฉลากฉบับที่ ${data.number} ถูกยกเลิกแล้ว${data.replacement ? ` กรุณาใช้ฉลากฉบับที่ ${data.replacement.number}` : " กรุณาติดต่อผู้วางแผนขนส่ง"}` }); return; }
       if (!data.package) { setMessage({ tone: "error", text: "คิวอาร์นี้ไม่ได้ระบุหีบห่อ" }); return; }
       if (data.package.custody !== "VEHICLE") { setMessage({ tone: "error", text: `หีบห่อ ${data.package.label} ไม่ได้อยู่บนรถ` }); return; }
       setSelected((s) => s.includes(data.package.id) ? s : [...s, data.package.id]); setMessage({ tone: "ok", text: `เพิ่ม ${data.package.label} แล้ว (ฉลากฉบับที่ ${data.number})` });
@@ -112,7 +112,7 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
       <button type="button" className="primary-button" disabled={busy} onClick={() => void run("load", { ...base, packageIds: selected }, "บันทึกขึ้นรถแล้ว")}>ยืนยันขึ้นรถ</button></Panel>}
     {can("depart") && currentTrip && <Panel title="บันทึกรถออก"><p>บันทึกรถออกสำหรับทุกรายการที่ขึ้นรถแล้วในรอบ {currentTrip.tripCode} ซึ่งคุณมีสิทธิ์</p>
       <button type="button" className="primary-button" disabled={busy} onClick={() => void run("depart", { tripId: currentTrip.tripId }, "บันทึกรถออกแล้ว")}>บันทึกรถออกทั้งรอบ</button></Panel>}
-    {(can("receive") || can("correctiveReceive")) && <Panel title={can("receive") ? "สาขารับของ" : "รับของก่อนบันทึกรถออก (หัวหน้างาน)"}>
+    {(can("receive") || can("correctiveReceive")) && <Panel title={can("receive") ? "สาขารับของ" : "รับของก่อนบันทึกรถออก (ผู้วางแผนขนส่ง)"}>
       <div className="inline-form"><label><ScanLine size={16} aria-hidden="true" className="inline-icon" />สแกนหรือพิมพ์รหัสหีบห่อ<input value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void onScan(); } }} placeholder={d.packages[0]?.label} /></label><button type="button" className="secondary-button" onClick={() => void onScan()}>เพิ่ม</button></div>
       {checklist(packages(["VEHICLE"]))}
       {d.receiptMode === "DETAILED" && <fieldset className="qty-fields"><legend>จำนวนสิ่งของที่รับ</legend>{d.items.map((i) => <label key={i.id}>{i.name} (ค้างรับ {Number(i.sent) - Number(i.received) - Number(i.returned)} {unitText(i.unit)})<span className="input-unit"><input value={quantities[i.id] ?? ""} inputMode="decimal" onChange={(e) => setQuantities((q) => ({ ...q, [i.id]: e.target.value }))} /><span>{unitText(i.unit)}</span></span></label>)}</fieldset>}
@@ -123,10 +123,10 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
       <label>ประเภทปัญหา<select value={issueType} onChange={(e) => setIssueType(e.target.value)}>{Object.entries(issueTypes).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       {checklist(d.packages)}{reasonField("รายละเอียดปัญหา")}
       <button type="button" className="danger-button" disabled={busy} onClick={() => void run("reportIssue", { ...base, type: issueType, description: reason, packageIds: selected }, "แจ้งปัญหาแล้ว")}>แจ้งปัญหา</button></Panel>}
-    {can("recordReturn") && <Panel title="บันทึกส่งคืน (หัวหน้างาน)">{checklist(d.packages.filter((p) => !p.received && !p.returned && p.custody !== "BRANCH"))}
+    {can("recordReturn") && <Panel title="บันทึกส่งคืน (ผู้วางแผนขนส่ง)">{checklist(d.packages.filter((p) => !p.received && !p.returned && p.custody !== "BRANCH"))}
       {d.receiptMode === "DETAILED" && <fieldset className="qty-fields"><legend>จำนวนสิ่งของที่ส่งคืน</legend>{d.items.map((i) => <label key={i.id}>{i.name}<span className="input-unit"><input value={quantities[i.id] ?? ""} inputMode="decimal" onChange={(e) => setQuantities((q) => ({ ...q, [i.id]: e.target.value }))} /><span>{unitText(i.unit)}</span></span></label>)}</fieldset>}
       {reasonField()}<button type="button" className="secondary-button" disabled={busy} onClick={() => void run("recordReturn", { ...base, reason, packageIds: selected, items: d.items.flatMap((i) => quantities[i.id]?.trim() ? [{ itemId: i.id, quantity: quantities[i.id].trim() }] : []) }, "บันทึกส่งคืนแล้ว")}>บันทึกส่งคืน</button></Panel>}
-    {can("resolveIssue") && <Panel title="ปิดปัญหา (หัวหน้างาน)">{reasonField("ผลการแก้ไข")}<button type="button" className="primary-button" disabled={busy} onClick={() => void run("resolveIssue", { ...base, reason }, "ปิดปัญหาแล้ว")}>ปิดปัญหา</button></Panel>}
+    {can("resolveIssue") && <Panel title="ปิดปัญหา (ผู้วางแผนขนส่ง)">{reasonField("ผลการแก้ไข")}<button type="button" className="primary-button" disabled={busy} onClick={() => void run("resolveIssue", { ...base, reason }, "ปิดปัญหาแล้ว")}>ปิดปัญหา</button></Panel>}
     {can("close") && <Panel title="ปิดงาน"><p className="muted small">ปิดได้เมื่อรับครบหรือบันทึกส่งคืนครบ และไม่มีปัญหาค้าง</p><button type="button" className="primary-button" disabled={busy} onClick={() => void run("close", base, "ปิดงานแล้ว")}>ปิดงาน</button></Panel>}
     {can("reject") && <Panel title="ไม่อนุมัติคำขอ">{reasonField()}<button type="button" className="danger-button" disabled={busy} onClick={() => void run("reject", { ...base, reason }, "ไม่อนุมัติคำขอแล้ว")}>ไม่อนุมัติ</button></Panel>}
     {(can("cancelRequest") || can("cancelAssigned")) && <Panel title={actionLabels[can("cancelRequest") ? "cancelRequest" : "cancelAssigned"]}>{reasonField()}<button type="button" className="danger-button" disabled={busy} onClick={() => void run("cancel", { ...base, reason }, "ยกเลิกรายการแล้ว")}>ยกเลิกรายการ</button></Panel>}

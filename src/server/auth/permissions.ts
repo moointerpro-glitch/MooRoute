@@ -2,16 +2,24 @@ import "server-only";
 import type { PrismaClient } from "../../generated/prisma/client";
 import type { Transaction } from "../services/transaction";
 import { requireCondition } from "../domain/errors";
+import { RETIRED_ROLE_TYPES, ROLE_NAMES } from "../../lib/account-display";
 
 export const masterKinds = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories", "warehouses", "departments"] as const;
-const operationalRoles: Record<string, string[]> = {
+/**
+ * D221: five account types replace the seven roles people had to choose from. Capability codes stay fine-grained
+ * and every action still needs a matching scope (branch, warehouse, driver or company), so merging types never
+ * widens whose records an account may touch. Role codes are kept so existing accounts and audit history stay valid:
+ * WAREHOUSE absorbs DRIVER (คลังและรถขนส่ง) and DISPATCHER absorbs SUPERVISOR (ผู้วางแผนขนส่ง).
+ */
+const accountTypes: Record<string, string[]> = {
   REQUESTER: ["consignment.read.department", "trip.read", "consignment.create", "consignment.read", "master.branches.read"],
-  DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "consignment.read", "consignment.assign", "label.issue", "label.print", "manifest.read", "import.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
-  WAREHOUSE: ["consignment.read", "consignment.warehouse", "consignment.load", "label.issue", "label.print", "manifest.read", "master.consignment-categories.read"],
-  DRIVER: ["trip.read", "trip.move", "consignment.read", "manifest.read", "master.drivers.read"],
   BRANCH_RECEIVER: ["trip.read", "consignment.read", "consignment.receive", "master.branches.read"],
-  SUPERVISOR: ["plan.read", "trip.read", "plan.publish", "consignment.read", "consignment.correct", "label.print", "manifest.read", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
+  WAREHOUSE: ["trip.read", "trip.move", "consignment.read", "consignment.warehouse", "consignment.load", "label.issue", "label.print", "manifest.read", "master.consignment-categories.read", "master.drivers.read"],
+  DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "plan.publish", "consignment.read", "consignment.assign", "consignment.correct", "label.issue", "label.print", "manifest.read", "import.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
 };
+/** Retired role codes (D221) keep the capabilities of the type that absorbed them and are never given to new accounts. */
+export const retiredRoles = RETIRED_ROLE_TYPES;
+const operationalRoles: Record<string, string[]> = { ...accountTypes, ...Object.fromEntries(Object.entries(retiredRoles).map(([code, into]) => [code, accountTypes[into]])) };
 /**
  * Owner decision D215: the administrator can do and see everything — every capability of every other role,
  * full master maintenance, and read-only access to other users' consignment drafts. It is derived from the
@@ -23,11 +31,12 @@ export const rolePermissions: Record<string, string[]> = {
   ADMINISTRATOR: [...new Set([...Object.values(operationalRoles).flat(), "trip.read.company", "identity.manage", "consignment.read.drafts",
     ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.write`,`master.${k}.delete`,`master.${k}.export`])])],
 };
+/** Additive: creates missing roles and grants; never revokes a grant. Role names follow the D221 account types. */
 export async function installRoles(db: PrismaClient) {
-  const names:Record<string,string>={REQUESTER:"ผู้ฝากส่ง",DISPATCHER:"ผู้จัดรถ",WAREHOUSE:"เจ้าหน้าที่คลัง",DRIVER:"พนักงานขับรถ",BRANCH_RECEIVER:"ผู้รับประจำสาขา",SUPERVISOR:"หัวหน้างาน",ADMINISTRATOR:"ผู้ดูแลระบบ"};
   await db.$transaction(async tx=>{
     for(const [code,permissions] of Object.entries(rolePermissions)) {
-      const role=await tx.role.upsert({where:{code},create:{code,name:names[code]},update:{}});
+      const name=ROLE_NAMES[code];
+      const role=await tx.role.upsert({where:{code},create:{code,name},update:{name}});
       for(const code of permissions){const p=await tx.permission.upsert({where:{code},create:{code},update:{}});await tx.rolePermission.upsert({where:{roleId_permissionId:{roleId:role.id,permissionId:p.id}},create:{roleId:role.id,permissionId:p.id},update:{}});}
     }
   });

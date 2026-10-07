@@ -23,7 +23,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       return <><TripSearch today={serviceDate} options={options} params={params} /><div className="container">{help}</div></>;
     } catch (error) {
       if (!(error instanceof DomainError && error.code === "FORBIDDEN")) throw error;
-      return <div className="container message-page"><span className="eyebrow">ค้นหาเส้นทาง</span><h1>บัญชีนี้ยังไม่มีสิทธิ์ค้นหารอบรถ</h1><p>กรุณาติดต่อผู้ดูแลเพื่อกำหนดบทบาทและขอบเขตงานที่ใช้ค้นหารอบรถ</p><Link href="/guide" className="secondary-button">อ่านคู่มือ</Link></div>;
+      return <div className="container message-page"><span className="eyebrow">ค้นหาเส้นทาง</span><h1>บัญชีนี้ยังไม่มีสิทธิ์ค้นหารอบรถ</h1><p>กรุณาติดต่อผู้ดูแลเพื่อกำหนดประเภทบัญชีและขอบเขตงานที่ใช้ค้นหารอบรถ</p><Link href="/guide" className="secondary-button">อ่านคู่มือ</Link></div>;
     }
   }
   const dateLabel = thaiServiceDate(serviceDate);

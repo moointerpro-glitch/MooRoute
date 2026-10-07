@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Building2, History, ListOrdered, PackagePlus, Search, Settings } from "lucide-react";
 import type { NavigationAccess } from "@/lib/navigation";
-import { LogoutButton } from "./logout-button";
-type Session = NavigationAccess & { name: string };
-export function SessionNavigation({ onNavigate }: { onNavigate?: () => void }) {
-  const [session, setSession] = useState<Session | null>(null), pathname = usePathname();
+import type { ProfileSummary } from "./profile-menu";
+
+export type Session = NavigationAccess & { name: string; profile: ProfileSummary };
+
+/** Session for the header: menu access and profile. Refreshed on navigation; null when signed out. */
+export function useSession() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined), pathname = usePathname();
   useEffect(() => {
     const controller = new AbortController();
     void fetch("/api/session", { cache: "no-store", signal: controller.signal })
@@ -15,6 +18,11 @@ export function SessionNavigation({ onNavigate }: { onNavigate?: () => void }) {
       .catch(() => { if (!controller.signal.aborted) setSession(null); });
     return () => controller.abort();
   }, [pathname]);
+  return session;
+}
+
+export function SessionNavigation({ session, onNavigate }: { session: Session | null | undefined; onNavigate?: () => void }) {
+  const pathname = usePathname();
   const links = [
     { href: "/", label: "ค้นหาเส้นทาง", icon: Search, allowed: !session || session.canSearch, active: pathname === "/" },
     { href: "/trips", label: "รอบรถทั้งหมด", icon: ListOrdered, allowed: session?.canSearch, active: pathname.startsWith("/trips") },
@@ -25,7 +33,6 @@ export function SessionNavigation({ onNavigate }: { onNavigate?: () => void }) {
   ];
   return <>{links.filter((l) => l.allowed).map(({ href, label, icon: Icon, active }) =>
     <Link key={href} href={href} aria-current={active ? "page" : undefined} onClick={onNavigate}><Icon size={17} aria-hidden="true" />{label}</Link>)}
-    {session ? !pathname.startsWith("/admin") && <span className="nav-logout"><LogoutButton /></span> :
-      <Link href={pathname !== "/login" ? `/login?next=${encodeURIComponent(pathname)}` : "/login"} onClick={onNavigate}>เข้าสู่ระบบ</Link>}
+    {session === null && <Link href={pathname !== "/login" ? `/login?next=${encodeURIComponent(pathname)}` : "/login"} onClick={onNavigate}>เข้าสู่ระบบ</Link>}
   </>;
 }
