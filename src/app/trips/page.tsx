@@ -17,10 +17,9 @@ export default async function AllTripsPage({ searchParams }: { searchParams: Pro
   const actor = await requirePageActor(), raw = await searchParams, today = bangkokServiceDate();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(raw.date ?? "") ? raw.date! : isoFromBe(raw.date ?? "") ?? today;
   const page = Math.min(10_000, Math.max(1, Number.parseInt(raw.page ?? "1", 10) || 1));
-  let result, canConsign = false;
+  let result;
   try {
-    const { kinds, canConsign: mayConsign } = await searchOptions(getDatabase(), actor.id);
-    canConsign = mayConsign;
+    const { kinds } = await searchOptions(getDatabase(), actor.id);
     result = await searchTrips(getDatabase(), actor.id, { serviceDate: date, mode: "time", branchId: null, query: "", times: [], from: null, to: null, basis: "departure", rounds: [], categoryIds: [], kinds, sort: "time_asc", page, pageSize: SEARCH_PAGE_SIZE });
   } catch (error) {
     if (error instanceof DomainError && ["FORBIDDEN", "INVALID_SEARCH"].includes(error.code)) {
@@ -40,7 +39,7 @@ export default async function AllTripsPage({ searchParams }: { searchParams: Pro
       <div className="results-head"><p className="count-badge" role="status">พบ {result.total.toLocaleString("th-TH")} รอบรถ</p>{date !== today && <Link className="text-link" href="/trips">กลับไปวันนี้</Link>}</div>
       {!result.published ? <div className="results-state"><div><h2>ยังไม่มีแผนเดินรถที่เผยแพร่</h2><p>เลือกวันอื่น หรือติดต่อผู้วางแผนขนส่ง</p></div></div>
         : result.total === 0 ? <div className="results-state"><div><h2>ไม่มีรอบรถที่คุณมีสิทธิ์ดูในวันนี้</h2><p>รอบรถที่แสดงขึ้นกับขอบเขตงานของบัญชี</p></div></div>
-        : <><TripResults rows={result.rows} caption={`รอบรถทั้งหมด ${thaiLongDate(date)}`} canConsign={canConsign} />
+        : <><TripResults rows={result.rows} caption={`รอบรถทั้งหมด ${thaiLongDate(date)}`} />
           <div className="results-foot"><span>หน้า {result.page} จาก {result.pageCount}</span><nav className="pager" aria-label="เลือกหน้า">
             {result.page > 1 ? <Link className="secondary-button" href={link(date, result.page - 1)}>ก่อนหน้า</Link> : <span className="secondary-button" aria-disabled="true">ก่อนหน้า</span>}
             {result.page < result.pageCount ? <Link className="secondary-button" href={link(date, result.page + 1)}>ถัดไป</Link> : <span className="secondary-button" aria-disabled="true">ถัดไป</span>}

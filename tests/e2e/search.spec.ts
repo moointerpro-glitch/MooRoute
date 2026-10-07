@@ -81,16 +81,12 @@ test("T04/T05/T06/T19/T20: three search modes, aliases, chips, range validation,
   await page.getByRole("link", { name: "ฝากของกับรอบนี้" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "ฝากของส่งรถ" })).toBeVisible();
   await expect(page.getByLabel("สาขาปลายทาง")).toHaveValue(A);
-  // D226: the trip list shows the departure status and offers the same action per row; a multi-stop trip asks for the destination.
-  await page.goto("/trips?date=2028-03-01");
-  await expect(page.locator(".results-table .departure-status").first()).toContainText("ยังไม่ถึงเวลาออก");
-  const action = page.locator(".results-table .row-do").filter({ has: page.locator(".consign-pick, .consign-link") }).first();
-  if (await action.locator(".consign-pick").count()) { await action.locator("summary").click(); await action.locator(".consign-pick a").first().click(); }
-  else await action.locator(".consign-link").click();
-  await expect(page.getByRole("heading", { level: 1, name: "ฝากของส่งรถ" })).toBeVisible();
-  await expect(page.getByLabel("สาขาปลายทาง")).not.toHaveValue("");
   await expect(page.getByLabel("วันที่ต้องการส่ง (พ.ศ.)")).toHaveValue("01/03/2571");
   await page.screenshot({ path: `${evidence}/consign-handoff-1440.png`, fullPage: true });
+  // D225: the trip list shows the plan-based departure status. D228: no consign button in the list; consigning starts from the trip detail.
+  await page.goto("/trips?date=2028-03-01");
+  await expect(page.locator(".results-table .departure-status").first()).toContainText("ยังไม่ถึงเวลาออก");
+  await expect(page.locator(".results-table").getByText("ฝากของกับรอบนี้")).toHaveCount(0);
 });
 
 test("Thai empty, unknown, error and directory states", async ({ page }) => {

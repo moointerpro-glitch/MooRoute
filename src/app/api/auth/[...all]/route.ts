@@ -1,5 +1,5 @@
 import { getAuth } from "@/server/auth/auth";
-import { authConfiguration } from "@/server/auth/config";
+import { authConfiguration, peerAddress } from "@/server/auth/config";
 import { logUnexpected } from "@/server/logging";
 import { readBodyWithin, utf8BytesFor } from "@/server/request-body";
 
@@ -14,8 +14,8 @@ async function handler(request: Request) {
     if (request.method === "POST" && request.headers.get("origin") !== config.baseURL) return Response.json({ code: "FORBIDDEN", message: "คำขอไม่ถูกต้อง กรุณาเปิดหน้าเว็บใหม่" }, { status: 403 });
     if (Number(request.headers.get("content-length") ?? 0) > 4096) return Response.json({message:"ข้อมูลมีขนาดเกินกำหนด"},{status:413});
     const safeHeaders = new Headers(request.headers);
-    // This local-only deployment has a single trusted peer. Never trust forwarded client IPs.
-    safeHeaders.set("x-moointer-peer", "127.0.0.1");
+    // The throttle key is decided here, never by a header the client can set (see peerAddress, D227).
+    safeHeaders.set("x-moointer-peer", peerAddress(process.env, request.headers));
     // Read with a hard cap: this route is reachable without a session, so an endless body must not be buffered.
     const bytes = request.method === "POST" ? await readBodyWithin(request, utf8BytesFor(4096)) : undefined;
     const body = bytes ? new TextDecoder().decode(bytes) : undefined;

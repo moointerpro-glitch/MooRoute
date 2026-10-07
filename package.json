@@ -44,7 +44,9 @@
     "test:access:integration": "node --import tsx scripts/run-integration.ts --access",
     "db:seed:mockup:plans": "node --conditions=react-server --import tsx scripts/seed-mockup-plans.ts",
     "db:reset:dev-operations": "node --conditions=react-server --import tsx scripts/reset-dev-operations.ts",
-    "test:users:e2e": "node --import tsx scripts/run-integration.ts --users-browser"
+    "test:users:e2e": "node --import tsx scripts/run-integration.ts --users-browser",
+    "deploy:sql": "node --conditions=react-server --import tsx scripts/build-deploy-sql.ts",
+    "deploy:package": "node --import tsx scripts/build-deploy-package.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "5.3.0",

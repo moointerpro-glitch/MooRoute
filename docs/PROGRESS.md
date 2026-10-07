@@ -350,3 +350,19 @@ Owner request. `src/lib/navigation.ts` and `src/app/admin/page.tsx` (reference s
 Tests: `tests/integration/backoffice.test.ts` (areas per account type, planner no longer lists read-only masters), `tests/e2e/search.spec.ts` (trip detail offers the stops; trip list shows the departure status and the row action leads to the consignment form with a destination). Checks on the final build: typecheck, lint, build PASS; unit 37/37; integration 41/41; access 16/16; browser search 8/8, consignment 7/7, planning 2/2, labels 6/6, users 2/2, auth 4/4, shell 5/5. One search browser check failed first because it expected the old disabled button; updated to the new behaviour. Evidence: [evidence/planning-redesign](evidence/planning-redesign) (`backoffice-planner-1440.png`, `trips-consign-1440.png`).
 
 Next three actions: unchanged from the D225 entry (owner tries the planning screen; round times and back-dating limit for the rule changes; decide who records actual departure and arrival).
+
+## Deployed account mode, installation SQL and upload package (D227, D228) — 2026-10-07
+
+Owner request: remove the consign button from trip lists, run the build, say what to upload and how to set up DirectAdmin, and provide a complete SQL file for phpMyAdmin.
+
+- D228: `src/components/trip-results.tsx`, `src/app/trips/page.tsx`, `src/components/trip-search.tsx`, `src/app/globals.css`, `tests/e2e/search.spec.ts`.
+- D227 code: `src/server/auth/config.ts` (production mode, `peerAddress`), `src/app/api/auth/[...all]/route.ts`, `src/server/auth/auth.ts`, `src/server/services/users.ts` (administrator lock portable to MariaDB), `server.cjs`, `scripts/build-deploy-sql.ts`, `scripts/build-deploy-package.ts`, `package.json` (`deploy:sql`, `deploy:package`), `tests/unit/auth-config.test.ts`.
+- No schema change and no migration. `moointer_dev` not changed. Temporary schemas and one temporary user were created on the local MySQL 8.4 and on the XAMPP MariaDB 10.4.32 for verification and dropped afterwards; the pre-existing XAMPP database was not touched.
+- Output for the owner (ignored by Git): `.local/deploy/moointer-transport-app.zip`, `.local/deploy/sql/1_schema_mysql8.sql`, `1_schema_mariadb.sql`, `2_first_administrator.sql`, `first-administrator.txt`, `.local/deploy/INSTALL-TH.txt`.
+- Defects found and fixed: `.next/node_modules` links pointing at the build machine would have broken the uploaded copy (now recreated by `server.cjs`); the first zip included the build cache and development output (825 MB, now about 10 MB); `FOR UPDATE OF` is not MariaDB syntax; `DROP CHECK` is not MariaDB syntax (SQL variant).
+- Checks 2026-10-07 on the final build (MySQL 8.4): `npm run typecheck`, `npm run lint`, `npm run build` PASS; `npm test` 39/39; `npm run test:integration` 41/41; `npm run test:access:integration` 16/16; with `--scoped-runtime`: auth 4/4, users 2/2, search 8/8, consignment 7/7, planning 2/2, labels 6/6; `npm run test:e2e` 5/5. One search browser check failed first because a step order was wrong after removing the list button; corrected and rerun.
+- Checks on MariaDB 10.4.32 (temporary schemas loaded from `1_schema_mariadb.sql`): phase suites 41/41 with the MySQL-version readiness assertion skipped for the experiment, access/users/range 16/16, and the simulated host installation described in D227. Browser suites were not run on MariaDB.
+
+Not done / not verifiable here: a real DirectAdmin host, HTTPS production mode end to end, other MariaDB versions, a case-sensitive server, scheduled backups, monitoring, `test:staging` and `test:load`.
+
+Next three actions: owner checks the host (Node.js app support and version, database type and version, SSL) and follows `.local/deploy/INSTALL-TH.txt`; report the first error message if any step fails; after the first successful sign-in on the host, change the administrator password and set up database backups in DirectAdmin.

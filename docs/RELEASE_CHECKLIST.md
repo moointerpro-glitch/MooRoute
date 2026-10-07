@@ -36,7 +36,7 @@ Status on 2026-10-06. **No deployment has been made and none is authorized.** Ea
 
 | Item | State | Notes |
 | --- | --- | --- |
-| Authentication for a deployed environment (company IdP or approved account mode) | **Decision — blocks release** | Only loopback local accounts are implemented; other modes refuse to start |
+| Authentication for a deployed environment (company IdP or approved account mode) | Decided (D227), **not verified on a host** | Owner chose the application's own password accounts; `APP_ENV=production` requires HTTPS on a real host name. No second factor or email recovery |
 | HTTPS termination, HSTS, trusted proxy configuration | Open | Not verified |
 | Session settings (8 h, HttpOnly, SameSite=Lax, Secure on HTTPS) | Verified (local) | — |
 | Sign-in throttle per client | **Open — must fix before release** | Today the limit is 5 sign-ins per minute for all users combined, because no trusted proxy header identifies the client. At shift start this would lock staff out. Needs the proxy to set the peer header, or the identity provider to own throttling |

@@ -144,7 +144,7 @@ In the lab the single Node process was the limit (about 135 requests per second)
 
 ## 9. Security configuration
 
-- **Authentication.** Only local password accounts on a loopback origin are implemented (`APP_ENV=local`). Any other `APP_ENV` makes authentication refuse to start rather than fall back. **Decision needed:** the company identity provider or an approved deployed account mode. This blocks a production release.
+- **Authentication.** The application's own password accounts (owner decision D227). `APP_ENV=local` runs on a loopback origin only; `APP_ENV=production` runs only on an HTTPS origin with a real host name. Any other value makes authentication refuse to start. No second factor or email recovery; an administrator issues temporary passwords at /admin/users. For per-client sign-in throttling in production set `TRUSTED_PROXY_HEADER` (`x-forwarded-for` or `x-real-ip`) and, with chained proxies, `TRUSTED_PROXY_HOPS`; this is safe only when the application is reachable solely through the host's web server. Hosted installation: `npm run deploy:sql` and `npm run deploy:package` (see D227); not yet verified on a real host.
 - **Sessions.** Database-backed, 8 hours, refreshed every 30 minutes of use, HttpOnly, SameSite=Lax, Secure when the origin is HTTPS. IP address and user agent are not stored. Sign-in is limited to 5 attempts per minute, counted in one shared bucket because no trusted proxy header is configured.
 - **Request protection.** Every mutation checks the exact Origin, a JSON or multipart body limit, an idempotency key and the session actor's capability and row scope inside the transaction.
 - **Headers.** `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, and in production builds a Content-Security-Policy restricting sources to the application itself. HSTS must be added by the TLS proxy.
@@ -161,7 +161,7 @@ In the lab the single Node process was the limit (about 135 requests per second)
 
 ## 11. Known limitations
 
-- No deployed authentication mode, TLS termination, scheduled backup, monitoring stack or alerting exists yet.
+- A deployed account mode exists (D227) but has not run on a real host; TLS is expected from the host's web server. No scheduled backup, monitoring stack or alerting exists yet.
 - History tables (audit log, idempotency records, events, label versions, import rows) and expired rate-limit rows grow without a retention or archive job. Database guards forbid deleting most of them, so a retention policy needs a designed migration.
 - One application instance is assumed: attachments are local files, and the sign-in limit is one shared bucket.
 - Consignments already in motion cannot be moved by re-planning; a published day with loaded or completed consignments cannot be replaced until an operational change workflow exists.

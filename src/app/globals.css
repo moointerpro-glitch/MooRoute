@@ -872,18 +872,5 @@ input::placeholder { color: #718096; }
 .departure-status small { color: var(--color-muted); font-size: 12px; line-height: 1.4; }
 .detail-departure { margin: 0 0 12px; }
 
-/* D226: consign straight from a trip row. */
-.row-do { display: grid; gap: 4px; justify-items: start; }
-.consign-link, .consign-pick > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 12px; border: 1px solid var(--color-primary); border-radius: 8px; background: #fff; color: var(--color-primary); font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.consign-link:hover, .consign-pick > summary:hover, .consign-pick[open] > summary { background: var(--color-primary); color: #fff; }
-.consign-pick > summary { list-style: none; }
-.consign-pick > summary::-webkit-details-marker { display: none; }
-.consign-pick > summary::after { content: "▾"; font-size: 12px; }
-.consign-pick > ul { min-width: 200px; margin: 6px 0 0; padding: 6px; list-style: none; background: #fff; border: 1px solid var(--color-border); border-radius: 10px; }
-.consign-pick > ul a { display: block; min-height: 40px; padding: 9px 12px; border-radius: 7px; color: #334155; font-size: 14px; white-space: nowrap; }
-.consign-pick > ul a:hover { background: #fff1f3; color: var(--color-primary); }
-.card-do { justify-items: stretch; gap: 8px; margin-top: 8px; }
-.card-do .card-detail { margin-top: 0; }
-.card-do .consign-link, .card-do .consign-pick > summary { width: 100%; justify-content: center; min-height: 44px; }
-
+/* D226: choice of destination stops on the trip detail page. */
 .consign-stops { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }

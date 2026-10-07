@@ -107,15 +107,19 @@ async function writeAccess(tx: Transaction, userId: string, a: Access) {
 }
 
 /**
- * Every identity change first locks all active administrators in id order and re-checks the actor under that lock,
- * so an administrator demoted or disabled a moment ago cannot finish a change, and two administrators cannot remove
- * each other at the same time. Only User rows are locked (FOR UPDATE OF u): the runtime database account can read
- * Role but has no lock privilege on it.
+ * Every identity change first locks the User rows of all active administrators in id order and re-reads who is an
+ * administrator under those locks, so an administrator demoted or disabled a moment ago cannot finish a change, and
+ * two administrators cannot remove each other at the same time. The lock statement names only User: it runs on
+ * MySQL and MariaDB alike and needs no lock privilege on Role for the runtime database account.
  */
 async function lockAdministrators(tx: Transaction, actorId: string) {
-  const admins = (await tx.$queryRaw<Array<{ id: string }>>`
+  const administrators = async () => (await tx.$queryRaw<Array<{ id: string }>>`
     SELECT u.id FROM User u JOIN UserRole ur ON ur.userId=u.id JOIN Role r ON r.id=ur.roleId
-    WHERE r.code='ADMINISTRATOR' AND u.active=1 ORDER BY u.id FOR UPDATE OF u`).map((a) => a.id);
+    WHERE r.code='ADMINISTRATOR' AND u.active=1 ORDER BY u.id`).map((a) => a.id);
+  const candidates = await administrators();
+  requireCondition(candidates.includes(actorId), "FORBIDDEN", "คุณไม่มีสิทธิ์จัดการผู้ใช้");
+  await tx.$queryRaw`SELECT id FROM User WHERE id IN (${Prisma.join(candidates)}) ORDER BY id FOR UPDATE`;
+  const admins = await administrators();
   requireCondition(admins.includes(actorId), "FORBIDDEN", "คุณไม่มีสิทธิ์จัดการผู้ใช้");
   return admins;
 }
