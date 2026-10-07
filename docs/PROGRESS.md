@@ -366,3 +366,7 @@ Owner request: remove the consign button from trip lists, run the build, say wha
 Not done / not verifiable here: a real DirectAdmin host, HTTPS production mode end to end, other MariaDB versions, a case-sensitive server, scheduled backups, monitoring, `test:staging` and `test:load`.
 
 Next three actions: owner checks the host (Node.js app support and version, database type and version, SSL) and follows `.local/deploy/INSTALL-TH.txt`; report the first error message if any step fails; after the first successful sign-in on the host, change the administrator password and set up database backups in DirectAdmin.
+
+## Host form review and Node.js 20.20.2 check — 2026-10-07
+
+Owner sent the DirectAdmin "Create Application" form (Node.js 20.20.2, application root set to the domain's public_html, startup file server.js). Advised: application root outside public_html (the .env would otherwise be downloadable), startup file `server.cjs`, a Passenger log file. Because the host offers Node.js 20.20.2, the simulated host installation was repeated with a portable Node.js 20.20.2 (npm 10.8.2): install from the zip, MariaDB 10.4.32 loaded from the SQL files, `node server.cjs`; 12/12 smoke steps passed (sign-in, image optimizer, master save, account creation, planning, search, guide, account, sign-out, no page errors). Temporary schema, user and the portable Node.js were removed afterwards. The install guide now names 20.20.2 and the public_html warning. Full suites still run on Node.js 24.14 only.

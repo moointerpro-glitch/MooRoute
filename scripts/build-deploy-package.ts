@@ -42,7 +42,7 @@ try {
   const source = JSON.parse(readFileSync("package.json", "utf8"));
   const runtime = {
     name: source.name, version: source.version, private: true, type: source.type,
-    // Tested on Node.js 24.14; the lower bound is what Next.js 16 and Prisma 7 accept, not a tested version.
+    // Tested on Node.js 24.14 (all suites) and 20.20.2 (simulated host installation); the bound is what Next.js 16 and Prisma 7 accept.
     engines: { node: ">=20.19.0" },
     scripts: { start: "node server.cjs" },
     dependencies: source.dependencies, overrides: source.overrides,
@@ -80,7 +80,7 @@ try {
     "",
     "ก่อนเริ่ม ตรวจโฮสต์ 4 ข้อ",
     "  1. DirectAdmin มีเมนู Setup Node.js App (ถ้าไม่มี แพ็กเกจโฮสต์นี้รันระบบไม่ได้ ต้องขอเปิดหรือใช้ VPS)",
-    "  2. เลือก Node.js รุ่น 24 ได้ (ระบบทดสอบบนรุ่น 24.14 รุ่นต่ำกว่า 20.19 ใช้ไม่ได้ รุ่น 20–22 ยังไม่เคยทดสอบ)",
+    "  2. มี Node.js รุ่น 20.19 ขึ้นไป (ทดสอบครบบนรุ่น 24.14 และทดสอบการติดตั้งจำลองผ่านบนรุ่น 20.20.2) ถ้ามีรุ่น 24 ให้เลือกรุ่น 24",
     "  3. เปิด phpMyAdmin ดูหัวข้อ Database server > Server type ว่าเป็น MySQL หรือ MariaDB และรุ่นอะไร",
     "  4. โดเมนหรือซับโดเมนที่จะใช้มีใบรับรอง SSL (เปิดด้วย https ได้) ระบบไม่ทำงานบน http",
     "",
@@ -101,9 +101,11 @@ try {
     "",
     "ขั้นที่ 5 สร้างแอป Node.js",
     "  DirectAdmin > Setup Node.js App > Create Application",
-    "    Node.js version: 24   Application mode: Production",
-    "    Application root: moointer-transport   Application URL: โดเมนหรือซับโดเมนที่จะใช้",
-    "    Application startup file: server.cjs",
+    "    Node.js version: รุ่นสูงสุดที่มี (24 หรือ 20.20.2)   Application mode: Production",
+    "    Application root: moointer-transport   (ห้ามใช้โฟลเดอร์ public_html เพราะไฟล์ .env ที่มีรหัสผ่านฐานข้อมูลจะถูกเปิดอ่านจากเว็บได้)",
+    "    Application URL: โดเมนหรือซับโดเมนที่จะใช้ (ช่องต่อท้ายเว้นว่าง)",
+    "    Application startup file: server.cjs   (ไม่ใช่ server.js)",
+    "    Passenger log file: /home/ชื่อผู้ใช้โฮสต์/logs/mooroute-passenger.log (ใช้ดูสาเหตุถ้าเปิดเว็บไม่ขึ้น)",
     "  กด Create แล้วกด Run NPM Install รอจนเสร็จ แล้วกด Restart",
     "",
     "ขั้นที่ 6 ตรวจและเริ่มใช้",
