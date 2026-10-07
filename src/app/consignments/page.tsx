@@ -8,6 +8,7 @@ import { DomainError } from "@/server/domain/errors";
 import { statusLabels } from "@/server/domain/consignment";
 import { parseHistoryFilter, statusText, statusTone, unitText } from "@/lib/consignment-format";
 import { beDate, roundLabel, thaiDateTime } from "@/lib/trip-format";
+import { DateInput } from "@/components/date-time-inputs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ประวัติฝากส่ง" };
@@ -34,7 +35,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       <label>สถานะ<select name="status" defaultValue={filter.status[0] ?? ""}><option value="">ทุกสถานะ</option>{Object.entries(statusLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <label>สาขาปลายทาง<select name="branch" defaultValue={filter.branchId ?? ""}><option value="">ทุกสาขา</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}</select></label>
       <label>หมวดสิ่งของ<select name="category" defaultValue={filter.categoryId ?? ""}><option value="">ทุกหมวด</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-      <label>วันที่ส่ง (พ.ศ.)<input name="date" defaultValue={filter.date ? beDate(filter.date) : ""} placeholder="วว/ดด/ปปปป" inputMode="numeric" /></label>
+      <label>วันที่ส่ง (พ.ศ.)<DateInput name="date" defaultValue={filter.date ? beDate(filter.date) : ""} /></label>
       <label>รหัสรอบรถ<input name="trip" defaultValue={filter.tripCode ?? ""} maxLength={64} /></label>
       <label className="checkbox-label"><input type="checkbox" name="mine" value="1" defaultChecked={filter.mine} />เฉพาะรายการของฉัน</label>
       <div className="filter-actions"><button className="primary-button"><Search size={17} aria-hidden="true" />ค้นหา</button><Link className="secondary-button" href="/consignments">ล้างตัวกรอง</Link></div>

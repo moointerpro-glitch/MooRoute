@@ -8,6 +8,7 @@ import type { ConsignmentDetail } from "@/server/services/consignments";
 import { actionLabels, issueTypes } from "@/server/domain/consignment";
 import { unitText } from "@/lib/consignment-format";
 import { beDate, isoFromBe, roundLabel } from "@/lib/trip-format";
+import { DateInput } from "./date-time-inputs";
 
 type Trip = { tripId: string; code: string; routeName: string | null; roundNo: number | null; departureAt: string | null; eligible: boolean; reasons: string[]; capacity: { known: boolean; used: string | null; capacity: string | null; unit: string | null } | null; current: boolean };
 
@@ -89,12 +90,14 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
   const currentTrip = d.assignments.find((a) => a.current);
 
   const outcome = message && <p ref={messageRef} tabIndex={-1} className={message.tone === "ok" ? "form-success" : "form-error"} role={message.tone === "ok" ? "status" : "alert"}>{message.tone === "ok" && <CheckCircle2 size={16} aria-hidden="true" className="inline-icon" />}{message.text}</p>;
-  if (!d.actions.length) return <>{outcome}<p className="muted">ไม่มีการดำเนินการที่คุณทำได้ในสถานะนี้</p></>;
+  const blocked = d.blockedActions.length > 0 && <details className="action-panel blocked-actions"><summary>ขั้นตอนที่ยังดำเนินการไม่ได้</summary><ul>{d.blockedActions.map(({ action, reason }) => <li key={action}><button type="button" disabled aria-describedby={`blocked-${action}`}>{actionLabels[action]}</button><p id={`blocked-${action}`} className="muted small">{reason}</p></li>)}</ul></details>;
+  if (!d.actions.length) return <>{outcome}{blocked}<p className="muted">ไม่มีการดำเนินการที่คุณทำได้ในสถานะนี้</p></>;
   return <div className="actions-wrap">
     {outcome}
+    {blocked}
     {can("saveDraft") && <Panel title="ฉบับร่าง"><p>แก้ไขรายละเอียดและส่งคำขอได้จากหน้าแบบฟอร์ม</p><Link className="primary-button" href={`/consign?id=${d.id}`}>แก้ไขและส่งคำขอ</Link></Panel>}
     {(can("assign") || can("reassign")) && <Panel title={can("assign") ? "จัดรถ" : "ย้ายรอบรถ"}>
-      <div className="inline-form"><label>วันที่ให้บริการ (พ.ศ.)<input value={dateText} onChange={(e) => setDateText(e.target.value)} inputMode="numeric" /></label><button type="button" className="secondary-button" onClick={() => void loadTrips()}>แสดงรอบรถ</button></div>
+      <div className="inline-form"><label>วันที่ให้บริการ (พ.ศ.)<DateInput value={dateText} onChange={setDateText} /></label><button type="button" className="secondary-button" onClick={() => void loadTrips()}>แสดงรอบรถ</button></div>
       {trips && (trips.length ? <fieldset className="trip-options"><legend>รอบรถที่แวะส่ง {d.branch.name}</legend>{trips.map((t) => <label key={t.tripId} className={t.eligible ? "trip-option" : "trip-option disabled"}>
         <input type="radio" name="trip" value={t.tripId} disabled={!t.eligible || t.current} checked={tripId === t.tripId} onChange={() => setTripId(t.tripId)} />
         <span><strong>{t.routeName ?? t.code}</strong> · {roundLabel(t.roundNo)} · ออก {clock(t.departureAt)} น.{t.current ? " (รอบปัจจุบัน)" : ""}

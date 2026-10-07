@@ -3,10 +3,11 @@ import {readFileSync,mkdirSync} from "node:fs";
 const credentials=JSON.parse(readFileSync(".local/auth/e2e.json","utf8"));
 async function login(page:Page,role:"admin"|"branch"="admin"){
   await page.goto("/login");await page.getByLabel("อีเมลบัญชีผู้ใช้งาน").fill(credentials[role]);await page.getByLabel("รหัสผ่าน",{exact:true}).fill(credentials.password);
-  await page.getByRole("button",{name:"เข้าสู่ระบบ",exact:true}).click();await expect(page).toHaveURL(/\/admin$/);
+  // The search page adds ?date=…&mode=… to its URL after loading, so the home URL may carry a query string.
+  await page.getByRole("button",{name:"เข้าสู่ระบบ",exact:true}).click();await expect(page).toHaveURL(role==="admin"?/\/admin$/:/127\.0\.0\.1:3011\/(\?.*)?$/);
 }
 test("real login, Thai backend, create/edit/delete masters and server validation",async({page})=>{
-  await login(page);await expect(page.getByRole("heading",{name:"ข้อมูลหลักและการตั้งค่า"})).toBeVisible();
+  await login(page);await expect(page.getByRole("heading",{name:"งานหลังบ้านของคุณ"})).toBeVisible();
   await page.goto("/admin/drivers/new");await page.getByLabel("รหัส",{exact:false}).fill("BROWSER3");await page.getByLabel("ชื่อ",{exact:false}).fill("พนักงานสังเคราะห์ผ่านหน้าจอ");await page.getByLabel("เบอร์ติดต่อ").fill("0800000000");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบบันทึกจริงผ่านหน้าจอ");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
   await page.goto("/admin/drivers?q=BROWSER3");await page.getByRole("link",{name:"ดู / แก้ไข"}).click();await page.getByLabel("ชื่อ",{exact:false}).fill("พนักงานสังเคราะห์แก้ไขแล้ว");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบแก้ไขพร้อมบันทึกประวัติ");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
   await page.reload();await expect(page.getByLabel("ชื่อ",{exact:false})).toHaveValue("พนักงานสังเคราะห์แก้ไขแล้ว");

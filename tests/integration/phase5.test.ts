@@ -30,7 +30,7 @@ before(async () => {
   await installRoles(db);
   const password = randomBytes(24).toString("base64url");
   const plan: Array<[string, "GLOBAL" | "BRANCH" | "DEPARTMENT" | "DRIVER" | "WAREHOUSE", string | undefined]> = [
-    ["SUPERVISOR", "GLOBAL", undefined], ["BRANCH_RECEIVER", "BRANCH", A], ["REQUESTER", "DEPARTMENT", "synthetic-department"],
+    ["DISPATCHER", "GLOBAL", undefined], ["SUPERVISOR", "GLOBAL", undefined], ["BRANCH_RECEIVER", "BRANCH", A], ["REQUESTER", "DEPARTMENT", "synthetic-department"],
     ["DRIVER", "DRIVER", searchFixture.driverId], ["ADMINISTRATOR", "GLOBAL", undefined], ["WAREHOUSE", "WAREHOUSE", "synthetic-warehouse"],
   ];
   for (const [role, scope, scopeId] of plan) {
@@ -136,40 +136,32 @@ test("T20: counts, chips, sorting and pagination follow one predicate", async ()
   assert.equal((await search({ date: "2032-01-01", mode: "time" })).published, null);
 });
 
-test("T13: search, detail, directory and contacts are scoped on the server", async () => {
+test("T13/D216: company published reads keep contact, draft and operational scopes", async () => {
+  for (const role of ["REQUESTER", "DISPATCHER", "SUPERVISOR", "ADMINISTRATOR", "WAREHOUSE", "DRIVER", "BRANCH_RECEIVER"]) {
+    const result = await search({ mode: "time" }, accounts[role], 50);
+    assert.equal(result.total, 8, role);
+    assert.equal(result.facets.tripCount, 8);
+    assert.equal((await tripDetail(db, accounts[role], id("1530"))).tripId, id("1530"));
+    assert.deepEqual((await searchOptions(db, accounts[role])).kinds, ["BRANCH_DELIVERY", "INBOUND_DC", "VAN_SALES", "OTHER"]);
+    assert.equal((await search({ mode: "time", kinds: "VAN_SALES" }, accounts[role])).total, 1);
+  }
   const branchUser = await search({ mode: "time" }, accounts.BRANCH_RECEIVER, 50);
-  assert.ok(branchUser.rows.every((r) => r.stops.some((s) => s.branchId === A)));
-  assert.deepEqual(tripIds(branchUser).sort(), [id("dup"), id("split"), id("trip-1"), id("trip-2"), id("trip-3")].sort());
-  assert.equal(branchUser.facets.tripCount, 5, "facets use the same row scope");
   const visibleContacts = branchUser.rows.flatMap((r) => r.stops.filter((s) => s.contact.visible).map((s) => s.branchId));
   assert.ok(visibleContacts.length > 0 && visibleContacts.every((b) => b === A));
-  await assert.rejects(tripDetail(db, accounts.BRANCH_RECEIVER, id("1530")), rejected("NOT_FOUND"));
-
-  const requester = await search({ mode: "time" }, accounts.REQUESTER, 50);
-  assert.equal(requester.total, 8);
-  assert.ok(requester.rows.every((r) => r.stops.every((s) => !s.contact.visible && s.contact.phone === null) && !r.driver.visible));
-  await assert.rejects(search({ mode: "time", kinds: "VAN_SALES" }, accounts.REQUESTER), rejected("FORBIDDEN"));
-  await assert.rejects(tripDetail(db, accounts.REQUESTER, id("van")), rejected("NOT_FOUND"));
-  assert.deepEqual((await searchOptions(db, accounts.REQUESTER)).kinds, ["BRANCH_DELIVERY"]);
-
-  assert.equal((await search({ mode: "time" }, accounts.DRIVER)).total, 0);
+  for (const role of ["REQUESTER", "WAREHOUSE"]) {
+    const result = await search({ mode: "time" }, accounts[role], 50);
+    assert.ok(result.rows.every((r) => r.stops.every((s) => !s.contact.visible && s.contact.phone === null) && !r.driver.visible));
+  }
   const driver = await search({ mode: "time", kinds: "VAN_SALES" }, accounts.DRIVER);
-  assert.deepEqual(tripIds(driver), [id("van")]); assert.equal(driver.rows[0].driver.visible, true);
-
+  assert.equal(driver.rows[0].driver.visible, true);
   const supervisor = await tripDetail(db, accounts.SUPERVISOR, id("van"));
   assert.equal(supervisor.driver.name, "พนักงานขับรถสังเคราะห์");
   assert.ok(supervisor.stops.every((s) => s.contact.visible));
-
-  for (const call of [
-    () => search({ mode: "time" }, accounts.WAREHOUSE), () => suggestBranches(db, accounts.WAREHOUSE, "สาขา"),
-    () => tripDetail(db, accounts.WAREHOUSE, id("trip-1")), () => branchDirectory(db, accounts.WAREHOUSE, { query: "", page: 1 }),
-  ]) await assert.rejects(call(), rejected("FORBIDDEN"));
-  // The administrator sees everything (D215), including contacts.
-  assert.ok((await search({ mode: "time" }, accounts.ADMINISTRATOR)).total > 0);
+  assert.ok((await suggestBranches(db, accounts.WAREHOUSE, "สาขา")).candidates.length > 0);
+  assert.ok((await branchDirectory(db, accounts.WAREHOUSE, { query: "", page: 1 })).rows.every((b) => b.contact.phone === null));
   assert.ok((await tripDetail(db, accounts.ADMINISTRATOR, id("trip-1"))).stops.every((s) => s.contact.visible));
   const draftOnly = await db.trip.findFirst({ where: { tripRevision_tripId: { every: { planRevision: { status: "DRAFT" } } } } });
   if (draftOnly) await assert.rejects(tripDetail(db, accounts.SUPERVISOR, draftOnly.id), rejected("NOT_FOUND"));
-
   const directory = await branchDirectory(db, accounts.BRANCH_RECEIVER, { query: searchFixture.sharedAlias, page: 1 });
   assert.deepEqual(directory.rows.map((r) => r.id).sort(), [B, C].sort());
   assert.ok(directory.rows.every((r) => !r.contact.visible && r.aliases.includes(searchFixture.sharedAlias)));
@@ -183,6 +175,6 @@ test("Eligible-trip pre-check for the upcoming consignment flow never claims sub
   assert.equal(ok.stops.find((s) => s.branchId === A)?.matched, true);
   assert.equal((await tripDetail(db, accounts.REQUESTER, id("1530"), { branchId: A, now: before })).eligibility.eligible, false);
   assert.ok((await tripDetail(db, accounts.REQUESTER, id("trip-1"), { branchId: A, now: afterDeparture })).eligibility.reasons.includes("รอบรถนี้ออกรถไปแล้ว"));
-  assert.ok((await tripDetail(db, accounts.SUPERVISOR, id("trip-1"), { branchId: A, now: before })).eligibility.reasons.includes("บัญชีนี้ไม่มีสิทธิ์สร้างคำขอฝากส่ง"));
+  assert.equal((await tripDetail(db, accounts.SUPERVISOR, id("trip-1"), { branchId: A, now: before })).eligibility.eligible, true);
   assert.equal(await db.consignment.count({ where: { requesterId: accounts.REQUESTER } }), 0);
 });

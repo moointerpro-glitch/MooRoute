@@ -1,7 +1,7 @@
 import {test,expect,type Page} from "@playwright/test";
 import {readFileSync,mkdirSync} from "node:fs";
 const account=JSON.parse(readFileSync(".local/auth/e2e.json","utf8")) as {password:string;dispatcher:string;supervisor:string;branch:string};
-async function login(page:Page,email:string){await page.goto("/login");await page.getByLabel("อีเมล").fill(email);await page.getByLabel("รหัสผ่าน").fill(account.password);await page.getByRole("button",{name:"เข้าสู่ระบบ",exact:true}).click();await expect(page).toHaveURL(/\/admin$/);}
+async function login(page:Page,email:string){await page.goto("/login");await page.getByLabel("อีเมล").fill(email);await page.getByLabel("รหัสผ่าน").fill(account.password);await page.getByRole("button",{name:"เข้าสู่ระบบ",exact:true}).click();await expect(page).toHaveURL(email === account.branch ? /\/(?:\?.*)?$/ : /\/admin$/);}
 test("T01/T02/T08/T12/T21: Thai route/template generation, copy/edit/reduce, preview rejection, publish and responsive history",async({page})=>{
  await login(page,account.dispatcher);await page.getByRole("link",{name:/แผนเดินรถรายวัน/}).click();await expect(page.getByRole("heading",{name:"ความครบถ้วนทุกสาขา"})).toBeVisible();
  await page.getByLabel("วันที่ให้บริการ (พ.ศ.)",{exact:true}).fill("01/05/2570");await page.getByRole("button",{name:"เปิดวันที่",exact:true}).click();await expect(page.getByText("ยังไม่มีเที่ยวในวันนี้",{exact:true})).toBeVisible();

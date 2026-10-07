@@ -72,12 +72,14 @@ Support A4 with four labels per page and 100 x 150 mm labels. Reprinting the sam
 
 ## Roles
 
+Current owner policy D215/D216: all seven predefined roles can view company-wide published trips and general branch data, and create their own consignments after explicit department assignment. Contacts and operational history/files remain scoped. The administrator holds all operational capabilities and can read other users' drafts, but draft editing/submission stays with the requester. Assignment/rejection/reassignment of one's own request is forbidden even for administrators. See [PERMISSIONS.md](PERMISSIONS.md) for the current matrix.
+
 - Requester: search trips and create/read permitted own or department consignments according to assigned scope.
 - Dispatcher: plan and assign trips/consignments within operational scope.
 - Warehouse: acknowledge source receipt and loading for assigned warehouses.
 - Driver: view assigned trips and record authorized trip movement.
 - Branch receiver: view and receive consignments for assigned branches only.
 - Supervisor: publish daily plans, approve controlled corrections and inspect reports.
-- Administrator: maintain master data, users and role assignments; operational powers still require explicitly granted capabilities.
+- Administrator: all predefined operational capabilities plus master maintenance and administrative reads (D215); consignment self-review remains prohibited (D216).
 
 Apply row scope to list, detail, download, QR, print, export and mutation endpoints. Log sensitive administrative changes. Do not collect national identity numbers for these features.

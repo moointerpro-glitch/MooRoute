@@ -1,5 +1,18 @@
 # Local setup
 
+## Owner access and naming update — 2026-10-06
+
+Current folder is still `C:\xampp\htdocs\MooRoute`; target is `C:\xampp\htdocs\moointer-transport`. Two same-volume rename attempts failed because Windows editors, image viewers and coding-tool processes hold workspace handles. MySQL configuration was restored, MySQL and the preview were restarted at the current path, and no data was reset. Save work and close applications using this folder, then run the prepared external helper from a separate PowerShell window:
+
+```powershell
+Set-Location C:\xampp\htdocs
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\xampp\htdocs\rename-moointer-transport.ps1
+```
+
+The helper source is `scripts/rename-workspace.ps1`; it verifies a backup restore, safely stops owned services, renames without copying/deleting data, adjusts project MySQL absolute paths, preserves .env, checks MySQL/build and restarts the preview. Its `-CheckOnly` path passed; actual relocation remains pending unlocked handles. Reopen the target folder only after the helper reports success.
+
+Product title is `MooRoute | หมูอินเตอร์`; Thai product name is `ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์`. Run `npm run auth:sync:local` once for existing synthetic local accounts; it is additive and preserves passwords. New senders need an explicitly assigned department (see PERMISSIONS.md); new operator accounts may specify departmentId. All seven predefined roles have common published reads and own consignment access; contacts and operational scopes remain restricted. D215/D216 supersede earlier role descriptions below.
+
 ## Phase 4 update — 2026-10-06
 
 Keep the existing Node 24.14.0/npm 11.9.0 and pinned dependency lockfile. Phase 4 adds no dependencies. Native Oracle MySQL 8.4.11 remains on loopback 3307; XAMPP MariaDB on 3306 is untouched. Run from the repository root in PowerShell:
@@ -66,7 +79,7 @@ Use BRANCH/WAREHOUSE/DEPARTMENT/DRIVER with an existing corresponding `scopeId` 
 
 Checks: `npm run test:integration` creates a fresh MySQL schema and runs Phase 2/3 tests; `npm run test:auth:e2e` creates another disposable schema/accounts, starts its own 3011 server and runs real login/master browser tests against the latest build. `npm run test:e2e` retains the foundation browser checks. Never run two browser commands simultaneously because both own 3011. Disposable schemas are retained, not reset; local test credentials stay in ignored .local/auth/e2e.json. Rebuild before browser checks after changing source.
 
-Verified environment: Windows, Node 24.14.0, npm 11.9.0 and Oracle MySQL Community 8.4.11. Run commands from `C:\xampp\htdocs\MooRoute`. Direct dependencies and the npm lockfile are pinned. This is a Next.js application: use its Node server, not `http://localhost/MooRoute` through Apache. `.htaccess` denies Apache access to this repository, including sources and credentials.
+Verified environment: Windows, Node 24.14.0, npm 11.9.0 and Oracle MySQL Community 8.4.11. Run commands from the actual repository root (`C:\xampp\htdocs\MooRoute` until the pending rename succeeds, then `C:\xampp\htdocs\moointer-transport`). Direct dependencies and the npm lockfile are pinned. This is a Next.js application: use its Node server, not `http://localhost/moointer-transport` through Apache. `.htaccess` denies Apache access to this repository, including sources and credentials.
 
 ## Install
 
@@ -199,3 +212,5 @@ No operational tables, seed or applied migrations exist in Phase 1. Schema desig
 ## Local mock-up data (owner request, 2026-10-06)
 
 `npm run db:seed:mockup` (local `APP_ENV`, `moointer_dev` only) adds fictitious masters — 9 destinations (8 branches and 1 DC), 6 vehicles, 6 drivers, 3 vehicle types, 3 storage conditions, 4 product categories including PORK and CHICKEN, 2 warehouses, 3 departments, 4 consignment categories — and the seven `mock.*@moointer.test` role accounts. Logins are in ignored `.local/auth/mockup-logins.txt`. Planning and consignments stay empty for manual testing. Re-running is safe. Take a backup first with `npm run db:backup:verify`.
+
+`npm run db:seed:mockup:plans` (after `db:seed:mockup`; option `-- --days=N`, 1–60, default 14) adds three fictitious routes, nine templates and published daily plans from today, so consignments can be tried at once. Re-running only adds missing dates.

@@ -1,4 +1,5 @@
 "use client";
+import {DateInput} from "./date-time-inputs";
 export const kindLabels:Record<string,string>={BRANCH_DELIVERY:"ส่งสินค้าสาขา",INBOUND_DC:"รับสินค้าเข้าคลัง",VAN_SALES:"รถขายสินค้า",OTHER:"ประเภทเดิมอื่น ๆ"};
 export const statusLabels:Record<string,string>={DRAFT:"ฉบับร่าง",PUBLISHED:"เผยแพร่แล้ว",SUPERSEDED:"ฉบับก่อนหน้า",ASSIGNED:"จัดรถแล้ว",WAREHOUSE_RECEIVED:"คลังรับของแล้ว",LOADED:"ขึ้นรถแล้ว",IN_TRANSIT:"อยู่ระหว่างขนส่ง",RECEIVED:"รับครบแล้ว",PARTIALLY_RECEIVED:"รับบางส่วน",CLOSED:"ปิดงาน",CANCELLED:"ยกเลิก",ISSUE:"พบปัญหา",RETURNED:"ส่งคืน"};
 export const beDate=(iso:string)=>`${iso.slice(8,10)}/${iso.slice(5,7)}/${Number(iso.slice(0,4))+543}`;
@@ -8,4 +9,4 @@ export function utcInstant(value:string){if(!value.trim())return null;const [day
 export const minuteText=(v:number|null)=>v===null?"":`${String(Math.floor(v/60)%24).padStart(2,"0")}:${String(v%60).padStart(2,"0")}`;
 export const minuteValue=(s:string)=>s?Number(s.slice(0,2))*60+Number(s.slice(3,5)):null;
 export const field=(f:FormData,name:string)=>String(f.get(name)??"").trim();
-export function DateField({name,label,value,required=true}:{name:string;label:string;value:string;required?:boolean}){return <label>{label}<input name={name} defaultValue={value?beDate(value):""} placeholder="วว/ดด/ปปปป พ.ศ." required={required} pattern="[0-9๐-๙]{2}/[0-9๐-๙]{2}/[0-9๐-๙]{4}"/></label>;}
+export function DateField({name,label,value,required=true}:{name:string;label:string;value:string;required?:boolean}){return <label>{label}<DateInput name={name} defaultValue={value?beDate(value):""} required={required}/></label>;}

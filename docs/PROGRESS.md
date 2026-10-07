@@ -1,5 +1,25 @@
 # Project progress
 
+## Creating a daily plan explanation — 2026-10-06
+
+Owner requested instructions for creating a plan. Reviewed the current planning workspace, trip editor/date fields, page authorization and role-based back-office entry. Explained dispatcher/admin manual creation (open service date, add trips/stops/categories/times, apply edits, save a reasoned draft), optional effective-template generation, coverage/conflict review and supervisor/admin publication. The trip editor apply button does not persist the plan; save-draft is required. No real plan was created or published, no application/schema/data change and no tests rerun. Only PROGRESS/HANDOFF notes updated. Next walkthrough actions: (1) verify active master records and choose service date; (2) save a complete draft and resolve missing cells/vehicle conflicts; (3) supervisor reviews and publishes with a reason and confirmation. Existing relocation/release limitations remain.
+
+## Daily-plan deletion explanation — 2026-10-06
+
+Owner asked whether/how the current system deletes a daily plan. Source review confirms no whole-plan DELETE action or UI. Dispatcher/admin may remove never-published, never-assigned trips from a new draft using the draft-trip removal button; saving retains old revisions and Trip identities. Previously published or consignment-linked trips must remain and use cancellation in a replacement revision. Publication still requires complete coverage, audited reassignment of eligible consignments and blocks movement/completed states. Supervisor publishes; administrator also has publication capability.
+
+Checks: repository instructions/status, package scripts/migration inventory, current requirements/decisions, planning UI/API/services and existing Phase 4 regression source reviewed with Get-Content/rg. No tests rerun, no plan/data/application/schema changes or new decisions. Only PROGRESS/HANDOFF notes changed. Next actions if the owner wants to exercise the flow: (1) select the date and verify draft/published state; (2) remove only eligible draft trips or prepare replacement cancellations and reassignment; (3) review coverage and publish only a valid replacement. Existing folder/release limitations remain.
+
+## Shared access, workflow guide and product names — 2026-10-06
+
+Owner asked to implement the discussed menu/read/consignment policy and change product/folder names. D216 implements capability-filtered navigation/login destinations, common company-wide published trip/general branch reads for all seven predefined roles, own consignment creation with explicit department membership, contact-safe form options, scoped history/files, self-review rejection including atomic plan publication, and disabled prerequisite actions with Thai reasons. D215 administrator union/draft reads preserved. Thai guide now contains end-to-end diagrams and the seven duties. D217 updates title/manifest/UI/application/npm names. No migration or operational data reset; role links and nine known synthetic local department memberships updated additively with audit, passwords retained.
+
+Affected paths: auth permissions/resource-policy/provisioning, trip-search/consignments/planning-reassignment/http, session API/navigation/login/header/form/actions, layout/manifest/guide/CSS, operator sync/provision/fixture/rename scripts, package metadata, focused integration/browser tests and current policy/setup documentation. Existing unrelated owner changes/assets preserved; no commit/deployment. Actual Git HEAD b96abc0; work remains uncommitted.
+
+Checks on 2026-10-06: lint/typecheck/build PASS; unit 27/27; existing real-MySQL integration 39/39 and isolated new access suite 3/3; shell 5/5; least-privilege browser auth 4/4 and labels 6/6 passed during staging, then affected planning 2/2, search 7/7 and consignment 7/7 passed after fixing expectations. Audit zero vulnerabilities. Backup restore verified twice; MySQL readiness and restarted preview live. Initial failures and exact commands/schemas are recorded in [access verification](evidence/access-policy/VERIFICATION.md). Earlier screenshot evidence restored; separate new screenshots reviewed. Load, real deployment and physical devices not tested anew.
+
+Folder rename is NOT complete: two Windows sharing violations from open editors/viewers/coding tools. Config restored, MySQL and preview running at C:/xampp/htdocs/MooRoute. Concrete outside-workspace helper C:/xampp/htdocs/rename-moointer-transport.ps1 (source scripts/rename-workspace.ps1) prepared and -CheckOnly/parser passed. Full relocation awaits closing programs holding workspace handles; .env/data remain intact. Next three actions: release handles and execute helper; reopen moointer-transport and verify its completion record/MySQL/preview; exercise the seven mock-account flows for owner acceptance. Existing release limitations remain.
+
 ## End-to-end workflow explanation — 2026-10-06
 
 Owner requested easy Thai diagrams of requirements and all seven account workflows. Reviewed AGENTS/HANDOFF/PROGRESS, PROJECT_CONTEXT, DECISIONS (including D213/D214), PROMPTS Phases 4–7, UI_SPEC/TEST_MATRIX, PHASE6_DESIGN, PERMISSIONS, the executable consignment transition matrix, role capabilities and the mock-up seed contract. Explained daily planning/publication, consignment handovers/receipt/closure, exception paths and role-specific entry points. No implementation or account change authorized by this request.
@@ -220,3 +240,26 @@ Owner request outside the phase plan; phase status unchanged (none active). Deci
 - Checks: typecheck, lint, build (no warnings); unit 27/27; integration 39/39; shell 5/5; staging rehearsal auth 4, planning 2, search 7, consignment 5, labels 6. As `mock.admin`, /admin/planning, /admin/imports, /consign, /consignments, /trips and /branches all open (200).
 
 Next three actions: owner tests the administrator and the other six mock roles; decide how many people hold the administrator role (D215 removes separation of duties for it); commit when the owner asks.
+
+## Back-office desk and Thai date/time fields — 2026-10-06
+
+Owner request outside the phase plan; decision D218. Built on top of the uncommitted D216/D217 work, which was left intact (including the pending folder rename).
+
+- `src/lib/navigation.ts` (`backofficeAreas`), `src/app/admin/page.tsx` (work / reference sections, role and scope line, verb chips, empty state), read-only labels on master list and record pages, CSS.
+- `src/lib/date-input.ts`, `src/components/date-time-inputs.tsx` and their use in trip-search, trips, consignments, consign-form, consignment-actions, planning-workspace, planning-fields, planning-catalog-editor, planning-trip-editor and master-form.
+- Tests: `tests/unit/date-input.test.ts` (4 tests; caught a typing bug where a digit after a full month was dropped, fixed), `tests/integration/backoffice.test.ts` (role table for all seven roles, added to the default integration run), new keyboard/calendar browser test in `tests/e2e/search.spec.ts`, auth spec heading updated.
+- Checks: typecheck, lint, build (no warnings); unit 31/31; integration 40/40; access 3/3; shell 5/5; staging rehearsal auth 4, planning 2, search 8, consignment 7, labels 6, all PASS. Evidence screenshots: [evidence/phase-8/backoffice](evidence/phase-8/backoffice).
+
+Next three actions: owner tries the back office with the supervisor, dispatcher and administrator mock accounts and the new date/time fields; then the pending folder rename from the D217 handoff; commit when the owner asks.
+
+## Button fix, desk rows and ready-to-consign data — 2026-10-06
+
+Owner request; decision D219.
+
+- CSS defect fixed (planner rule overrode `.primary-button`; buttons white until hover). Verified on the preview: enabled planner save button rgb(230,0,35), hover rgb(191,0,29); master save button red; date/time triggers transparent with no border. Disabled buttons keep the light disabled style by design.
+- `src/app/admin/page.tsx`: icons Tags (หมวดสินค้า) and Van (ประเภทรถ). A brief switch to row layout was reverted at the owner's request: the card grid is back exactly as committed (CSS lines restored from HEAD, which also restored the mobile one-column `.form-grid` rule that the row change had removed) and the verb chips are gone. Verified: 3/2/1 columns at 1440/768/390, no chips, no horizontal scroll, master form one column at 390; unit 31/31, integration 40/40, shell 5/5, auth 4/4.
+- `moointer_dev`: all routes and plans deleted after a verified backup (guards restored identically, AuditLog `DEV_PLANNING_PURGED`), then `scripts/seed-mockup-plans.ts` published 14 days (2026-10-06 to 2026-10-19), 9 trips per day, all coverage rules passing. Read-only check: all seven mock accounts can open the consignment form (department, 2 warehouses, 8 branches, 4 categories) and tomorrow has 3 trips to BR-T01. No consignment created.
+- `tests/e2e/auth.spec.ts`: sign-in helper accepts the query string the search page adds (timing-dependent failure seen once in the staging run).
+- Checks: typecheck, lint, build; unit 31/31; integration 40/40; access 3/3; shell 5/5; staging planning 2, search 8, consignment 7, labels 6 PASS, auth failed once on the helper above, then auth 4/4 PASS after the fix. Evidence: [evidence/phase-8/backoffice](evidence/phase-8/backoffice).
+
+Next three actions: owner tries consignments end to end with the mock accounts (requester submits, dispatcher assigns, warehouse loads, driver departs, branch receives); the pending folder rename (D217); commit when the owner asks.

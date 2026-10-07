@@ -3,6 +3,7 @@ import {useCallback,useEffect,useState} from "react";
 import type {PlanningData} from "@/server/services/planning-read";
 import type {DraftTrip} from "@/server/services/plans";
 import {TripEditor} from "./planning-trip-editor";
+import {DateInput} from "./date-time-inputs";
 import {RouteEditor,TemplateEditor} from "./planning-catalog-editor";
 import {beDate,isoDate,kindLabels,localInstant,statusLabels} from "./planning-fields";
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
@@ -21,7 +22,7 @@ export function PlanningWorkspace(){
  const canWrite=data?.permissions.includes("plan.write"),canPublish=data?.permissions.includes("plan.publish"),selected=data?.revisions.find(r=>r.id===data.selectedRevisionId);
  return <><div className="planner-title"><span className="eyebrow">จัดการเดินรถ</span><h1>แผนเดินรถรายวัน</h1><p className="muted">จัดเส้นทาง ตรวจความครบถ้วน และเผยแพร่แผนที่ตรวจสอบย้อนหลังได้</p></div>
  <div className="planner-tabs" role="navigation" aria-label="เมนูวางแผน">{[["plan","แผนรายวัน"],["routes","เส้นทาง"],["templates","แม่แบบประจำ"],["audit","ประวัติการเปลี่ยนแปลง"]].map(([key,label])=><button key={key} disabled={dirty&&tab!==key} onClick={()=>{setTab(key);setCatalog(null);}} className={tab===key?"selected":""} aria-pressed={tab===key}>{label}</button>)}</div>
- <div className="admin-card planner-toolbar"><label>วันที่ให้บริการ (พ.ศ.)<input value={dateText} onChange={e=>setDateText(e.target.value)} aria-label="วันที่ให้บริการ (พ.ศ.)" placeholder="วว/ดด/ปปปป"/></label><button className="secondary-button" disabled={busy||dirty} onClick={()=>void openDate()}>เปิดวันที่</button><p className="muted">เวลาไทย • เว้นว่างเมื่อยังไม่ทราบ</p></div>
+ <div className="admin-card planner-toolbar"><label>วันที่ให้บริการ (พ.ศ.)<DateInput value={dateText} onChange={setDateText} aria-label="วันที่ให้บริการ (พ.ศ.)" required/></label><button className="secondary-button" disabled={busy||dirty} onClick={()=>void openDate()}>เปิดวันที่</button><p className="muted">เวลาไทย • เว้นว่างเมื่อยังไม่ทราบ</p></div>
  {message&&<p role={failed?"alert":"status"} className={failed?"form-error admin-card":"admin-card planner-notice"}>{message}</p>}{busy&&<p role="status">กำลังตรวจสอบและบันทึกข้อมูล…</p>}
  {!data?<p className="admin-card">{failed?"ยังไม่สามารถโหลดข้อมูลได้":"กำลังโหลดแผนเดินรถ…"}</p>:<fieldset disabled={busy} className="planner-fieldset">
  {tab==="plan"&&<><div className="planner-metrics"><article><strong>{data.eligible.length}</strong><span>สาขาที่ต้องส่ง</span></article><article><strong>{data.eligible.length*6-data.missing.length} / {data.eligible.length*6}</strong><span>ช่องส่งหมูและไก่ครบแล้ว</span></article><article><strong>{trips.filter(t=>!t.cancelled).length}</strong><span>เที่ยวที่ใช้งานในฉบับนี้</span></article></div>

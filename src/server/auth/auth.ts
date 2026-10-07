@@ -8,7 +8,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 
 export function createAuth(db: PrismaClient, config: {baseURL: string; secret: string}) {
   return betterAuth({
-    ...config, appName: "หมูอินเตอร์", trustedOrigins: [config.baseURL],
+    ...config, appName: "ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์", trustedOrigins: [config.baseURL],
     database: prismaAdapter(db, { provider: "mysql" }),
     user: { modelName: "User", fields: { name: "displayName" } },
     session: { modelName: "AuthSession", expiresIn: 8 * 60 * 60, updateAge: 30 * 60, cookieCache: { enabled: false } },

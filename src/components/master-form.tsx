@@ -2,6 +2,7 @@
 import Link from "next/link";
 import {useRef,useState} from "react";
 import {masterDefinitions,type Field} from "@/lib/master-definitions";
+import {DateInput,DateTimeInput,TimeInput} from "./date-time-inputs";
 type Row=Record<string,string|number|boolean|null>;
 function display(field:Field,v:Row[string]){
   if(v==null)return "";
@@ -35,8 +36,11 @@ export function MasterForm({kind,row,options,canWrite,canDelete}:{kind:string;ro
     <div className="form-grid">{d.fields.map(field=><label key={field.name}><span>{field.label}{field.required&&<span className="required"> *</span>}</span>
       {field.type==="select"?<select name={field.name} defaultValue={String(row?.[field.name]??"")} required={field.required} disabled={!canWrite||success}><option value="">ยังไม่ระบุ</option>{(field.options??options[field.lookup!]??[]).map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:
         field.type==="textarea"?<textarea name={field.name} defaultValue={String(row?.[field.name]??"")} maxLength={field.max} readOnly={!canWrite||success} rows={3}/>:
-        <input name={field.name} type={["date","datetime-local"].includes(field.type??"")?"text":field.type??"text"} placeholder={field.type==="date"?"วัน/เดือน/ปี พ.ศ.":field.type==="datetime-local"?"วัน/เดือน/ปี พ.ศ. ชั่วโมง:นาที":undefined} defaultValue={display(field,row?.[field.name]??null)} required={field.required} readOnly={!canWrite||success} maxLength={field.max} step={field.type==="number"?(field.name==="wheelCount"?"1":"0.001"):undefined} min={field.type==="number"?"0.001":undefined}/>}</label>)}</div>
-    <p className="muted">วันที่ใช้รูปแบบ วัน/เดือน/ปี พ.ศ. เวลาใช้เขตประเทศไทย เช่น 06/10/2569 08:30</p>
+        field.type==="date"?<DateInput name={field.name} defaultValue={display(field,row?.[field.name]??null)} required={field.required} readOnly={!canWrite||success}/>:
+        field.type==="time"?<TimeInput name={field.name} defaultValue={display(field,row?.[field.name]??null)} required={field.required} readOnly={!canWrite||success}/>:
+        field.type==="datetime-local"?<DateTimeInput name={field.name} label={field.label} defaultValue={display(field,row?.[field.name]??null)} required={field.required} readOnly={!canWrite||success}/>:
+        <input name={field.name} type={field.type??"text"} defaultValue={display(field,row?.[field.name]??null)} required={field.required} readOnly={!canWrite||success} maxLength={field.max} step={field.type==="number"?(field.name==="wheelCount"?"1":"0.001"):undefined} min={field.type==="number"?"0.001":undefined}/>}</label>)}</div>
+    <p className="muted">วันที่ใช้ วัน/เดือน/ปี พ.ศ. (พิมพ์ตัวเลขต่อกันได้ เช่น 06102569 หรือกดปุ่มปฏิทิน) · เวลาแบบ ๒๔ ชั่วโมงตามเวลาประเทศไทย เช่น 08:30</p>
     <label className="checkbox-label"><input type="checkbox" name="active" defaultChecked={row?!!row[d.active] !== (d.active==="archived"):true} disabled={!canWrite||success}/>ใช้งานข้อมูลนี้</label>
     {canWrite&&<label><span>เหตุผลการเปลี่ยนแปลง <span className="required">*</span></span><textarea name="reason" required minLength={3} maxLength={500} readOnly={success} placeholder="ระบุเหตุผลเพื่อบันทึกประวัติ"/></label>}
     {message&&<div className={success?"form-success":"form-error"} role={success?"status":"alert"}>{message}{success&&<p><a href={`/admin/${kind}`}>กลับรายการ</a> · {row&&<a href={`/admin/${kind}/${row.id}`}>โหลดข้อมูลล่าสุด</a>}</p>}</div>}

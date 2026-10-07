@@ -23,6 +23,53 @@ async function login(page: Page, email: string) {
 const status = (page: Page) => page.locator(".status-pill.large");
 const success = (page: Page) => page.locator(".form-success");
 const noHorizontalScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+test("D216: dispatcher self-review is disabled in the UI and denied by the mutation API", async ({ page }) => {
+  await login(page, account.dispatcher);
+  await page.goto("/consign");
+  await page.getByLabel("หมวดของรายการที่ 1").selectOption({ label: "เอกสาร" });
+  const categoryId = await page.getByLabel("หมวดของรายการที่ 1").inputValue();
+  const post = (action: string, input: unknown) => page.request.post("/api/consignments", { headers: { Origin: "http://127.0.0.1:3011", "Idempotency-Key": `self-${action}-${Date.now()}` }, data: { action, input } });
+  const created = await post("saveDraft", { expectedVersion: 0, departmentId: "synthetic-department", sourceWarehouseId: "synthetic-warehouse", destinationBranchId: A,
+    requestedServiceDate: "2028-03-01", requestedRoundNo: 1, requestedTripId: null, senderName: "ผู้จัดรถฝากเอง (สังเคราะห์)", senderPhone: "000-000-1000",
+    recipientName: null, recipientPhone: null, receiptMode: "PACKAGES", packageCount: 1, packageWeight: null, packageWeightUnit: null, notes: null,
+    items: [{ categoryId, name: "เอกสารสังเคราะห์", quantity: "1", unit: "SHEET" }] });
+  expect(created.status()).toBe(200);
+  const d = await created.json();
+  const submitted = await post("submit", { id: d.id, expectedVersion: d.version });
+  expect(submitted.status()).toBe(200);
+  const s = await submitted.json();
+  await page.goto(`/consignments/${d.id}`);
+  await page.getByText("ขั้นตอนที่ยังดำเนินการไม่ได้", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "จัดรถ", exact: true })).toBeDisabled();
+  await expect(page.getByText("คำขอที่คุณสร้างต้องให้ผู้จัดรถอีกคนตรวจและจัดรถ").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "แสดงรอบรถ" })).toHaveCount(0);
+  mkdirSync("docs/evidence/access-policy", { recursive: true });
+  await page.screenshot({ path: "docs/evidence/access-policy/self-review-blocked.png", fullPage: true });
+  const denied = await post("assign", { id: d.id, expectedVersion: s.version, tripId: TRIP });
+  expect(denied.status()).toBe(403);
+  expect((await denied.json()).code).toBe("SELF_REVIEW");
+});
+
+test("D216: warehouse can create its own consignment with common menus and no management menu", async ({ page }) => {
+  await login(page, account.warehouse);
+  await page.goto("/consign");
+  const nav = page.getByRole("navigation", { name: "เมนูหลัก" });
+  for (const label of ["ค้นหาเส้นทาง", "รอบรถทั้งหมด", "สาขาทั้งหมด", "ฝากของส่งรถ", "ประวัติฝากส่ง"]) await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "จัดการหลังบ้าน" })).toHaveCount(0);
+  await expect(page.getByLabel("แผนก")).toHaveValue("synthetic-department");
+  await page.screenshot({ path: "docs/evidence/access-policy/warehouse-own-form.png", fullPage: true });
+  await page.getByLabel("สาขาปลายทาง").selectOption(A);
+  await page.getByLabel("วันที่ต้องการส่ง (พ.ศ.)").fill("01/03/2571");
+  await page.getByLabel("เบอร์ติดต่อผู้ฝาก").fill("000-000-1000");
+  await page.getByLabel("หมวดของรายการที่ 1").selectOption({ label: "เอกสาร" });
+  await page.getByLabel("ชื่อรายการที่ 1").fill("เอกสารจากคลัง (สังเคราะห์)");
+  await page.getByLabel("จำนวนของรายการที่ 1").fill("1");
+  await page.getByLabel("หน่วยของรายการที่ 1").selectOption("SHEET");
+  await page.getByRole("button", { name: "ส่งคำขอ", exact: true }).click();
+  await expect(status(page)).toHaveText("รอตรวจสอบ");
+  expect((await page.request.get("/api/planning?date=2028-03-01")).status()).toBe(403);
+});
 let consignmentUrl = "", code = "";
 // Full-page capture positions fixed elements relative to the current scroll; capture from the top.
 async function shot(page: Page, path: string) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path, fullPage: true }); }
@@ -74,6 +121,14 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   await page.getByRole("button", { name: "เลือกครบทุกหีบห่อ" }).click();
   await page.getByRole("button", { name: "ยืนยันขึ้นรถ" }).click();
   await expect(status(page)).toHaveText("ขึ้นรถแล้ว");
+  await login(page, account.branch);
+  await page.goto(consignmentUrl);
+  await page.getByText("ขั้นตอนที่ยังดำเนินการไม่ได้", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "บันทึกรับของ", exact: true })).toBeDisabled();
+  await expect(page.getByText("ต้องขึ้นรถและบันทึกรถออกก่อนรับของ")).toBeVisible();
+  await expect(page.getByRole("button", { name: "จัดรถ", exact: true })).toHaveCount(0);
+  await login(page, account.warehouse);
+  await page.goto(consignmentUrl);
   await page.getByRole("button", { name: "บันทึกรถออกทั้งรอบ" }).click();
   await expect(status(page)).toHaveText("อยู่ระหว่างขนส่ง");
 

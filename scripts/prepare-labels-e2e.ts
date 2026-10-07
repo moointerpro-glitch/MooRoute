@@ -19,7 +19,7 @@ try {
   const accounts = { requester: "requester@e2e.synthetic.test", branch: "branch@e2e.synthetic.test", dispatcher: "dispatcher@e2e.synthetic.test", warehouse: "warehouse@e2e.synthetic.test", admin: "admin@e2e.synthetic.test", otherBranch: "branch-b@e2e.synthetic.test" };
   const ids: Record<string, string> = {};
   for (const [name, role, scope, scopeId] of [["requester", "REQUESTER", "DEPARTMENT", "synthetic-department"], ["branch", "BRANCH_RECEIVER", "BRANCH", A], ["dispatcher", "DISPATCHER", "GLOBAL", undefined], ["warehouse", "WAREHOUSE", "WAREHOUSE", "synthetic-warehouse"], ["admin", "ADMINISTRATOR", "GLOBAL", undefined], ["otherBranch", "BRANCH_RECEIVER", "BRANCH", B]] as const) {
-    ids[name] = (await provisionAccount(db, { email: accounts[name], name: `ผู้ทดสอบสังเคราะห์ ${name}`, password, role, scope, scopeId })).id;
+    ids[name] = (await provisionAccount(db, { departmentId: "synthetic-department", email: accounts[name], name: `ผู้ทดสอบสังเคราะห์ ${name}`, password, role, scope, scopeId })).id;
   }
   // A deliberately long Thai address (just under the label limit) to prove it fits without shrinking.
   await db.branch.update({ where: { id: A }, data: { postalCode: "50000", contactName: "คุณผู้รับสังเคราะห์ ชื่อยาวสำหรับทดสอบการพิมพ์ฉลาก", contactPhone: "000-000-0001",

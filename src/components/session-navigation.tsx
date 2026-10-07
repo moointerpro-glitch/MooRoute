@@ -2,13 +2,30 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Settings } from "lucide-react";
+import { Building2, History, ListOrdered, PackagePlus, Search, Settings } from "lucide-react";
+import type { NavigationAccess } from "@/lib/navigation";
 import { LogoutButton } from "./logout-button";
-type Session = { name: string; canOpenBackend: boolean } | null;
-export function SessionNavigation() {
-  const [session, setSession] = useState<Session | undefined>(undefined), pathname = usePathname();
-  useEffect(() => { void fetch("/api/session", { cache: "no-store" }).then((r) => r.ok ? r.json() : null).then((d) => setSession(d)).catch(() => setSession(null)); }, [pathname]);
-  if (session === undefined) return null;
-  if (!session) return <Link href={pathname && pathname !== "/login" ? `/login?next=${encodeURIComponent(pathname)}` : "/login"}>เข้าสู่ระบบ</Link>;
-  return <>{session.canOpenBackend && <Link href="/admin" aria-current={pathname.startsWith("/admin") ? "page" : undefined}><Settings size={17} aria-hidden="true" />จัดการหลังบ้าน</Link>}{!pathname.startsWith("/admin") && <span className="nav-logout"><LogoutButton /></span>}</>;
+type Session = NavigationAccess & { name: string };
+export function SessionNavigation({ onNavigate }: { onNavigate?: () => void }) {
+  const [session, setSession] = useState<Session | null>(null), pathname = usePathname();
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/session", { cache: "no-store", signal: controller.signal })
+      .then((r) => r.ok ? r.json() : null).then((d) => { if (!controller.signal.aborted) setSession(d); })
+      .catch(() => { if (!controller.signal.aborted) setSession(null); });
+    return () => controller.abort();
+  }, [pathname]);
+  const links = [
+    { href: "/", label: "ค้นหาเส้นทาง", icon: Search, allowed: !session || session.canSearch, active: pathname === "/" },
+    { href: "/trips", label: "รอบรถทั้งหมด", icon: ListOrdered, allowed: session?.canSearch, active: pathname.startsWith("/trips") },
+    { href: "/branches", label: "สาขาทั้งหมด", icon: Building2, allowed: session?.canSearch, active: pathname.startsWith("/branches") },
+    { href: "/consign", label: "ฝากของส่งรถ", icon: PackagePlus, allowed: session?.canConsign, active: pathname === "/consign" },
+    { href: "/consignments", label: "ประวัติฝากส่ง", icon: History, allowed: session?.canHistory, active: pathname.startsWith("/consignments") },
+    { href: "/admin", label: "จัดการหลังบ้าน", icon: Settings, allowed: session?.canOpenBackend, active: pathname.startsWith("/admin") },
+  ];
+  return <>{links.filter((l) => l.allowed).map(({ href, label, icon: Icon, active }) =>
+    <Link key={href} href={href} aria-current={active ? "page" : undefined} onClick={onNavigate}><Icon size={17} aria-hidden="true" />{label}</Link>)}
+    {session ? !pathname.startsWith("/admin") && <span className="nav-logout"><LogoutButton /></span> :
+      <Link href={pathname !== "/login" ? `/login?next=${encodeURIComponent(pathname)}` : "/login"} onClick={onNavigate}>เข้าสู่ระบบ</Link>}
+  </>;
 }

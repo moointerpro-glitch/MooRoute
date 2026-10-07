@@ -20,6 +20,7 @@ export async function reassignForPublication(tx: Transaction, actorId: string, i
   for(const row of linked){
     await tx.$queryRaw`SELECT id FROM Consignment WHERE id=${row.id} FOR UPDATE`;
     const c=await tx.consignment.findUniqueOrThrow({where:{id:row.id},include:{currentAssignment:true,consignmentPackage_consignmentId:true}});
+    requireCondition(c.requesterId!==actorId,"SELF_REVIEW","คำขอที่คุณสร้างต้องให้หัวหน้างานอีกคนอนุมัติการย้ายผ่านแผน");
     const move=moves.find(m=>m.consignmentId===c.id)!;
     versionMatches(c.version,move.expectedVersion);
     requireCondition(c.currentAssignment&&oldIds.includes(c.currentAssignment.tripRevisionId),"VERSION_CONFLICT","พัสดุถูกเปลี่ยนแปลงแล้ว กรุณาโหลดแผนใหม่");

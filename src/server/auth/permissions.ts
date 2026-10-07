@@ -5,7 +5,7 @@ import { requireCondition } from "../domain/errors";
 
 export const masterKinds = ["vehicles", "vehicle-types", "drivers", "branches", "product-categories", "storage-conditions", "consignment-categories", "warehouses", "departments"] as const;
 const operationalRoles: Record<string, string[]> = {
-  REQUESTER: ["trip.read", "consignment.create", "consignment.read", "master.branches.read"],
+  REQUESTER: ["consignment.read.department", "trip.read", "consignment.create", "consignment.read", "master.branches.read"],
   DISPATCHER: ["plan.read", "route.write", "template.write", "trip.read", "plan.write", "consignment.read", "consignment.assign", "label.issue", "label.print", "manifest.read", "import.manage", ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.export`])],
   WAREHOUSE: ["consignment.read", "consignment.warehouse", "consignment.load", "label.issue", "label.print", "manifest.read", "master.consignment-categories.read"],
   DRIVER: ["trip.read", "trip.move", "consignment.read", "manifest.read", "master.drivers.read"],
@@ -19,8 +19,8 @@ const operationalRoles: Record<string, string[]> = {
  * Actions reserved to the request's own requester (edit, submit or cancel a draft) stay with that requester.
  */
 export const rolePermissions: Record<string, string[]> = {
-  ...operationalRoles,
-  ADMINISTRATOR: [...new Set([...Object.values(operationalRoles).flat(), "identity.manage", "consignment.read.drafts",
+  ...Object.fromEntries(Object.entries(operationalRoles).map(([role, capabilities]) => [role, [...new Set([...capabilities, "trip.read.company", "trip.read", "consignment.create", "consignment.read"])]])),
+  ADMINISTRATOR: [...new Set([...Object.values(operationalRoles).flat(), "trip.read.company", "identity.manage", "consignment.read.drafts",
     ...masterKinds.flatMap(k=>[`master.${k}.read`,`master.${k}.write`,`master.${k}.delete`,`master.${k}.export`])])],
 };
 export async function installRoles(db: PrismaClient) {

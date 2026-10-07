@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, FileUp, PackagePlus, Plus, Send, Save, Trash2, Truck, UserRound } from "lucide-react";
 import { itemUnits, receiptModeLabels, submissionProblems } from "@/server/domain/consignment";
-import { beDate, isoFromBe, roundLabel, thaiLongDate } from "@/lib/trip-format";
+import { beDate, roundLabel, thaiLongDate } from "@/lib/trip-format";
+import { parseThaiDate } from "@/lib/date-input";
+import { DateInput } from "./date-time-inputs";
 
 type Option = { id: string; code: string; name: string };
-type BranchOption = Option & { contactName: string | null; contactPhone: string | null };
+type BranchOption = Option & { contactName: string | null; contactPhone: string | null; hasRecipient: boolean };
 export type ConsignOptions = { departments: Option[]; warehouses: Option[]; categories: Option[]; branches: BranchOption[]; senderName: string };
 type Item = { categoryId: string; name: string; quantity: string; unit: string };
 export type ConsignInitial = {
@@ -34,9 +36,9 @@ export function ConsignForm({ options, initial, today }: { options: ConsignOptio
   const set = <K extends keyof ConsignInitial>(key: K, value: ConsignInitial[K]) => setForm((f) => ({ ...f, [key]: value }));
   const setItem = (index: number, change: Partial<Item>) => setForm((f) => ({ ...f, items: f.items.map((item, i) => i === index ? { ...item, ...change } : item) }));
   const branch = options.branches.find((b) => b.id === form.destinationBranchId);
-  const requestedDate = isoFromBe(dateText);
+  const requestedDate = parseThaiDate(dateText);
   const problems = useMemo(() => submissionProblems({ items: form.items, packageCount: Number(form.packageCount) || 0, senderName: form.senderName.trim() || null, senderPhone: form.senderPhone.trim() || null, requestedServiceDate: requestedDate }, today,
-    !!((form.recipientName.trim() || branch?.contactName) && (form.recipientPhone.trim() || branch?.contactPhone))), [form, requestedDate, today, branch]);
+    !!(branch?.hasRecipient || ((form.recipientName.trim() || branch?.contactName) && (form.recipientPhone.trim() || branch?.contactPhone)))), [form, requestedDate, today, branch]);
 
   function payload() {
     if (dateText.trim() && !requestedDate) throw new Error("กรุณาระบุวันที่ต้องการส่งเป็น วัน/เดือน/ปี พ.ศ.");
@@ -95,7 +97,7 @@ export function ConsignForm({ options, initial, today }: { options: ConsignOptio
       <div className="form-grid">
         <label>สาขาปลายทาง<span className="required">*</span><select value={form.destinationBranchId} onChange={(e) => setForm((f) => ({ ...f, destinationBranchId: e.target.value, requestedTripId: null, tripLabel: null, tripProblems: [] }))} required>
           <option value="">เลือกสาขาปลายทาง</option>{options.branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}</select></label>
-        <label>วันที่ต้องการส่ง (พ.ศ.)<span className="required">*</span><input value={dateText} placeholder="วว/ดด/ปปปป" inputMode="numeric" onChange={(e) => setDateText(e.target.value)} aria-describedby="date-hint" />
+        <label>วันที่ต้องการส่ง (พ.ศ.)<span className="required">*</span><DateInput value={dateText} onChange={setDateText} min={today} aria-describedby="date-hint" />
           <span id="date-hint" className="field-hint">{requestedDate ? thaiLongDate(requestedDate) : dateText ? "รูปแบบวันที่ไม่ถูกต้อง" : "เช่น " + beDate(today)}</span></label>
         <label>รอบที่ต้องการ<select value={form.requestedRoundNo ?? ""} onChange={(e) => set("requestedRoundNo", e.target.value ? Number(e.target.value) : null)}>
           <option value="">ไม่ระบุ ให้ผู้จัดรถเลือก</option>{[1, 2, 3].map((r) => <option key={r} value={r}>{roundLabel(r)}</option>)}</select></label>
@@ -105,8 +107,8 @@ export function ConsignForm({ options, initial, today }: { options: ConsignOptio
             : <p className="field-hint">ไม่ได้เลือก ผู้จัดรถจะเลือกรอบรถที่เหมาะสมให้ <Link href="/">ค้นหารอบรถ</Link></p>}
           {form.tripProblems.length > 0 && <ul className="field-error reason-list" role="alert">{form.tripProblems.map((p) => <li key={p}>{p}</li>)}</ul>}
         </div>
-        <label>ชื่อผู้รับ<input value={form.recipientName} maxLength={191} placeholder={branch?.contactName ?? "ยังไม่มีผู้ติดต่อของสาขา"} onChange={(e) => set("recipientName", e.target.value)} /></label>
-        <label>เบอร์ผู้รับ<input value={form.recipientPhone} maxLength={32} inputMode="tel" placeholder={branch?.contactPhone ?? "ยังไม่มีเบอร์ของสาขา"} onChange={(e) => set("recipientPhone", e.target.value)} /></label>
+        <label>ชื่อผู้รับ<input value={form.recipientName} maxLength={191} placeholder={branch?.contactName ?? (branch?.hasRecipient ? "เว้นว่างเพื่อใช้ผู้ติดต่อสาขาที่บันทึกไว้" : "ยังไม่มีผู้ติดต่อของสาขา")} onChange={(e) => set("recipientName", e.target.value)} /></label>
+        <label>เบอร์ผู้รับ<input value={form.recipientPhone} maxLength={32} inputMode="tel" placeholder={branch?.contactPhone ?? (branch?.hasRecipient ? "เว้นว่างเพื่อใช้เบอร์สาขาที่บันทึกไว้" : "ยังไม่มีเบอร์ของสาขา")} onChange={(e) => set("recipientPhone", e.target.value)} /></label>
       </div>
       <p className="field-hint">หากเว้นว่าง ระบบจะใช้ผู้ติดต่อของสาขา และบันทึกข้อมูล ณ เวลาจัดรถไว้เป็นหลักฐาน</p>
     </section>

@@ -199,3 +199,36 @@ Status: Accepted by the owner ("แอดมินควรทำได้ทุ
 - `consignment.read.drafts` lets the administrator read other users' consignment drafts (detail, list, export, files, labels page). Drafts stay invisible to every other role. Editing, submitting or cancelling a request remains reserved to its own requester.
 - Conflict recorded: one administrator account can now prepare and publish its own daily plan, so separation of duties no longer covers that account. Every action still records the actor in the audit log and events. Recommendation: give the administrator role to as few people as possible and review its use.
 - Tests that asserted administrator denials were changed to assert the new access; their denial checks moved to roles that genuinely lack the capability (warehouse for search, another branch's receiver for QR lookup, supervisor for schedule import, branch receiver for import templates).
+
+## D216 — Shared published reads and own consignments (2026-10-06)
+
+Status: Implemented on the owner's request to apply the discussed permission/menu model. Supersedes D209 and historical Phase 3–6 descriptions where they limit common published reads or own creation to selected roles. D215 administrator access remains in force with the new self-review exception.
+
+- All seven predefined roles can read published trip kinds company-wide and general branch directory data. Contacts, unpublished plans, other people's consignments/files and operational manifests remain capability/row scoped. This is not universal access to every read-only endpoint.
+- Every role can create/edit/submit/cancel its own draft/pending consignment after explicit active department membership. A sender department is not department-history permission; REQUESTER and ADMINISTRATOR hold the separate consignment.read.department capability. Scope is rechecked before retries.
+- Dispatcher/admin cannot assign, reject or reassign their own request, including via replacement-plan publication. Another authorized reviewer is required; atomic failure retains the existing published revision. This narrows D215's all-operations request to preserve independent consignment review. Administrators retain daily-plan prepare/publish and read-only access to other users' drafts.
+- Unpermitted menus/actions are hidden; permitted actions blocked by prerequisites are disabled with Thai reasons. Server policies are authoritative. The guide includes Thai end-to-end flows and all seven roles.
+- No schema migration or operational-data reset. Audited additive role sync and explicit synthetic department memberships were applied only to known local development accounts; passwords preserved.
+
+## D217 — Product names and workspace relocation (2026-10-06)
+
+Status: Names implemented; folder relocation pending Windows handle release. Owner requested default browser/install short title MooRoute | หมูอินเตอร์, Thai product name ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์, and folder moointer-transport. The npm package/lockfile name is updated. Owner logo pixels remain unchanged.
+
+Two safe same-volume rename attempts failed because VS Code, Photos, Explorer and coding-tool processes hold handles under C:/xampp/htdocs/MooRoute. No forced handle closing, process killing of user apps, copy/delete relocation or data reset was used. MySQL configuration was rolled back and MySQL/preview restarted at the original path. Verified backup restores and a concrete rename helper are available; see SETUP.md. The actual current folder remains MooRoute. The helper's successful execution must be recorded before claiming relocation complete.
+
+## D218 — Back-office desk by responsibility; dedicated Thai date and time fields (2026-10-06)
+
+Status: Implemented on the owner's request after the owner accepted the recommended design.
+
+- The back office lists only what an account is responsible for. `backofficeAreas()` in `src/lib/navigation.ts` is the single rule for the header menu, the page and tests: **work** = the account has a job there (master write/delete, prepare plans, review and publish plans, imports); **reference** = read and export only (dispatcher and supervisor look up master data); anything else is not listed. The menu appears only when at least one area exists. The page states the account's role and scope, shows each work area as a card (verb chips were later removed, D219) and lists reference data compactly with a "ดูและส่งออกได้ แก้ไขไม่ได้" badge. Opening an area directly still works where the server allows reading; list and record pages then say they are read-only. Server authorization is unchanged.
+- Dates are entered in a dedicated วว/ดด/ปปปป (พ.ศ.) field and times in a dedicated 24-hour ชช:นน field (`src/components/date-time-inputs.tsx`, rules in `src/lib/date-input.ts`). Typing digits shapes the text (06102569 → 06/10/2569, 830 → 08:30), Thai digits and pasted ISO dates are accepted, two-digit years mean 25YY พ.ศ., impossible dates and times are refused with Thai messages. A calendar (Thai months, Buddhist years, Sunday first, keyboard: arrows, Page Up/Down, Enter, Esc) and a time list (30-minute steps) are optional helpers; typing always works. Date-and-time values use a paired field. The fields submit exactly the previous text formats, so no parser or API changed.
+- Replaced in: search, trips, consignment history filter, consignment form, assignment panel, planner date, route/template dates and times, trip editor instants, and master-data date/time/date-time fields.
+
+## D219 — Button colour fix, desk rows, dev planning reset and ready-to-consign mock-up plans (2026-10-06)
+
+Status: Implemented on the owner's request.
+
+- Defect: the planner rule `.planner-actions button, .planner-toolbar button, …` (specificity 0,1,1) beat `.primary-button` (0,1,0), so red save buttons in the planner rendered white and only turned red through the stronger `:hover` rule; the same rule boxed the date/time triggers. The rule now uses `:where()` and excludes styled buttons, so explicit button classes always win. Date/time triggers are icon-only (no box or fill).
+- Back office: work areas stay in the card grid (`admin-grid`, 3/2/1 columns) with icon, title and a short summary; the verb chips introduced in D218 are removed at the owner's request (the capability verbs remain in `backofficeAreas()` for tests only). Icons: หมวดสินค้า = tags, ประเภทรถ = van (vehicles keep the truck).
+- Development data: on the owner's request every route and daily plan in `moointer_dev` was deleted (1 route with 3 stops, 1 unpublished plan with 4 empty drafts; no trips, templates or consignments existed). A verified backup was taken first; only the three delete guards involved were dropped and then recreated byte-identically (all 67 trigger definitions unchanged); the action is recorded in AuditLog (`DEV_PLANNING_PURGED`). This was a one-off operator action, not a committed tool.
+- `npm run db:seed:mockup:plans` creates fictitious routes CMN, CMS and UPC covering all 8 mock branches, 9 templates (rounds 1–3, pork and chicken at every stop, processed or dry goods on some rounds) and published plans for 14 days from today, drafted by the mock dispatcher and published by the mock supervisor through the normal services. Trip identities match template generation, so "สร้างเที่ยวจากแม่แบบ" never duplicates them. No consignment is created.

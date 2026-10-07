@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 /** Install metadata for phones and tablets ("เพิ่มไปยังหน้าจอหลัก"); icons come from the supplied MOOROUTE pin logo. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MOOROUTE หมูอินเตอร์ — ระบบเส้นทางเดินรถและฝากส่งสาขา",
-    short_name: "MOOROUTE",
-    description: "ค้นหารอบรถ วางแผนเดินรถ และฝากของส่งสาขา หมูอินเตอร์",
+    name: "ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์",
+    short_name: "MooRoute | หมูอินเตอร์",
+    description: "ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์",
     lang: "th",
     start_url: "/",
     display: "standalone",

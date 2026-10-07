@@ -11,12 +11,11 @@ type ConsignmentRow = { requesterId: string; status: string; destinationBranchId
  * Drafts are private to their requester; every other row needs a matching scope.
  */
 export async function consignmentScope(tx: Transaction, p: Principal, actorId: string) {
-  const roles = await tx.userRole.findMany({ where: { userId: actorId }, include: { role: true } });
-  const requester = roles.some((r) => r.role.code === "REQUESTER");
+  const requester = p.permissions.has("consignment.create");
   const ids = (kind: string, key: "branchId" | "warehouseId" | "departmentId" | "driverId") => p.scopes.flatMap((s) => s.kind === kind && s[key] ? [s[key]!] : []);
   // Drafts are private to their requester; only the administrator capability may read other users' drafts (D215).
   const readsDrafts = p.permissions.has("consignment.read.drafts");
-  const branchIds = ids("BRANCH", "branchId"), warehouseIds = ids("WAREHOUSE", "warehouseId"), departmentIds = ids("DEPARTMENT", "departmentId"), driverIds = ids("DRIVER", "driverId");
+  const branchIds = ids("BRANCH", "branchId"), warehouseIds = ids("WAREHOUSE", "warehouseId"), departmentIds = p.permissions.has("consignment.read.department") ? ids("DEPARTMENT", "departmentId") : [], driverIds = ids("DRIVER", "driverId");
   return {
     allows(c: ConsignmentRow, currentDriverId: string | null) {
       if (c.status === "DRAFT") return c.requesterId === actorId || readsDrafts;

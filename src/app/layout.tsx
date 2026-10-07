@@ -9,10 +9,10 @@ import "@fontsource/noto-sans-thai/thai-700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "ค้นหาเส้นทางเดินรถ | MOOROUTE หมูอินเตอร์", template: "%s | MOOROUTE หมูอินเตอร์" },
-  description: "ระบบค้นหารอบรถและฝากของส่งสาขา หมูอินเตอร์",
-  applicationName: "MOOROUTE",
-  appleWebApp: { title: "MOOROUTE" },
+  title: { default: "MooRoute | หมูอินเตอร์", template: "%s | MooRoute | หมูอินเตอร์" },
+  description: "ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์",
+  applicationName: "ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์",
+  appleWebApp: { title: "MooRoute | หมูอินเตอร์" },
   robots: { index: false, follow: false },
 };
 // Brand navy from the supplied logo, used by mobile browsers for the address bar.
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <AppHeader />
     <main id="main-content" tabIndex={-1}>{children}</main>
     <footer className="site-footer"><div className="container footer-inner">
-      <span className="footer-brand"><Image src={banner} alt="หมูอินเตอร์ | MOOROUTE" />ระบบขนส่งสาขา</span><span>วันและเวลาประเทศไทย · แสดงปี พ.ศ.</span>
+      <span className="footer-brand"><Image src={banner} alt="MooRoute | หมูอินเตอร์" />ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์</span><span>วันและเวลาประเทศไทย · แสดงปี พ.ศ.</span>
     </div></footer>
   </body></html>;
 }

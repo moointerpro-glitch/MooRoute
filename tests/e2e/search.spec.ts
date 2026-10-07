@@ -117,25 +117,27 @@ test("T13: branch scope, contact visibility and denied roles on pages and APIs",
 
   await login(page, account.branch);
   await page.goto(`/?date=${DATE}&mode=time`);
-  await expect(badge(page)).toHaveText("พบ 5 รอบรถ");
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
   await expect(page.locator(".row-contact").first()).toBeHidden();
   await page.goto(`/trips/s5-2028-03-01-1530`);
-  await expect(page.getByRole("heading", { name: "ไม่พบรอบรถหรือคุณไม่มีสิทธิ์เข้าถึง" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "จุดส่งตามลำดับ (1 จุด)" })).toBeVisible();
   await page.goto(`/trips/s5-2028-03-01-trip-1?branch=${A}`);
   await expect(page.getByText("ผู้ติดต่อสังเคราะห์ 1")).toBeVisible();
   await expect(page.getByText("ผู้ติดต่อสังเคราะห์ 2")).toHaveCount(0);
-  await expect(page.getByText("บัญชีนี้ไม่มีสิทธิ์สร้างคำขอฝากส่ง")).toBeVisible();
+  await expect(page.getByRole("link", { name: "ฝากของกับรอบนี้" })).toBeVisible();
   await page.context().clearCookies();
 
   await login(page, account.requester);
-  expect((await page.request.get(`/api/search?date=${DATE}&kinds=VAN_SALES`)).status()).toBe(403);
+  expect((await page.request.get(`/api/search?date=${DATE}&kinds=VAN_SALES`)).status()).toBe(200);
   const invalid = await page.request.get(`/api/search?date=${DATE}&mode=range&from=16:00&to=15:00`);
   expect(invalid.status()).toBe(400); expect((await invalid.json()).message).toBe("เวลาสิ้นสุดต้องไม่ก่อนเวลาเริ่มต้น");
   await page.context().clearCookies();
 
   await login(page, account.warehouse);
-  await expect(page.getByRole("heading", { name: "บัญชีนี้ยังไม่มีสิทธิ์ค้นหารอบรถ" })).toBeVisible();
-  expect((await page.request.get(`/api/search?date=${DATE}`)).status()).toBe(403);
+  await page.goto(`/?date=${DATE}&mode=time`);
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
+  expect((await page.request.get(`/api/search?date=${DATE}`)).status()).toBe(200);
+  expect((await page.request.get(`/api/planning?date=${DATE}`)).status()).toBe(403);
   // The administrator sees everything (D215).
   await login(page, account.admin);
   await page.goto(`/?date=${DATE}`);
@@ -213,4 +215,36 @@ test("T19: search works with the keyboard only (tabs, chips, combobox, sort, det
   await expect(page.getByRole("heading", { name: /จุดส่งตามลำดับ/ })).toBeVisible();
   const focusRing = await page.getByRole("link", { name: "กลับหน้าค้นหา" }).evaluate((el) => { (el as HTMLElement).focus(); return getComputedStyle(el).outlineStyle; });
   expect(focusRing).not.toBe("none");
+});
+
+test("T19 (D218): the Thai date field shapes typed digits and its calendar works from the keyboard", async ({ page }) => {
+  await login(page, account.supervisor);
+  await page.goto(`/?date=${DATE}`);
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
+  const date = page.getByLabel("วันที่ให้บริการ (พ.ศ.)");
+  // Digits typed without separators become วว/ดด/ปปปป; Enter applies the date.
+  await date.fill("");
+  await date.pressSequentially("02032571");
+  await expect(date).toHaveValue("02/03/2571");
+  await date.press("Enter");
+  await expect(page).toHaveURL(/date=2028-03-02/);
+  // The calendar opens on the selected day; arrows move, Enter picks, Escape closes and returns focus.
+  await page.getByRole("button", { name: "เลือกวันที่จากปฏิทิน" }).click();
+  const dialog = page.getByRole("dialog", { name: "เลือกวันที่" });
+  await expect(dialog.getByRole("button", { name: "วันพฤหัสบดีที่ 2 มีนาคม พ.ศ. 2571" })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(dialog.getByRole("button", { name: "วันพุธที่ 1 มีนาคม พ.ศ. 2571" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(date).toHaveValue("01/03/2571");
+  await expect(page).toHaveURL(/date=2028-03-01/);
+  await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
+  await page.getByRole("button", { name: "เลือกวันที่จากปฏิทิน" }).click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "เลือกวันที่จากปฏิทิน" })).toBeFocused();
+  // An impossible date is refused with a Thai message instead of being searched.
+  await date.fill("31/02/2571");
+  await date.press("Enter");
+  await expect(page.getByText(/กรุณาระบุวันที่เป็น วัน\/เดือน\/ปี พ\.ศ\./)).toBeVisible();
 });

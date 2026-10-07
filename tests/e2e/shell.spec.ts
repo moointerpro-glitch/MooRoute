@@ -4,6 +4,8 @@ import { mkdir } from "node:fs/promises";
 test("Thai shell, keyboard tabs and honest unavailable actions", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", "th");
+  await expect(page).toHaveTitle("MooRoute | หมูอินเตอร์");
+  await expect(page.getByRole("navigation", { name: "เมนูหลัก" }).getByRole("link", { name: "ฝากของส่งรถ" })).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("ค้นหาเส้นทางเดินรถ");
   await expect(page.getByRole("button", { name: "ค้นหา", exact: true })).toBeDisabled();
   await expect(page.getByText("กรุณาเข้าสู่ระบบเพื่อค้นหารอบรถที่เผยแพร่", { exact: false })).toBeVisible();
@@ -39,6 +41,8 @@ for (const width of [1440, 768, 390]) {
     }
     await page.getByRole("navigation", { name: "เมนูหลัก" }).getByRole("link", { name: "คู่มือ" }).click();
     await expect(page.getByRole("heading", { name: "รู้จักรอบรถและการฝากส่ง" })).toBeVisible();
+    await mkdir("docs/evidence/access-policy", { recursive: true });
+    await page.screenshot({ path: `docs/evidence/access-policy/guide-${width}.png`, fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole("link", { name: "กลับหน้าค้นหา" }).click();
     await expect(page.getByRole("tab", { name: "ค้นหาจากสาขา" })).toBeVisible();
@@ -49,6 +53,9 @@ test("health exposes no configuration and unknown pages are Thai", async ({ requ
   const response = await request.get("/api/health/live");
   expect(response.status()).toBe(200);
   expect(await response.json()).toEqual({ status: "ok" });
+  const manifest = await request.get("/manifest.webmanifest");
+  expect(manifest.status()).toBe(200);
+  expect(await manifest.json()).toMatchObject({ name: "ระบบจัดการเส้นทางและขนส่งหมูอินเตอร์", short_name: "MooRoute | หมูอินเตอร์" });
   expect(response.headers()["cache-control"]).toBe("no-store");
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
   const home = await request.get("/");

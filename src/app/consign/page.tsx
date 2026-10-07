@@ -19,6 +19,7 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
   let options;
   try { options = await consignmentFormOptions(db, actor.id); }
   catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return denied("บัญชีนี้ยังไม่มีสิทธิ์สร้างคำขอฝากส่ง", "กรุณาติดต่อผู้ดูแลเพื่อกำหนดบทบาทผู้ฝากส่งและแผนก"); throw error; }
+  if (!options.departments.length) return denied("ยังไม่ได้กำหนดแผนกต้นสังกัด", "ทุกบัญชีฝากส่งได้ กรุณาติดต่อผู้ดูแลเพื่อกำหนดแผนกก่อนสร้างคำขอ");
   const today = bangkokServiceDate();
   let initial: ConsignInitial = {
     id: null, code: null, version: 0, departmentId: options.departments.length === 1 ? options.departments[0].id : "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : "",

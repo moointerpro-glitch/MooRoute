@@ -1,5 +1,5 @@
 {
-  "name": "moointer-route",
+  "name": "moointer-transport",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -39,7 +39,10 @@
     "db:backup:verify": "node --import tsx scripts/backup-verify.ts",
     "test:staging": "node --import tsx scripts/staging-rehearsal.ts",
     "test:load": "node --conditions=react-server --import tsx scripts/load-test.ts",
-    "db:seed:mockup": "node --conditions=react-server --import tsx scripts/seed-mockup.ts"
+    "db:seed:mockup": "node --conditions=react-server --import tsx scripts/seed-mockup.ts",
+    "auth:sync:local": "node --conditions=react-server --import tsx scripts/sync-access-local.ts",
+    "test:access:integration": "node --import tsx scripts/run-integration.ts --access",
+    "db:seed:mockup:plans": "node --conditions=react-server --import tsx scripts/seed-mockup-plans.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-thai": "5.3.0",

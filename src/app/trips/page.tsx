@@ -8,6 +8,7 @@ import { DomainError } from "@/server/domain/errors";
 import { TripResults } from "@/components/trip-results";
 import { bangkokServiceDate } from "@/lib/bangkok-date";
 import { beDate, isoFromBe, shiftDate, thaiLongDate } from "@/lib/trip-format";
+import { DateInput } from "@/components/date-time-inputs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "รอบรถทั้งหมด" };
@@ -31,7 +32,7 @@ export default async function AllTripsPage({ searchParams }: { searchParams: Pro
     <header className="list-header"><div><p className="eyebrow"><span />รอบรถทั้งหมด</p><h1>รอบรถที่เผยแพร่ทุกประเภท</h1><p className="muted">{thaiLongDate(date)} · แสดงตามสิทธิ์ของคุณ เรียงตามเวลาออกรถ</p></div>
       <nav className="date-nav" aria-label="เปลี่ยนวันที่">
         <Link className="secondary-button" href={link(shiftDate(date, -1))} aria-label="วันก่อนหน้า"><ChevronLeft size={18} aria-hidden="true" /></Link>
-        <form action="/trips" className="date-form"><label htmlFor="trips-date" className="sr-only">วันที่ให้บริการ (พ.ศ.)</label><input id="trips-date" name="date" defaultValue={beDate(date)} placeholder="วว/ดด/ปปปป" inputMode="numeric" /><button className="secondary-button">ไป</button></form>
+        <form action="/trips" className="date-form"><label htmlFor="trips-date" className="sr-only">วันที่ให้บริการ (พ.ศ.)</label><DateInput id="trips-date" name="date" defaultValue={beDate(date)} required /><button className="secondary-button">ไป</button></form>
         <Link className="secondary-button" href={link(shiftDate(date, 1))} aria-label="วันถัดไป"><ChevronRight size={18} aria-hidden="true" /></Link>
       </nav></header>
     <section className="search-card results" aria-label="รายการรอบรถ">

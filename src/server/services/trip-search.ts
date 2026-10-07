@@ -10,7 +10,9 @@ export const SEARCH_DIRECTORY_PAGE = 20;
 const readOptions = { isolationLevel: "RepeatableRead" as const, timeout: 20_000 };
 
 /**
- * Row scope for published trips. GLOBAL sees all; BRANCH sees trips with a stop at that branch;
+ * Company-read capability exposes published trips only (D216). Contacts and operational writes
+ * retain their original scopes. Legacy/custom roles without it use GLOBAL/BRANCH/DRIVER scope.
+ * GLOBAL sees all; BRANCH sees trips with a stop at that branch;
  * DRIVER sees own trips. DEPARTMENT/WAREHOUSE trip readers (requesters choosing a vehicle) may see
  * company-wide outbound branch deliveries only, never inbound DC or Van Sales (D209).
  */
@@ -18,16 +20,17 @@ export function tripVisibility(p: Principal) {
   const branchIds = p.scopes.flatMap((s) => s.kind === "BRANCH" && s.branchId ? [s.branchId] : []);
   const driverIds = p.scopes.flatMap((s) => s.kind === "DRIVER" && s.driverId ? [s.driverId] : []);
   const outboundWide = p.scopes.some((s) => s.kind === "DEPARTMENT" || s.kind === "WAREHOUSE");
-  const allKinds = p.global || branchIds.length > 0 || driverIds.length > 0;
+  const companyRead = p.permissions.has("trip.read.company");
+  const allKinds = companyRead || p.global || branchIds.length > 0 || driverIds.length > 0;
   return {
     global: p.global, branchIds, driverIds, outboundWide,
     kinds: (allKinds ? [...searchTripKinds] : outboundWide ? ["BRANCH_DELIVERY"] : []) as SearchTripKind[],
     allows(trip: { kind: string; driverId: string | null; stops: { branchId: string }[] }) {
-      return p.global || (!!trip.driverId && driverIds.includes(trip.driverId)) ||
+      return companyRead || p.global || (!!trip.driverId && driverIds.includes(trip.driverId)) ||
         trip.stops.some((s) => branchIds.includes(s.branchId)) || (outboundWide && trip.kind === "BRANCH_DELIVERY");
     },
     sql() {
-      if (p.global) return Prisma.sql`1=1`;
+      if (companyRead || p.global) return Prisma.sql`1=1`;
       const parts: Prisma.Sql[] = [];
       if (driverIds.length) parts.push(Prisma.sql`t.driverId IN (${Prisma.join(driverIds)})`);
       if (branchIds.length) parts.push(Prisma.sql`EXISTS (SELECT 1 FROM TripStop vs WHERE vs.tripRevisionId=t.id AND vs.branchId IN (${Prisma.join(branchIds)}))`);

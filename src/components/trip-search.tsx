@@ -5,7 +5,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { AlertCircle, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Info, MapPin, RefreshCw, Route, Search, SlidersHorizontal, X } from "lucide-react";
 import type { SearchResult } from "@/server/services/trip-search";
 import { TripResults } from "./trip-results";
-import { beDate, isoFromBe, shiftDate, thaiLongDate, timeBasisLabels, tripKindLabels } from "@/lib/trip-format";
+import { DateInput } from "./date-time-inputs";
+import { parseThaiDate } from "@/lib/date-input";
+import { beDate, shiftDate, thaiLongDate, timeBasisLabels, tripKindLabels } from "@/lib/trip-format";
 
 type Mode = "branch" | "time" | "range";
 type Basis = "departure" | "loading";
@@ -117,8 +119,8 @@ export function TripSearch({ today, options, params }: { today: string; options:
     event.preventDefault(); update({ mode: modes[keys[event.key]].id }); tabs.current[keys[event.key]]?.focus();
   }
   function applyDate(iso: string) { setDateText(beDate(iso)); setDateError(""); update({ date: iso, times: [] }); }
-  function commitDateText() {
-    const iso = isoFromBe(dateText);
+  function commitDateText(text = dateText) {
+    const iso = parseThaiDate(text);
     if (!iso) { setDateError("กรุณาระบุวันที่เป็น วัน/เดือน/ปี พ.ศ. เช่น " + beDate(today)); return; }
     if (iso !== query.date) applyDate(iso); else setDateError("");
   }
@@ -194,8 +196,8 @@ export function TripSearch({ today, options, params }: { today: string; options:
           <label htmlFor={`${uid}-date`}>วันที่ให้บริการ (พ.ศ.)</label>
           <div className="date-control">
             <button type="button" className="icon-button" aria-label="วันก่อนหน้า" onClick={() => applyDate(shiftDate(query.date, -1))}><ChevronLeft size={18} aria-hidden="true" /></button>
-            <input id={`${uid}-date`} value={dateText} inputMode="numeric" placeholder="วว/ดด/ปปปป" aria-describedby={`${uid}-date-help`} aria-invalid={!!dateError}
-              onChange={(e) => setDateText(e.target.value)} onBlur={commitDateText} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitDateText(); } }} />
+            <DateInput id={`${uid}-date`} value={dateText} onChange={setDateText} onCommit={commitDateText} onPick={applyDate}
+              aria-describedby={`${uid}-date-help`} aria-invalid={!!dateError} required />
             <button type="button" className="icon-button" aria-label="วันถัดไป" onClick={() => applyDate(shiftDate(query.date, 1))}><ChevronRight size={18} aria-hidden="true" /></button>
           </div>
           <p id={`${uid}-date-help`} className={dateError ? "field-error" : "field-hint"} role={dateError ? "alert" : undefined}>{dateError || <>{thaiLongDate(query.date)}{query.date !== today && <> · <button type="button" className="link-button" onClick={() => applyDate(today)}>กลับไปวันนี้</button></>}</>}</p>

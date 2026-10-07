@@ -4,7 +4,7 @@ import { authConfiguration } from "./auth/config";
 import { logUnexpected } from "./logging";
 import { readBodyWithin, utf8BytesFor } from "./request-body";
 export function safeFailure(error:unknown){
-  if(error instanceof DomainError)return Response.json({code:error.code,message:error.message},{status:error.code==="UNAUTHENTICATED"?401:error.code==="FORBIDDEN"?403:error.code==="NOT_FOUND"?404:["VERSION_CONFLICT","DUPLICATE_MASTER","DUPLICATE_TRIP"].includes(error.code)?409:400,headers:{"Cache-Control":"no-store"}});
+  if(error instanceof DomainError)return Response.json({code:error.code,message:error.message},{status:error.code==="UNAUTHENTICATED"?401:["FORBIDDEN","SELF_REVIEW"].includes(error.code)?403:error.code==="NOT_FOUND"?404:["VERSION_CONFLICT","DUPLICATE_MASTER","DUPLICATE_TRIP"].includes(error.code)?409:400,headers:{"Cache-Control":"no-store"}});
   // Unexpected failures are logged for operators without messages, SQL or parameters.
   logUnexpected("api.unexpected_error",error);
   return Response.json({code:"UNAVAILABLE",message:"ไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแล"},{status:503,headers:{"Cache-Control":"no-store"}});

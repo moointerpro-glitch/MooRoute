@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createDatabase } from "../src/server/persistence/database";
 import { parseDatabaseUrl } from "../src/server/config/environment";
 import { installRoles } from "../src/server/auth/permissions";
-import { provisionAccount } from "../src/server/auth/provision";
+import { provisionAccount, assignAccountDepartment } from "../src/server/auth/provision";
 import { mutateMaster } from "../src/server/services/masters";
 import { hashPassword } from "better-auth/crypto";
 import type { ScopeKind } from "../src/generated/prisma/client";
@@ -125,6 +125,8 @@ try {
   await account("mock.warehouse@moointer.test", "เจ้าหน้าที่คลังกลาง (บัญชีทดสอบ)", "WAREHOUSE", "WAREHOUSE", ids.get("warehouses:WH-T01"));
   await account("mock.driver@moointer.test", "พนักงานขับรถ สมชาย (บัญชีทดสอบ)", "DRIVER", "DRIVER", ids.get("drivers:DRV-T01"));
   await account("mock.branch@moointer.test", "ผู้รับประจำสาขาสันทราย (บัญชีทดสอบ)", "BRANCH_RECEIVER", "BRANCH", ids.get("branches:BR-T01"));
+
+  for (const [email] of roles) if (!email.includes("mock.requester")) await assignAccountDepartment(db, email, ids.get("departments:DEP-OPS")!, "D216: explicit synthetic sender department for every mock role");
 
   const payload = { storage: storage.length, vehicleTypes: vehicleTypes.length, productCategories: productCategories.length, warehouses: warehouses.length, departments: departments.length, drivers: drivers.length, vehicles: vehicles.length, branches: branches.length, accounts: 7, planning: "none", consignments: "none" };
   if (!await db.seedManifest.findUnique({ where: { key: MANIFEST_KEY } })) await db.seedManifest.create({ data: { key: MANIFEST_KEY, version: 1, checksum: createHash("sha256").update(JSON.stringify(payload)).digest("hex"), payload } });
