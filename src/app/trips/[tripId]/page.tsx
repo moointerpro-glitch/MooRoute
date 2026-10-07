@@ -6,6 +6,7 @@ import { getDatabase } from "@/server/persistence/database";
 import { tripDetail } from "@/server/services/trip-search";
 import { DomainError } from "@/server/domain/errors";
 import { roundLabel, thaiDateTime, thaiLongDate, tripKindLabels, UNKNOWN_TIME } from "@/lib/trip-format";
+import { DepartureChip } from "@/components/trip-results";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "รายละเอียดรอบรถ" };
@@ -32,6 +33,7 @@ export default async function TripDetailPage({ params, searchParams }: { params:
     </header>
     <div className="detail-grid">
       <section className="detail-card" aria-labelledby="times-title"><h2 id="times-title"><Clock3 size={19} aria-hidden="true" />เวลา</h2>
+        <p className="detail-departure"><DepartureChip status={trip.status} /></p>
         <dl className="fact-list">{times.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value ? <time dateTime={value.at}>{value.label} น.</time> : <span className="time-unknown">{UNKNOWN_TIME}</span>}</dd></div>)}</dl>
         <p className="field-hint">เวลาเริ่มขึ้นของไม่ใช่เวลาออกรถ หากเวลาอยู่คนละวันจะระบุ (วันก่อนหน้า) หรือ (วันถัดไป)</p>
       </section>

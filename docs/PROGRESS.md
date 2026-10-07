@@ -309,3 +309,36 @@ Owner request: build it professionally, delete all old users and create new mock
 Not done: forced password change at first sign-in; `test:staging` aggregate rehearsal not rerun and does not yet include the users suite; `test:load` not rerun.
 
 Next three actions: owner walks through the seven mock accounts including creating a real-looking account at /admin/users; decide whether to force a password change at first sign-in; import real master data through /admin/imports before creating real accounts.
+
+## Daily planning effort and coverage-table review (advice) — 2026-10-07
+
+Owner asked whether the planner must plan every day and what the coverage table shows and whether it has gaps. Read-only review of `src/server/services/plans.ts` (validateDraft, candidateCoverage, publishPlan, changeBranchEligibility), `src/server/domain/planning.ts` (missingCoverage), `src/server/services/planning-catalog.ts` (generateTrips), `src/server/services/masters.ts` (branch eligibility and PORK/CHICKEN guards) and `src/components/planning-workspace.tsx`. No code, data or test change.
+
+Findings reported: plans are per service date with manual generation from templates and manual publication (no scheduler, no multi-day generation in the UI); coverage is a hard publish gate over active delivery branches x rounds 1-3 x PORK/CHICKEN on non-cancelled BRANCH_DELIVERY trips. Verified gaps: no check or alert for dates without a published plan; round number is a label with no time ordering or separation rule between rounds; arrival time and driver are optional at publication and branch receiving hours are not compared with arrival; categories are declarations without quantity or delivery proof; past service dates can be drafted and published; no recorded exception path when reality breaks a published plan.
+
+Next three actions (awaiting owner choice): multi-day generation and publication plus a missing-plan warning; round time rules and required arrival/driver with receiving-window check; decide whether pork/chicken deliveries need receipt confirmation.
+
+## Planning screen UX review (advice) — 2026-10-07
+
+Owner asked whether the plan table needs more detail (date, round start/end times), whether plan creation is hard to understand, and about status tracking. Read-only review of the live planning page with the mock planner (full-page captures at 1440 and 390, not committed). No code, data or test change.
+
+Measured: one ordinary day (9 trips, 8 branches) renders 5,865 px tall at 1440 and 10,004 px at 390; the coverage table and the publish control are below every trip card; the selected date appears only in the date field; plan status appears only in the revision dropdown; coverage cells say only "ครบ"; the trip editor opens above the list with separate vehicle-occupancy fields and a two-step apply-then-save; trips have no executed status (only consignments have statuses).
+
+Advice given: summary first and detail on demand rather than more detail everywhere — a sticky day header with date, weekday, plan status and coverage; a per-round time summary; trips as a compact table grouped by round; coverage cells naming the covering trip and time; a simpler editor with derived occupancy and a single save. Open owner decision: whether trips need actual departure/arrival status.
+
+## Planning screen redesign, multi-day tools, gridlines, departure status (D225) — 2026-10-07
+
+Owner request: do phase A professionally, give tables column lines, and say clearly in search whether a vehicle has left.
+
+- Server: `src/server/services/planning-range.ts` (overview, generatePlans, publishPlans), `src/lib/planning-horizon.ts`, `src/app/api/planning/route.ts`, `src/server/services/planning-catalog.ts` (`templateTripId`, `templatesInEffect`, readable generated trip codes), `src/server/services/trip-search.ts` and `src/lib/departure-status.ts` (status per trip), `src/server/services/planning-read.ts` (issue wording).
+- Screens: `src/components/planning-workspace.tsx` (rewritten plan tab; routes, templates and history tabs unchanged), `src/components/planning-day.tsx` (new), `src/components/planning-trip-editor.tsx`, `src/components/trip-results.tsx`, `src/app/trips/[tripId]/page.tsx`, `src/app/globals.css` (gridlines for all tables, planning layout).
+- No schema change, no migration, no data change in moointer_dev.
+- Measured on the live dev app, same day as the earlier review (9 trips, 8 branches): 3,779 px tall at 1440 (was 5,865) and 5,246 px at 390 (was 10,004), with date, status, round times and coverage above the trips.
+- Defects found and fixed during the work: the first overview held one of the five pooled connections for about a second while running a couple of hundred small queries, so concurrent requests queued — rewritten as a few batched queries with coverage computed in memory by the publication rule; a superseded overview request was left unread, keeping its connection open — now aborted; a second live region broke single-status announcements — the missing-plan notice is no longer a status region.
+- Tests: `tests/integration/planning-range.test.ts` (4 tests, run with the access suite): nothing is created without templates, range drafts and the overview, only untouched template drafts are published together with reservations, branch snapshot and audit per date, and limits and permissions. `tests/unit/departure-status.test.ts` (3 tests). `tests/e2e/planning.spec.ts` updated for the new screen and extended with day navigation, the two-week strip and both multi-day tools at 1440 and 390. `tests/integration/phase5.test.ts` wording.
+- Checks 2026-10-07 on the final build: `npm run typecheck` PASS; `npm run lint` PASS; `npm test` 37/37; `npm run test:integration` 41/41; `npm run test:access:integration` 16/16; `npm run build` PASS; with `--scoped-runtime`: `test:planning:e2e` 2/2, `test:search:e2e` 8/8, `test:consignment:e2e` 7/7, `test:labels:e2e` 6/6, `test:users:e2e` 2/2, `test:auth:e2e` 4/4; `npm run test:e2e` 5/5. Planning browser runs failed during the work for test-side reasons that were corrected (a second status region, a title captured before the day loaded, a fixture day that is already published, and a merge target chosen by the old code sort order); the final run is as listed. Historical phase evidence overwritten by the runners was restored from HEAD.
+- Evidence: [evidence/planning-redesign](evidence/planning-redesign).
+
+Not done: round time rules, mandatory arrival and driver, receiving-hours check, past-date lock (need the owner's round times and back-dating limit); actual departure/arrival recording per trip (owner decision); `test:staging` aggregate and `test:load` not rerun.
+
+Next three actions: owner tries the planning screen with demo.planner1 (date bar, strip, multi-day tools); owner gives the usual departure window of each round and how many days back a plan may be changed; decide who records actual departure and arrival on site.

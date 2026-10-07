@@ -174,7 +174,7 @@ test("Eligible-trip pre-check for the upcoming consignment flow never claims sub
   assert.deepEqual(ok.eligibility, { eligible: true, reasons: [] });
   assert.equal(ok.stops.find((s) => s.branchId === A)?.matched, true);
   assert.equal((await tripDetail(db, accounts.REQUESTER, id("1530"), { branchId: A, now: before })).eligibility.eligible, false);
-  assert.ok((await tripDetail(db, accounts.REQUESTER, id("trip-1"), { branchId: A, now: afterDeparture })).eligibility.reasons.includes("รอบรถนี้ออกรถไปแล้ว"));
+  assert.ok((await tripDetail(db, accounts.REQUESTER, id("trip-1"), { branchId: A, now: afterDeparture })).eligibility.reasons.includes("เลยเวลาออกรถตามแผนของรอบนี้แล้ว"));
   assert.equal((await tripDetail(db, accounts.SUPERVISOR, id("trip-1"), { branchId: A, now: before })).eligibility.eligible, true);
   assert.equal(await db.consignment.count({ where: { requesterId: accounts.REQUESTER } }), 0);
 });

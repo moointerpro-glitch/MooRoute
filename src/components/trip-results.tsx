@@ -33,6 +33,11 @@ function Title({ row }: { row: SearchRow }) {
   return <span className="row-title"><Route size={16} aria-hidden="true" /><span>{row.routeName ?? row.code}</span>
     {row.kind !== "BRANCH_DELIVERY" && <span className="kind-badge">{tripKindLabels[row.kind]}</span>}</span>;
 }
+const statusTone: Record<SearchRow["status"]["code"], string> = { DEPARTED: "plan-published", DUE: "plan-draft", WAITING: "plan-neutral", UNKNOWN: "plan-neutral", CANCELLED: "plan-none" };
+/** Departure status (D225): recorded departures say "รถออกแล้ว"; everything else is worded as the plan. */
+export function DepartureChip({ status }: { status: SearchRow["status"] }) {
+  return <span className="departure-status"><span className={`plan-chip ${statusTone[status.code]}`}>{status.text}</span><small>{status.detail}</small></span>;
+}
 function Vehicle({ row }: { row: SearchRow }) {
   return row.vehicle ? <span className="plate">{row.vehicle.plate}<small>{row.vehicle.province}</small></span> : <span className="time-unknown">{UNKNOWN_TIME}</span>;
 }
@@ -43,12 +48,13 @@ export function TripResults({ rows, branchId, caption }: Props) {
     <div className="results-table-wrap">
       <table className="results-table">
         <caption className="sr-only">{caption}</caption>
-        <thead><tr><th scope="col">เส้นทาง</th><th scope="col">รอบ</th><th scope="col">เวลาเริ่มขึ้นของ</th><th scope="col">เวลาออกรถ</th><th scope="col">หมวดสินค้า</th><th scope="col">ทะเบียนรถ</th><th scope="col"><span className="sr-only">รายละเอียด</span></th></tr></thead>
+        <thead><tr><th scope="col">เส้นทาง</th><th scope="col">รอบ</th><th scope="col">เวลาเริ่มขึ้นของ</th><th scope="col">เวลาออกรถ</th><th scope="col">สถานะรถ</th><th scope="col">หมวดสินค้า</th><th scope="col">ทะเบียนรถ</th><th scope="col"><span className="sr-only">รายละเอียด</span></th></tr></thead>
         <tbody>{rows.map((row) => <tr key={row.tripId}>
           <td><Title row={row} /><StopChain row={row} /><Contacts row={row} /></td>
           <td className="nowrap">{roundLabel(row.roundNo)}</td>
           <td className="nowrap"><TimeText value={row.loading} /></td>
           <td className="nowrap time-strong"><Clock3 size={15} aria-hidden="true" /><TimeText value={row.departure} /></td>
+          <td><DepartureChip status={row.status} /></td>
           <td>{categoriesOf(row).join(", ") || "—"}</td>
           <td><Vehicle row={row} /></td>
           <td><Link className="detail-link" href={detailHref(row, branchId)} aria-label={`ดูรายละเอียดรอบรถ ${row.code}`}>รายละเอียด</Link></td>
@@ -61,6 +67,7 @@ export function TripResults({ rows, branchId, caption }: Props) {
         <StopChain row={row} />
         <dl className="card-facts">
           <div><dt><Clock3 size={14} aria-hidden="true" />เวลาออกรถ</dt><dd className="time-strong"><TimeText value={row.departure} /></dd></div>
+          <div><dt>สถานะรถ</dt><dd><DepartureChip status={row.status} /></dd></div>
           <div><dt>เวลาเริ่มขึ้นของ</dt><dd><TimeText value={row.loading} /></dd></div>
           <div><dt><MapPin size={14} aria-hidden="true" />หมวดสินค้า</dt><dd>{categoriesOf(row).join(", ") || "—"}</dd></div>
           <div><dt><Truck size={14} aria-hidden="true" />ทะเบียนรถ</dt><dd><Vehicle row={row} /></dd></div>

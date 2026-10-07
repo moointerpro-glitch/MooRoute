@@ -89,13 +89,28 @@ export async function generateTrips(db:PrismaClient,actorId:string,key:string,i:
     for(const template of templates){
       const r=await tx.templateRevision.findFirst({where:{templateId:template.id,effectiveFrom:{lte:date},OR:[{effectiveTo:null},{effectiveTo:{gte:date}}]},orderBy:{number:"desc"},include:{templateWeekday_templateRevisionId:true,templateStopCategory_templateRevisionId:true,routeRevision:{include:{route:true,routeStop_routeRevisionId:{orderBy:{sequence:"asc"}}}}}});
       if(!r||!r.templateWeekday_templateRevisionId.some(w=>w.weekday===(date.getUTCDay()||7)))continue;
-      const tripId=createHash("sha256").update(`${template.id}:${i.serviceDate}`).digest("hex").slice(0,36);
+      const tripId=templateTripId(template.id,i.serviceDate);
       if(await tx.trip.findUnique({where:{id:tripId}}))continue;
       requireCondition(r.routeRevision.route.active&&r.routeRevision.effectiveFrom<=date&&(!r.routeRevision.effectiveTo||r.routeRevision.effectiveTo>=date),"INVALID_ROUTE","เส้นทางของแม่แบบไม่พร้อมใช้ในวันบริการ");
       const at=(m:number|null)=>m===null?null:new Date(bangkokInstant(i.serviceDate,0).valueOf()+m*60_000).toISOString();
-      trips.push({tripId,code:`GEN-${tripId}`,kind:r.kind,roundNo:r.kind==="BRANCH_DELIVERY"?r.roundNo:null,cancelled:false,vehicleId:r.vehicleId,driverId:r.driverId,routeRevisionId:r.routeRevisionId,templateRevisionId:r.id,loadingAt:at(r.loadingMinute),departureAt:at(r.departureMinute),arrivalAt:at(r.arrivalMinute===null?null:r.arrivalMinute+r.arrivalDayOffset*1440),occupancyStart:at(r.occupancyStartMinute),occupancyEnd:at(r.occupancyEndMinute),bufferMinutes:r.bufferMinutes,notes:r.notes,stops:r.routeRevision.routeStop_routeRevisionId.map(s=>({branchId:s.branchId,categoryIds:r.templateStopCategory_templateRevisionId.filter(c=>c.routeStopId===s.id).map(c=>c.categoryId)}))});generated++;
+      // Readable code: template code plus the Buddhist-era date (ddmmyy); the hash form is the fallback when that code is taken.
+      const readable=`${template.code.slice(0,56)}-${i.serviceDate.slice(8,10)}${i.serviceDate.slice(5,7)}${String(Number(i.serviceDate.slice(0,4))+543).slice(2)}`;
+      const code=trips.some(t=>t.code===readable)||await tx.trip.findFirst({where:{code:readable}})?`GEN-${tripId}`:readable;
+      trips.push({tripId,code,kind:r.kind,roundNo:r.kind==="BRANCH_DELIVERY"?r.roundNo:null,cancelled:false,vehicleId:r.vehicleId,driverId:r.driverId,routeRevisionId:r.routeRevisionId,templateRevisionId:r.id,loadingAt:at(r.loadingMinute),departureAt:at(r.departureMinute),arrivalAt:at(r.arrivalMinute===null?null:r.arrivalMinute+r.arrivalDayOffset*1440),occupancyStart:at(r.occupancyStartMinute),occupancyEnd:at(r.occupancyEndMinute),bufferMinutes:r.bufferMinutes,notes:r.notes,stops:r.routeRevision.routeStop_routeRevisionId.map(s=>({branchId:s.branchId,categoryIds:r.templateStopCategory_templateRevisionId.filter(c=>c.routeStopId===s.id).map(c=>c.categoryId)}))});generated++;
     }
     if(!generated&&plan&&latest)return {planId:plan.id,revisionId:latest.id,version:plan.version,generated:0};
     const result=await saveDraftTransaction(tx,actorId,idem,{serviceDate:i.serviceDate,expectedVersion:i.expectedVersion,trips,reason:i.reason});return {...result,generated};
   });
+}
+
+/** Stable trip identity for one template on one service date, so generating twice never duplicates a trip. */
+export function templateTripId(templateId:string,serviceDateValue:string){return createHash("sha256").update(`${templateId}:${serviceDateValue}`).digest("hex").slice(0,36);}
+/** Number of active templates with a revision in effect on the date and its weekday (what generation would use). */
+export async function templatesInEffect(tx:Transaction,date:Date){
+  const templates=await tx.scheduleTemplate.findMany({where:{active:true},select:{id:true}});let count=0;
+  for(const template of templates){
+    const r=await tx.templateRevision.findFirst({where:{templateId:template.id,effectiveFrom:{lte:date},OR:[{effectiveTo:null},{effectiveTo:{gte:date}}]},orderBy:{number:"desc"},include:{templateWeekday_templateRevisionId:true}});
+    if(r&&r.templateWeekday_templateRevisionId.some(w=>w.weekday===(date.getUTCDay()||7)))count++;
+  }
+  return count;
 }

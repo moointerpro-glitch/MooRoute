@@ -28,7 +28,7 @@ export async function planningData(db:PrismaClient,actorId:string,dateValue:stri
   const issues:string[]=[];
   const reservations=await tx.vehicleReservation.findMany({where:{active:true,tripRevision:{planRevisionId:{not:plan?.publishedRevisionId??""}}}});
   for(const t of trips.filter(t=>!t.cancelled)){
-   if(!t.vehicleId||!t.departureAt||!t.occupancyStart||!t.occupancyEnd)issues.push(`${t.code}: ยังไม่ระบุรถ เวลาออก หรือช่วงใช้รถครบ`);
+   if(!t.vehicleId||!t.departureAt||!t.occupancyStart||!t.occupancyEnd)issues.push(`${t.code}: ยังไม่ระบุรถ เวลาออก หรือเวลาถึงปลายทาง (ช่วงจองรถ) ให้ครบ`);
    if(t.occupancyStart&&t.occupancyEnd&&t.vehicleId){
     const interval={start:new Date(t.occupancyStart),end:new Date(Date.parse(t.occupancyEnd)+t.bufferMinutes*60000)};
     if(reservations.some(r=>r.vehicleId===t.vehicleId&&overlaps(interval,{start:r.startAt,end:r.endAt})))issues.push(`${t.code}: รถมีการจองทับซ้อนกับแผนที่เผยแพร่`);

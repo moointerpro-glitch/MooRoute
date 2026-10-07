@@ -5,6 +5,7 @@ import { serviceDate } from "../domain/planning";
 import { instantOffset, offsetInstant, offsetLabel, stopMatches, validateSearchInput, searchTripKinds, type SearchInput, type SearchTripKind } from "../domain/search";
 import { principal, requireCapability, type Principal } from "../auth/permissions";
 import type { Transaction } from "./transaction";
+import { departureStatus } from "../../lib/departure-status";
 
 export const SEARCH_DIRECTORY_PAGE = 20;
 const readOptions = { isolationLevel: "RepeatableRead" as const, timeout: 20_000 };
@@ -107,7 +108,7 @@ const tripInclude = {
 } satisfies Prisma.TripRevisionInclude;
 type LoadedTrip = Prisma.TripRevisionGetPayload<{ include: typeof tripInclude }>;
 
-function presentTrip(date: string, t: LoadedTrip, p: Principal, branchIds: string[], categoryIds: string[]) {
+function presentTrip(date: string, t: LoadedTrip, p: Principal, branchIds: string[], categoryIds: string[], departedAt: string | null = null, now = new Date()) {
   const contacts = contactPolicy(p);
   const time = (value: Date | null) => value ? { at: value.toISOString(), offset: instantOffset(date, value), label: offsetLabel(instantOffset(date, value)) } : null;
   const stops = t.tripStop_tripRevisionId.map((s) => {
@@ -126,12 +127,22 @@ function presentTrip(date: string, t: LoadedTrip, p: Principal, branchIds: strin
     tripId: t.tripId, revisionId: t.id, code: t.trip.code, kind: t.kind, roundNo: t.roundNo, cancelled: t.cancelled,
     routeName: t.routeRevision?.name ?? null, notes: t.notes,
     loading: time(t.loadingAt), departure: time(t.departureAt), arrival: time(t.arrivalAt),
+    // D225: "departed" only when a departure was recorded; otherwise a plan-based status (see departure-status.ts).
+    status: departureStatus({ cancelled: t.cancelled, departureAt: t.departureAt?.toISOString() ?? null, departedAt }, now),
     vehicle: v ? { plate: v.plateNormalized, province: v.province, brand: v.brand, model: v.model, color: v.color, typeName: v.type.name, wheelCount: v.wheelCount ?? v.type.wheelCount, storage: v.storageCondition.name, capacity: v.capacity?.toString() ?? null, capacityUnit: v.capacityUnit } : null,
     driver: contacts.driver(t.driverId) && t.driver ? { visible: true as const, name: t.driver.name, phone: t.driver.phone } : { visible: false as const, name: null, phone: null },
     stops, matchedSequences: stops.filter((s) => s.matched).map((s) => s.sequence),
   };
 }
 export type SearchRow = ReturnType<typeof presentTrip>;
+
+/** Recorded departures (the existing "บันทึกรถออก" action) per trip; the first record wins. */
+async function recordedDepartures(tx: Transaction, tripIds: string[]) {
+  const rows = tripIds.length ? await tx.auditLog.findMany({ where: { action: "TRIP_DEPARTED", entityType: "Trip", entityId: { in: tripIds } }, orderBy: { createdAt: "asc" }, select: { entityId: true, createdAt: true } }) : [];
+  const map = new Map<string, string>();
+  for (const r of rows) if (!map.has(r.entityId)) map.set(r.entityId, r.createdAt.toISOString());
+  return map;
+}
 
 export async function searchTrips(db: PrismaClient, actorId: string, rawInput: SearchInput) {
   const input = validateSearchInput(rawInput), date = serviceDate(input.serviceDate);
@@ -171,7 +182,8 @@ export async function searchTrips(db: PrismaClient, actorId: string, rawInput: S
       ORDER BY (${column} IS NULL) ASC, ${column} ${direction}, t.tripId ASC LIMIT ${input.pageSize} OFFSET ${(input.page - 1) * input.pageSize}`;
     const facetRows = await tx.$queryRaw<Array<{ at: Date | null; trips: bigint }>>`SELECT ${column} AS at, COUNT(*) AS trips ${from} ${where(common)} GROUP BY ${column}`;
     const loaded = ids.length ? await tx.tripRevision.findMany({ where: { id: { in: ids.map((r) => r.id) } }, include: tripInclude }) : [];
-    const rows = ids.map(({ id }) => presentTrip(input.serviceDate, loaded.find((t) => t.id === id)!, p, branchIds, input.categoryIds));
+    const departed = await recordedDepartures(tx, loaded.map((t) => t.tripId));
+    const rows = ids.map(({ id }) => { const t = loaded.find((x) => x.id === id)!; return presentTrip(input.serviceDate, t, p, branchIds, input.categoryIds, departed.get(t.tripId) ?? null); });
     const offsets = [...new Set(facetRows.flatMap((f) => f.at ? [instantOffset(input.serviceDate, f.at)] : []))].sort((a, b) => a - b);
     const sameDay = offsets.filter((o) => o >= 0 && o < 1440);
     const totalNumber = Number(total), pageCount = Math.max(1, Math.ceil(totalNumber / input.pageSize));
@@ -207,7 +219,7 @@ function consignEligibility(p: Principal, trip: SearchRow, branchId: string | nu
   if (trip.kind !== "BRANCH_DELIVERY") reasons.push("ฝากของได้เฉพาะรอบส่งสินค้าสาขา");
   if (!branchId || !trip.stops.some((s) => s.branchId === branchId)) reasons.push("กรุณาเลือกสาขาปลายทางที่รอบรถนี้แวะส่ง");
   if (!trip.departure) reasons.push("รอบรถนี้ยังไม่ระบุเวลาออกรถ");
-  else if (new Date(trip.departure.at) <= now) reasons.push("รอบรถนี้ออกรถไปแล้ว");
+  else if (new Date(trip.departure.at) <= now) reasons.push("เลยเวลาออกรถตามแผนของรอบนี้แล้ว");
   return { eligible: reasons.length === 0, reasons };
 }
 
@@ -222,7 +234,7 @@ export async function tripDetail(db: PrismaClient, actorId: string, tripId: stri
     // Out-of-scope trips look identical to missing ones so their existence is not disclosed.
     requireCondition(trip && revision && tripVisibility(p).allows({ kind: revision.kind, driverId: revision.driverId, stops: revision.tripStop_tripRevisionId }), "NOT_FOUND", "ไม่พบรอบรถหรือคุณไม่มีสิทธิ์เข้าถึง");
     const date = trip.plan.serviceDate.toISOString().slice(0, 10);
-    const row = presentTrip(date, revision, p, branchId ? [branchId] : [], []);
+    const row = presentTrip(date, revision, p, branchId ? [branchId] : [], [], (await recordedDepartures(tx, [tripId])).get(tripId) ?? null, options.now ?? new Date());
     return {
       ...row, serviceDate: date, branchId, published: { number: trip.plan.publishedRevision!.number, publishedAt: trip.plan.publishedRevision!.publishedAt?.toISOString() ?? null },
       stops: row.stops.map((s) => {
