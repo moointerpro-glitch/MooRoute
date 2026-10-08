@@ -18,6 +18,27 @@ test("real login, Thai backend, create/edit/delete masters and server validation
   await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
   await page.goto("/admin/vehicle-types?q=BROWSER-WHEELS");await page.getByRole("link",{name:"ดู / แก้ไข"}).click();await expect(wheels).toHaveValue("4");await page.reload();await expect(wheels).toHaveValue("4");
   await wheels.fill("6");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบแก้จำนวนล้อเต็ม");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");await page.reload();await expect(wheels).toHaveValue("6");
+  // D231: a filtered list survives editing; cancel keeps input, discard does not save it.
+  await page.locator('[name="name"]').fill("ยังไม่ได้บันทึก (สังเคราะห์)");
+  await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบกรณีบันทึกไม่สำเร็จ");
+  await page.route("**/api/masters/vehicle-types",route=>route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"ระบบทดสอบไม่พร้อมชั่วคราว"})}));
+  await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();
+  await expect(page.locator("form .form-error")).toContainText("ระบบทดสอบไม่พร้อมชั่วคราว");
+  await expect(page.locator('[name="name"]')).toHaveValue("ยังไม่ได้บันทึก (สังเคราะห์)");
+  await page.unroute("**/api/masters/vehicle-types");
+  await page.evaluate(()=>history.back());
+  await expect(page.getByRole("dialog",{name:"มีข้อมูลที่ยังไม่บันทึก"})).toBeVisible();
+  await page.getByRole("button",{name:"แก้ไขต่อ",exact:true}).click();
+  await expect(page.locator('[name="name"]')).toHaveValue("ยังไม่ได้บันทึก (สังเคราะห์)");
+  await page.getByRole("link",{name:"กลับรายการประเภทรถ",exact:true}).first().click();
+  await expect(page.getByRole("dialog",{name:"มีข้อมูลที่ยังไม่บันทึก"})).toBeVisible();
+  await page.getByRole("button",{name:"แก้ไขต่อ",exact:true}).click();
+  await expect(page.locator('[name="name"]')).toHaveValue("ยังไม่ได้บันทึก (สังเคราะห์)");
+  await page.getByRole("link",{name:"กลับรายการประเภทรถ",exact:true}).first().click();
+  await page.getByRole("button",{name:"ออกโดยไม่บันทึก"}).click();
+  await expect(page).toHaveURL(/\/admin\/vehicle-types\?q=BROWSER-WHEELS/);
+  await page.getByRole("link",{name:"ดู / แก้ไข"}).click();
+  await expect(page.locator('[name="name"]')).toHaveValue("รถสังเคราะห์ทดสอบจำนวนล้อ");
   await page.goto("/admin/vehicles/new");
   await page.locator('[name="plateNormalized"]').fill("ทด-ล้อ4");await page.locator('[name="province"]').fill("จังหวัดสังเคราะห์");
   await page.locator('[name="typeId"]').selectOption({label:"BROWSER-WHEELS · รถสังเคราะห์ทดสอบจำนวนล้อ"});await page.locator('[name="storageConditionId"]').selectOption({index:1});

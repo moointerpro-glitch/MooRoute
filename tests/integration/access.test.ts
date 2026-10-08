@@ -15,7 +15,7 @@ import { saveConsignmentDraft, submitConsignment, consignmentDetail, listConsign
 import { saveDraft, publishPlan } from "../../src/server/services/plans";
 import { planningData } from "../../src/server/services/planning-read";
 import { navigationAccess } from "../../src/lib/navigation";
-import { updateUser } from "../../src/server/services/users";
+import { createUser } from "../../src/server/services/users";
 import { seedMasters, synthetic, completeDraft } from "../fixtures/synthetic";
 
 const db = createDatabase(testDatabaseConfiguration(process.env)), accounts: Record<string, string> = {};
@@ -64,54 +64,75 @@ test("D216: every role creates/submits/cancels its own request without expanding
   }
 });
 
-test("host bootstrap administrator can consign after assigning its own sender department", async () => {
+test("D233: bootstrap administrator chooses a sender department without account membership", async () => {
   const account = await provisionAccount(db, { email: "access-bootstrap-admin@synthetic.test", name: "ผู้ดูแลแรกทดสอบ", password: randomBytes(24).toString("base64url"), role: "ADMINISTRATOR", scope: "GLOBAL" });
-  const actor = account.id;
-  const before = await db.$transaction(tx => principal(tx, actor));
-  assert.equal(before.permissions.has("consignment.create"), true);
-  assert.equal(before.global, true);
-  assert.equal((await consignmentFormOptions(db, actor)).departments.length, 0);
-  await assert.rejects(saveConsignmentDraft(db, actor, key(), draft()), denied("FORBIDDEN"));
-  const user = await db.user.findUniqueOrThrow({ where: { id: actor } });
-  await updateUser(db, actor, key(), { id: actor, expectedVersion: user.version, name: user.displayName, typeCode: "ADMINISTRATOR", departmentId, reason: "กำหนดแผนกผู้ดูแลแรกเพื่อทดสอบฝากส่ง" });
-  assert.deepEqual((await consignmentFormOptions(db, actor)).departments.map(d => d.id), [departmentId]);
-  const saved = await saveConsignmentDraft(db, actor, key(), draft());
-  const submitted = await submitConsignment(db, actor, key(), { id: saved.id, expectedVersion: saved.version });
-  assert.equal(submitted.status, "PENDING_REVIEW");
-  await assert.rejects(assignConsignment(db, actor, key(), { id: saved.id, expectedVersion: submitted.version, tripId: "access-trip-1", stopSequence: 1, reason: "ทดสอบการจัดรถให้ตัวเอง" }), denied("SELF_REVIEW"));
+  const actor=account.id;
+  assert.equal(await db.userScope.count({where:{userId:actor,kind:"DEPARTMENT"}}),0);
+  assert.ok((await consignmentFormOptions(db,actor)).departments.some(d=>d.id===departmentId));
+  const saved=await saveConsignmentDraft(db,actor,key(),draft());
+  const submitted=await submitConsignment(db,actor,key(),{id:saved.id,expectedVersion:saved.version});
+  assert.equal(submitted.status,"PENDING_REVIEW");
+  // D235: the administrator reviews a request they created themselves.
+  assert.equal((await assignConsignment(db,actor,key(),{id:saved.id,expectedVersion:submitted.version,tripId:"access-trip-1",stopSequence:1,reason:"ทดสอบการจัดรถให้ตัวเอง"})).status,"ASSIGNED");
+  await cancelConsignment(db,actor,key(),{id:saved.id,expectedVersion:submitted.version+1,reason:"ปิดรายการทดสอบ"});
 });
 
-test("D216: a sender needs an assigned active department; contact-safe form and role-filtered navigation", async () => {
-  assert.equal((await consignmentFormOptions(db, accounts.UNCONFIGURED)).departments.length, 0);
-  await assert.rejects(saveConsignmentDraft(db, accounts.UNCONFIGURED, key(), draft()), denied("FORBIDDEN"));
-  await assert.rejects(saveConsignmentDraft(db, accounts.DRIVER, key(), { ...draft(), departmentId: "synthetic-department" }), denied("FORBIDDEN"));
-  for (const role of ["DRIVER", "WAREHOUSE", "BRANCH_RECEIVER", "REQUESTER"]) {
-    const options = await consignmentFormOptions(db, accounts[role]);
-    assert.deepEqual(options.departments.map((d) => d.id), [departmentId]);
-    assert.equal(options.branches.find((b) => b.id === A)!.contactPhone, null);
-    const p = await db.$transaction((tx) => principal(tx, accounts[role]));
-    const menu = navigationAccess(p.permissions, p.global);
-    assert.ok(menu.canSearch && menu.canConsign && menu.canHistory);
-    assert.equal(menu.canOpenBackend, false);
-    await assert.rejects(planningData(db, accounts[role], date), denied("FORBIDDEN"));
+test("D233: every sender can select active departments while contact and history access stay scoped",async()=>{
+  for(const role of ["DRIVER","WAREHOUSE","BRANCH_RECEIVER","REQUESTER"]){
+    const options=await consignmentFormOptions(db,accounts[role]);
+    assert.deepEqual(options.departments.map(d=>d.id).sort(),[departmentId,"synthetic-department"].sort());
+    assert.equal(options.branches.find(b=>b.id===A)!.contactPhone,null);
+    const p=await db.$transaction(tx=>principal(tx,accounts[role])),menu=navigationAccess(p.permissions,p.global);
+    assert.ok(menu.canSearch&&menu.canConsign&&menu.canHistory);assert.equal(menu.canOpenBackend,false);
+    await assert.rejects(planningData(db,accounts[role],date),denied("FORBIDDEN"));
+    const selected=await saveConsignmentDraft(db,accounts[role],key(),{...draft(),departmentId:"synthetic-department"});
+    assert.equal((await consignmentDetail(db,accounts[role],selected.id)).mine,true);
   }
-  const email = "access-unconfigured@synthetic.test";
-  await assignAccountDepartment(db, email, departmentId, "กำหนดแผนกทดสอบ");
-  await assignAccountDepartment(db, email, departmentId, "กำหนดแผนกทดสอบซ้ำ");
-  assert.equal(await db.userScope.count({ where: { userId: accounts.UNCONFIGURED, kind: "DEPARTMENT", departmentId } }), 1);
-  assert.equal(await db.auditLog.count({ where: { entityId: accounts.UNCONFIGURED, action: "LOCAL_OPERATOR_DEPARTMENT_ASSIGNED" } }), 1);
-  const actor = accounts.UNCONFIGURED, input = draft(), draftKey = key();
-  const saved = await saveConsignmentDraft(db, actor, draftKey, input);
-  const submitKey = key(), submitInput = { id: saved.id, expectedVersion: saved.version };
-  await submitConsignment(db, actor, submitKey, submitInput);
-  await db.userScope.deleteMany({ where: { userId: actor, kind: "DEPARTMENT" } });
-  await assert.rejects(saveConsignmentDraft(db, actor, draftKey, input), denied("FORBIDDEN"), "revoked department blocks draft replay");
-  await assert.rejects(submitConsignment(db, actor, submitKey, submitInput), denied("FORBIDDEN"), "revoked department blocks submit replay");
+  const noScope=await createUser(db,accounts.ADMINISTRATOR,key(),{name:"ผู้ฝากไม่มีแผนก (สังเคราะห์)",email:"no-scope@synthetic.test",typeCode:"REQUESTER"});
+  const actor=noScope.id,input={...draft(),departmentId:"synthetic-department"},draftKey=key();
+  const saved=await saveConsignmentDraft(db,actor,draftKey,input);
+  const changed=await saveConsignmentDraft(db,actor,key(),{...input,id:saved.id,expectedVersion:saved.version,departmentId});
+  assert.equal((await db.consignment.findUniqueOrThrow({where:{id:saved.id}})).departmentId,departmentId);
+  const log=await db.auditLog.findFirstOrThrow({where:{entityId:saved.id,action:"CONSIGNMENT_DRAFT_SAVED"}});
+  assert.deepEqual([(log.after as Record<string,unknown>).previousDepartmentId,(log.after as Record<string,unknown>).departmentId],["synthetic-department",departmentId]);
+  const submitted=await submitConsignment(db,actor,key(),{id:saved.id,expectedVersion:changed.version});
+  assert.equal(submitted.status,"PENDING_REVIEW");
+  assert.equal(await db.userScope.count({where:{userId:actor}}),0,"selection never grants scopes");
+  assert.equal((await consignmentDetail(db,accounts.REQUESTER,saved.id)).mine,false,"existing department readers see submitted requests");
+  const other=await saveConsignmentDraft(db,accounts.REQUESTER,key(),draft());
+  await submitConsignment(db,accounts.REQUESTER,key(),{id:other.id,expectedVersion:other.version});
+  await assert.rejects(consignmentDetail(db,actor,other.id),denied("FORBIDDEN"));
+  assert.equal((await listConsignments(db,actor,{...history,query:other.code})).rows.length,0);
+  const file=await addAttachment(db,accounts.REQUESTER,key(),{consignmentId:other.id,displayName:"ทดสอบ.pdf",contentType:"application/pdf",sizeBytes:10,sha256:"a".repeat(64),storageKey:"department-scope-file"});
+  await assert.rejects(attachmentForDownload(db,actor,file.id),denied("FORBIDDEN"));
+  await assert.rejects(saveConsignmentDraft(db,actor,key(),{...input,id:saved.id,expectedVersion:submitted.version}),denied("INVALID_TRANSITION"));
 });
 
-test("D216: self-review and plan-based self-reassignment are blocked, including administrator and replays", async () => {
-  for (const role of ["DISPATCHER", "ADMINISTRATOR"]) {
-    const actor = accounts[role], d = await saveConsignmentDraft(db, actor, key(), draft());
+test("D233: missing, fabricated and inactive departments are rejected, including submit and replay",async()=>{
+  const closed="access-closed-dept";
+  await db.department.create({data:{id:closed,code:"ACCESS-CLOSED",name:"แผนกปิด (สังเคราะห์)",active:false}});
+  const actor=accounts.UNCONFIGURED;
+  assert.ok(!(await consignmentFormOptions(db,actor)).departments.some(d=>d.id===closed));
+  await assert.rejects(saveConsignmentDraft(db,actor,key(),{...draft(),departmentId:""}),denied("REQUIRED"));
+  for(const id of [closed,"missing-department"])await assert.rejects(saveConsignmentDraft(db,actor,key(),{...draft(),departmentId:id}),denied("INACTIVE_REFERENCE"));
+  // Provisioning remains available for read membership, but it is not a prerequisite for creation.
+  await assignAccountDepartment(db,"access-unconfigured@synthetic.test",departmentId,"กำหนดขอบเขตทดสอบ");
+  const input=draft(),draftKey=key(),saved=await saveConsignmentDraft(db,actor,draftKey,input),submitKey=key(),submitInput={id:saved.id,expectedVersion:saved.version};
+  await db.userScope.deleteMany({where:{userId:actor,kind:"DEPARTMENT"}});
+  assert.equal((await saveConsignmentDraft(db,actor,draftKey,input)).id,saved.id);
+  await db.department.update({where:{id:departmentId},data:{active:false}});
+  try{await assert.rejects(submitConsignment(db,actor,submitKey,submitInput),denied("INACTIVE_REFERENCE"));}finally{await db.department.update({where:{id:departmentId},data:{active:true}});}
+  await submitConsignment(db,actor,submitKey,submitInput);
+  await db.department.update({where:{id:departmentId},data:{active:false}});
+  try{
+    await assert.rejects(saveConsignmentDraft(db,actor,draftKey,input),denied("INACTIVE_REFERENCE"));
+    await assert.rejects(submitConsignment(db,actor,submitKey,submitInput),denied("INACTIVE_REFERENCE"));
+  }finally{await db.department.update({where:{id:departmentId},data:{active:true}});}
+});
+
+test("D216/D235: a planner cannot review their own request, including replays and plan publication; the administrator can", async () => {
+  {
+    const actor = accounts.DISPATCHER, d = await saveConsignmentDraft(db, actor, key(), draft());
     const s = await submitConsignment(db, actor, key(), { id: d.id, expectedVersion: d.version });
     const assign = { id: d.id, expectedVersion: s.version, tripId: "access-trip-1" };
     const idem = key();
@@ -121,16 +142,54 @@ test("D216: self-review and plan-based self-reassignment are blocked, including 
     const detail = await consignmentDetail(db, actor, d.id);
     assert.ok(!detail.actions.includes("assign"));
     assert.ok(detail.blockedActions.some((a) => a.action === "assign" && a.reason.includes("อีกคน")));
-    const reviewer = role === "DISPATCHER" ? accounts.ADMINISTRATOR : accounts.DISPATCHER;
-    const a = await assignConsignment(db, reviewer, key(), assign);
+    const a = await assignConsignment(db, accounts.ADMINISTRATOR, key(), assign);
     await assert.rejects(reassignConsignment(db, actor, key(), { id: d.id, expectedVersion: a.version, tripId: "access-trip-2", reason: "ย้ายคำขอตนเอง" }), denied("SELF_REVIEW"));
   }
-  const actor = accounts.ADMINISTRATOR;
+  {
+    // D235: nothing is reserved from the administrator, including their own request.
+    const actor = accounts.ADMINISTRATOR, d = await saveConsignmentDraft(db, actor, key(), draft());
+    const s = await submitConsignment(db, actor, key(), { id: d.id, expectedVersion: d.version });
+    const detail = await consignmentDetail(db, actor, d.id);
+    assert.ok(detail.actions.includes("assign") && detail.actions.includes("reject"));
+    assert.ok(!detail.blockedActions.some((a) => a.reason.includes("อีกคน")));
+    const a = await assignConsignment(db, actor, key(), { id: d.id, expectedVersion: s.version, tripId: "access-trip-1" });
+    const moved = await reassignConsignment(db, actor, key(), { id: d.id, expectedVersion: a.version, tripId: "access-trip-2", reason: "ผู้ดูแลระบบย้ายคำขอของตนเอง" });
+    assert.equal(moved.status, "ASSIGNED");
+    assert.equal((await db.auditLog.findFirstOrThrow({ where: { entityId: d.id, action: "CONSIGNMENT_REASSIGNED" } })).actorId, actor, "the audit log still records who acted");
+  }
   const plan = await db.dailyPlan.findUniqueOrThrow({ where: { serviceDate: new Date(date) } });
   const d = await saveDraft(db, accounts.DISPATCHER, key(), completeDraft(date, "access", plan.version));
   const rows = await db.consignment.findMany({ where: { status: "ASSIGNED", code: { startsWith: "FS-" }, requestedServiceDate: new Date(date) } });
-  await assert.rejects(publishPlan(db, actor, key(), { revisionId: d.revisionId, expectedVersion: d.version, reason: "ย้ายผ่านแผนทดสอบ", reassignments: rows.map((c) => ({ consignmentId: c.id, expectedVersion: c.version, tripId: "access-trip-1", stopSequence: 1 })) }), denied("SELF_REVIEW"));
-  assert.equal((await db.dailyPlan.findUniqueOrThrow({ where: { id: plan.id } })).publishedRevisionId, plan.publishedRevisionId);
+  const publish = (actor: string) => publishPlan(db, actor, key(), { revisionId: d.revisionId, expectedVersion: d.version, reason: "ย้ายผ่านแผนทดสอบ", reassignments: rows.map((c) => ({ consignmentId: c.id, expectedVersion: c.version, tripId: "access-trip-1", stopSequence: 1 })) });
+  assert.ok(rows.some((c) => c.requesterId === accounts.DISPATCHER) && rows.some((c) => c.requesterId === accounts.ADMINISTRATOR));
+  await assert.rejects(publish(accounts.DISPATCHER), denied("SELF_REVIEW"));
+  assert.equal((await db.dailyPlan.findUniqueOrThrow({ where: { id: plan.id } })).publishedRevisionId, plan.publishedRevisionId, "a refused publication leaves the published plan in place");
+  await publish(accounts.ADMINISTRATOR);
+  assert.equal((await db.dailyPlan.findUniqueOrThrow({ where: { id: plan.id } })).publishedRevisionId, d.revisionId, "the administrator may move their own request through a plan");
+});
+
+test("D235: the administrator is not limited by scope rows or by who created a request", async () => {
+  const actor = accounts.ADMINISTRATOR, own = accounts.REQUESTER;
+  const p = await db.$transaction((tx) => principal(tx, actor));
+  assert.deepEqual([p.admin, p.global], [true, true]);
+  assert.equal((await db.$transaction((tx) => principal(tx, accounts.DISPATCHER))).admin, false);
+  // Scope rows no longer decide what the administrator may touch.
+  const scopes = await db.userScope.findMany({ where: { userId: actor } });
+  await db.userScope.deleteMany({ where: { userId: actor } });
+  try {
+    assert.equal((await db.$transaction((tx) => principal(tx, actor))).global, true);
+    for (const [capability, scope] of [["consignment.receive", { branchId: B }], ["consignment.warehouse", { warehouseId: "synthetic-warehouse" }], ["trip.move", { driverId: "access-driver" }], ["plan.read", undefined]] as const) await db.$transaction((tx) => authorize(tx, actor, capability, scope));
+    assert.equal((await planningData(db, actor, date)).serviceDate, date);
+    const d = await saveConsignmentDraft(db, own, key(), draft());
+    const edited = await saveConsignmentDraft(db, actor, key(), { ...draft(), id: d.id, expectedVersion: d.version, senderName: "แก้โดยผู้ดูแลระบบ (สังเคราะห์)" });
+    const s = await submitConsignment(db, actor, key(), { id: d.id, expectedVersion: edited.version });
+    assert.equal((await db.consignment.findUniqueOrThrow({ where: { id: d.id } })).requesterId, own, "the request keeps its requester");
+    assert.equal((await cancelConsignment(db, actor, key(), { id: d.id, expectedVersion: s.version, reason: "ผู้ดูแลระบบยกเลิกแทน" })).status, "CANCELLED");
+  } finally { await db.userScope.createMany({ data: scopes }); }
+  // Other account types gain nothing: a planner still cannot touch another person's draft.
+  const other = await saveConsignmentDraft(db, own, key(), draft());
+  await assert.rejects(saveConsignmentDraft(db, accounts.DISPATCHER, key(), { ...draft(), id: other.id, expectedVersion: other.version }), denied("NOT_FOUND"));
+  await assert.rejects(db.$transaction((tx) => authorize(tx, accounts.WAREHOUSE, "consignment.receive", { branchId: B })), denied("FORBIDDEN"));
 });
 
 test("D221: retired codes become the absorbing type with audit; scope still decides whose records an account may touch", async () => {

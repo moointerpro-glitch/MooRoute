@@ -1,3 +1,4 @@
+import {adminReturnHref} from "@/lib/admin-return";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePageActor } from "@/server/auth/session";
@@ -12,13 +13,13 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "ตรวจสอบชุดนำเข้า" };
 const statusLabels: Record<string, string> = { STAGED: "รอแก้ไขหรือตัดสินใจ", VALIDATED: "พร้อมนำเข้า", COMMITTED: "นำเข้าแล้ว", REJECTED: "ยกเลิก" };
 
-export default async function ImportBatchPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ existing?: string }> }) {
-  const actor = await requirePageActor(), { id } = await params, { existing } = await searchParams;
+export default async function ImportBatchPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ existing?: string;returnTo?:string }> }) {
+  const actor = await requirePageActor(), { id } = await params, { existing,returnTo } = await searchParams;
   let d;
   try { d = await importBatchDetail(getDatabase(), actor.id, id); }
   catch (error) { if (error instanceof DomainError && ["NOT_FOUND", "FORBIDDEN"].includes(error.code)) notFound(); throw error; }
   return <>
-    <p><Link href="/admin/imports">← กลับไปหน้านำเข้าข้อมูล</Link></p>
+    <p><Link className="planning-back" href={adminReturnHref(returnTo,"/admin/imports")}>← กลับไปหน้านำเข้าข้อมูล</Link></p>
     <h1>{d.sourceEdition}</h1>
     <p className="muted">{importKinds[d.kind].title} · ไฟล์ {d.sourceName} · {d.rowCount} แถว · อัปโหลดโดย {d.createdBy} เมื่อ {thaiDateTime(d.createdAt)} น.</p>
     <p><span className="status-badge">{statusLabels[d.status] ?? d.status}</span>{d.committedAt ? ` นำเข้าเมื่อ ${thaiDateTime(d.committedAt)} น.` : ""}{d.rejectionReason ? ` เหตุผล: ${d.rejectionReason}` : ""}</p>

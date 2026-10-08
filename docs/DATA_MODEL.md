@@ -23,7 +23,7 @@ Use stable primary keys, created_at, updated_at and an optimistic version where 
 - TripStopCategory: explicit many-to-many stop/category relationship used by coverage and search. Do not store branches or categories as comma-separated strings.
 - VehicleReservation: vehicle, trip, start/end occupancy instants, buffer policy and active state. Track assignment changes and revisions.
 - Consignment and ConsignmentItem: requester/scope, source, destination, receipt mode, item category, item name, decimal quantity and unit, state, current assignment and optimistic version.
-- ConsignmentPackage: stable package ID, sequence, total, optional measured weight/unit and current custody state.
+- ConsignmentPackage: stable package ID, sequence, total, optional measured weight/unit and current custody state. D234: one row per physical piece; the packaging kind and contents of piece N come from the packaging lines in the frozen request document (`Consignment.draftItems.packaging`, document version 2), expanded in line order. `Consignment.packageCount` is the total of those lines and `packageWeight`/`packageWeightUnit` are null for requests saved after D234. No migration.
 - ConsignmentAssignment and AddressSnapshot: trip and destination stop, frozen sender/recipient/address, approval time, previous assignment and reason.
 - ConsignmentEvent and ReceiptLine: actor, timestamp, event type, package or item, quantity/unit, discrepancy, return and idempotency key. Corrections append compensating events.
 - Attachment: private storage key, content type, size, owning record, checksum, uploader and access metadata.

@@ -52,9 +52,9 @@ Combine different filters using AND. Selected categories use OR, but the matched
 
 ## Consignment lifecycle
 
-An authenticated requester selects a source warehouse, one destination branch, desired service date/round, item category, item quantities and units, package count, sender/recipient contacts and optional notes/files. Destinations in different branches require separate consignments. Marketing media, documents and equipment are distinct consignment categories, not food delivery categories.
+An authenticated requester selects a source warehouse, one destination branch, desired service date/round, what the goods are packed in (D234: packaging kind, count, contents and optional weight per line), sender/recipient contacts and optional notes/files. An item list with category, quantities and units is optional and required only when the branch must count the contents. Destinations in different branches require separate consignments. Marketing media, documents and equipment are distinct consignment categories, not food delivery categories.
 
-An eligible assignment points to an actual published trip that visits the destination, is still accepting consignments and has compatible known limits. A template or a route ID alone is insufficient. The dispatcher may assign during review. Freeze the receipt mode before submission: packages by default, or packages plus item quantities for detailed receipt.
+An eligible assignment points to an actual published trip that visits the destination, is still accepting consignments and has compatible known limits (D234: weight is compared only against a capacity stated in kilograms; other units or an unstated weight are not checked and never block). A template or a route ID alone is insufficient. The dispatcher may assign during review. Freeze the receipt mode before submission: packages by default, or packages plus item quantities for detailed receipt.
 
 Use an explicit transition matrix for draft, pending_review, rejected, assigned, warehouse_received, loaded, in_transit, partially_received, issue, received, closed, cancelled and returned. Specify authorized actors and prerequisites for every edge. Do not offer unsupported arbitrary status editing. Requesters can cancel a draft or pending request; later cancellation requires authorized dispatch handling and a reason. Loaded shipments cannot disappear by deleting the parent trip.
 
@@ -72,7 +72,7 @@ Support A4 with four labels per page and 100 x 150 mm labels. Reprinting the sam
 
 ## Roles
 
-Current owner policy D215/D216/D221: five account types (พนักงานทั่วไป, พนักงานสาขา, คลังและรถขนส่ง, ผู้วางแผนขนส่ง, ผู้ดูแลระบบ; retired code DRIVER maps to คลังและรถขนส่ง and SUPERVISOR to ผู้วางแผนขนส่ง) replace the seven roles. All types can view company-wide published trips and general branch data, and create their own consignments after explicit department assignment. Contacts and operational history/files remain scoped. The administrator holds all operational capabilities and can read other users' drafts, but draft editing/submission stays with the requester. Assignment/rejection/reassignment of one's own request is forbidden even for administrators. See [PERMISSIONS.md](PERMISSIONS.md) for the current matrix.
+Current owner policy D215/D216/D221: five account types (พนักงานทั่วไป, พนักงานสาขา, คลังและรถขนส่ง, ผู้วางแผนขนส่ง, ผู้ดูแลระบบ; retired code DRIVER maps to คลังและรถขนส่ง and SUPERVISOR to ผู้วางแผนขนส่ง) replace the seven roles. All types can view company-wide published trips and general branch data, and create their own consignments by selecting an active sender department per request (D233), without prior account department assignment. Contacts and operational history/files remain scoped. The administrator is not restricted (D235): all operational capabilities, no scope limit, may edit/submit/cancel another person's request and review their own. Assignment/rejection/reassignment of one's own request stays forbidden for planners. See [PERMISSIONS.md](PERMISSIONS.md) for the current matrix.
 
 - Requester: search trips and create/read permitted own or department consignments according to assigned scope.
 - Dispatcher: plan and assign trips/consignments within operational scope.
@@ -80,6 +80,6 @@ Current owner policy D215/D216/D221: five account types (พนักงาน�
 - Driver: view assigned trips and record authorized trip movement.
 - Branch receiver: view and receive consignments for assigned branches only.
 - Supervisor: publish daily plans, approve controlled corrections and inspect reports.
-- Administrator: all predefined operational capabilities plus master maintenance and administrative reads (D215); consignment self-review remains prohibited (D216).
+- Administrator: all predefined operational capabilities plus master maintenance, user management and administrative reads (D215); no ownership or scope restriction (D235).
 
 Apply row scope to list, detail, download, QR, print, export and mutation endpoints. Log sensitive administrative changes. Do not collect national identity numbers for these features.

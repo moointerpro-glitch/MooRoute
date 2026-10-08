@@ -16,6 +16,12 @@ export function parseHistoryFilter(params: URLSearchParams): HistoryFilterValue 
     page: Math.min(10_000, Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1)),
   };
 }
+/**
+ * One row of "what is being sent" in the consignment form (D234): the sender types every field, so they stay
+ * text until submitted. Kept in this shared module because both the server page and the client form use it.
+ */
+export type PackRow = { kind: string; customName: string; count: string; description: string; weight: string };
+export const blankPackRow: PackRow = { kind: "", customName: "", count: "", description: "", weight: "" };
 export const statusText = (s: string) => statusLabels[s as ConsignmentState] ?? s;
-export const unitText = (u: string) => u === "PACKAGE" ? "หีบห่อ" : itemUnits[u] ?? u;
+export const unitText = (u: string) => u === "PACKAGE" ? "ชิ้น" : itemUnits[u] ?? u;
 export const statusTone = (s: string) => ["CLOSED", "RECEIVED"].includes(s) ? "tone-done" : ["CANCELLED", "REJECTED", "RETURNED"].includes(s) ? "tone-muted" : s === "ISSUE" ? "tone-alert" : s === "DRAFT" ? "tone-draft" : "tone-active";

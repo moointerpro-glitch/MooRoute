@@ -3,7 +3,7 @@ import { readFileSync, mkdirSync } from "node:fs";
 
 // D223 browser flow on an isolated database. Sign-ins are limited to 5 per minute, so this spec uses three.
 const credentials = JSON.parse(readFileSync(".local/auth/e2e.json", "utf8"));
-const evidence = "docs/evidence/user-management";
+const evidence = "docs/evidence/backoffice-ux/users";
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
   await page.getByLabel("อีเมลบัญชีผู้ใช้งาน").fill(email);
@@ -18,6 +18,7 @@ test("D223: the administrator creates, changes, resets and disables an account; 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await login(page, credentials.admin, credentials.password);
   await expect(page).toHaveURL(/\/admin$/);
+  await page.screenshot({path:`${evidence}/dashboard-1440.png`,fullPage:true});
   await page.getByRole("link", { name: /ผู้ใช้งาน/ }).first().click();
   await expect(page.getByRole("heading", { name: "ผู้ใช้งาน", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "รายชื่อผู้ใช้งาน" })).toContainText("ผู้ดูแลสังเคราะห์");
@@ -26,8 +27,12 @@ test("D223: the administrator creates, changes, resets and disables an account; 
   // Create: the form asks only for the scope the chosen type needs.
   await page.getByRole("link", { name: "เพิ่มบัญชี" }).click();
   await page.getByLabel("ชื่อที่แสดง").fill("สมใจ ทดสอบหน้าจอ");
+  await page.getByRole("link",{name:/กลับรายชื่อผู้ใช้/}).first().click();
+  await expect(page.getByRole("dialog",{name:"มีข้อมูลที่ยังไม่บันทึก"})).toBeVisible();
+  await page.getByRole("button",{name:"แก้ไขต่อ",exact:true}).click();
+  await expect(page.getByLabel("ชื่อที่แสดง")).toHaveValue("สมใจ ทดสอบหน้าจอ");
   await page.getByLabel("อีเมลเข้าสู่ระบบ").fill("new.person@e2e.synthetic.test");
-  await page.getByRole("combobox", { name: /^แผนกต้นสังกัด/ }).selectOption({ index: 1 });
+  await expect(page.getByRole("combobox", { name: /^แผนกต้นสังกัด/ })).toHaveValue("");
   await page.getByRole("button", { name: "สร้างบัญชี" }).click();
   await expect(page.locator(".user-form .form-error")).toContainText("เลือกประเภทบัญชี");
   await page.getByRole("radio", { name: /^คลังและรถขนส่ง/ }).check();
@@ -39,7 +44,7 @@ test("D223: the administrator creates, changes, resets and disables an account; 
   await expect(page.getByRole("heading", { name: "สร้างบัญชีแล้ว" })).toBeVisible();
   const password = (await page.locator(".password-reveal code").textContent())!.trim();
   expect(password).toMatch(/^[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}$/);
-  await page.screenshot({ path: `${evidence}/created-1440.png`, fullPage: true });
+  // Never capture the one-time password in evidence.
 
   // The new person signs in with the temporary password and sees their account type.
   const other = await browser.newContext({ baseURL: "http://127.0.0.1:3011", locale: "th-TH" }), person = await other.newPage();
@@ -60,6 +65,12 @@ test("D223: the administrator creates, changes, resets and disables an account; 
 
   // A new temporary password ends the person's sessions.
   await page.getByRole("button", { name: "ออกรหัสผ่านชั่วคราวใหม่" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "ออกรหัสผ่านชั่วคราวใหม่" })).toBeFocused();
+  await page.getByRole("button", { name: "ออกรหัสผ่านชั่วคราวใหม่" }).click();
+  await page.screenshot({path: `${evidence}/reset-dialog-1440.png`,fullPage:true});
   await page.locator(".user-actions .delete-confirm input").fill("ลืมรหัสผ่าน");
   await page.getByRole("button", { name: /^ยืนยันออกรหัสผ่านใหม่/ }).click();
   await expect(page.getByRole("heading", { name: "ออกรหัสผ่านชั่วคราวใหม่แล้ว" })).toBeVisible();

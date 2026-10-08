@@ -4,7 +4,7 @@ import { readFileSync, mkdirSync } from "node:fs";
 // Synthetic fixture (tests/fixtures/search.ts): trip s5-2028-03-01-trip-1 visits synthetic branch A on 01/03/2571.
 const account = JSON.parse(readFileSync(".local/auth/e2e-search.json", "utf8")) as Record<"password" | "requester" | "branch" | "dispatcher" | "warehouse" | "supervisor", string>;
 const A = "synthetic-branch-a", TRIP = "s5-2028-03-01-trip-1";
-const evidence = "docs/evidence/phase-6";
+const evidence = "docs/evidence/packaging";
 mkdirSync(evidence, { recursive: true });
 const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("synthetic-test-image")]);
 
@@ -27,6 +27,7 @@ const noHorizontalScroll = (page: Page) => page.evaluate(() => document.document
 test("D216: dispatcher self-review is disabled in the UI and denied by the mutation API", async ({ page }) => {
   await login(page, account.dispatcher);
   await page.goto("/consign");
+  await page.getByRole("button", { name: "เพิ่มรายการสิ่งของ" }).click();
   await page.getByLabel("หมวดของรายการที่ 1").selectOption({ label: "เอกสาร" });
   const categoryId = await page.getByLabel("หมวดของรายการที่ 1").inputValue();
   const post = (action: string, input: unknown) => page.request.post("/api/consignments", { headers: { Origin: "http://127.0.0.1:3011", "Idempotency-Key": `self-${action}-${Date.now()}` }, data: { action, input } });
@@ -51,23 +52,42 @@ test("D216: dispatcher self-review is disabled in the UI and denied by the mutat
   expect((await denied.json()).code).toBe("SELF_REVIEW");
 });
 
-test("D216: warehouse can create its own consignment with common menus and no management menu", async ({ page }) => {
+test("D233: warehouse without department membership chooses and changes its sender department", async ({ page }) => {
   await login(page, account.warehouse);
   await page.goto("/consign");
   const nav = page.getByRole("navigation", { name: "เมนูหลัก" });
   for (const label of ["ค้นหาเส้นทาง", "รอบรถทั้งหมด", "สาขาทั้งหมด", "ฝากของส่งรถ", "ประวัติฝากส่ง"]) await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "จัดการหลังบ้าน" })).toHaveCount(0);
-  await expect(page.getByLabel("แผนก")).toHaveValue("synthetic-department");
+  await expect(page.getByLabel("แผนกผู้ส่ง",{exact:false})).toHaveValue("");
+  await page.getByRole("button",{name:"บันทึกฉบับร่าง",exact:true}).click();
+  await expect(page.locator(".form-error")).toContainText("กรุณาเลือกแผนกผู้ส่ง");
+  await page.getByLabel("แผนกผู้ส่ง",{exact:false}).selectOption("synthetic-department");
   await page.screenshot({ path: "docs/evidence/access-policy/warehouse-own-form.png", fullPage: true });
   await page.getByLabel("สาขาปลายทาง").selectOption(A);
   await page.getByLabel("วันที่ต้องการส่ง (พ.ศ.)").fill("01/03/2571");
   await page.getByLabel("เบอร์ติดต่อผู้ฝาก").fill("000-000-1000");
-  await page.getByLabel("หมวดของรายการที่ 1").selectOption({ label: "เอกสาร" });
-  await page.getByLabel("ชื่อรายการที่ 1").fill("เอกสารจากคลัง (สังเคราะห์)");
-  await page.getByLabel("จำนวนของรายการที่ 1").fill("1");
-  await page.getByLabel("หน่วยของรายการที่ 1").selectOption("SHEET");
+  // D234: packaging lines alone are a complete request; the item list stays empty.
+  await expect(page.getByLabel("หมวดของรายการที่ 1")).toHaveCount(0);
+  await page.getByLabel("บรรจุใส่ของแถวที่ 1").selectOption("ENVELOPE");
+  await page.getByLabel("จำนวนของแถวที่ 1").fill("1");
+  await expect(page.locator(".problem-list")).toContainText("กรุณากรอกรายละเอียดของทุกแถวว่าข้างในคืออะไร");
+  await page.getByLabel("รายละเอียดของแถวที่ 1").fill("เอกสารจากคลัง (สังเคราะห์)");
+  await expect(page.getByText("ข้อมูลครบ พร้อมส่งให้ผู้วางแผนขนส่งตรวจสอบ")).toBeVisible();
+  await page.getByRole("button",{name:"บันทึกฉบับร่าง",exact:true}).click();
+  await expect(success(page)).toContainText("บันทึกฉบับร่างแล้ว");
+  await page.getByLabel("แผนกผู้ส่ง",{exact:false}).selectOption("synthetic-choice-department");
+  await page.getByRole("button",{name:"บันทึกฉบับร่าง",exact:true}).click();
+  await expect(success(page)).toContainText("รุ่น 2");
+  await page.reload();
+  await expect(page.getByLabel("แผนกผู้ส่ง",{exact:false})).toHaveValue("synthetic-choice-department");
+  await expect(page.getByLabel("บรรจุใส่ของแถวที่ 1")).toHaveValue("ENVELOPE");
+  await expect(page.getByLabel("รายละเอียดของแถวที่ 1")).toHaveValue("เอกสารจากคลัง (สังเคราะห์)");
   await page.getByRole("button", { name: "ส่งคำขอ", exact: true }).click();
   await expect(status(page)).toHaveText("รอตรวจสอบ");
+  await expect(page.getByRole("row", { name: /ซอง.*1 ชิ้น.*เอกสารจากคลัง.*อยู่กับผู้ฝาก 1 ชิ้น/ })).toBeVisible();
+  await expect(page.getByText(/โดย .*แผนกเลือกตอนฝาก \(สังเคราะห์\)/)).toBeVisible();
+  await page.goto("/consign");
+  await expect(page.getByLabel("แผนกผู้ส่ง",{exact:false})).toHaveValue("");
   expect((await page.request.get("/api/planning?date=2028-03-01")).status()).toBe(403);
 });
 let consignmentUrl = "", code = "";
@@ -79,18 +99,37 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   await page.goto(`/trips/${TRIP}?branch=${A}`);
   await page.getByRole("link", { name: "ฝากของกับรอบนี้" }).click();
   await expect(page.getByLabel("สาขาปลายทาง")).toHaveValue(A);
+  await page.getByLabel("แผนกผู้ส่ง",{exact:false}).selectOption("synthetic-department");
   await expect(page.getByText(/s5-2028-03-01-trip-1|เส้นทางทดสอบ/).first()).toBeVisible();
   await page.getByLabel("เบอร์ติดต่อผู้ฝาก").fill("000-000-1000");
+  // What is being sent: 2 boxes and 1 custom container, typed by the sender.
+  await page.getByLabel("บรรจุใส่ของแถวที่ 1").selectOption("BOX");
+  await page.getByLabel("จำนวนของแถวที่ 1").fill("2");
+  await page.getByLabel("รายละเอียดของแถวที่ 1").fill("โปสเตอร์โปรโมชัน (ข้อมูลสังเคราะห์)");
+  await page.getByLabel("น้ำหนักต่อชิ้นของแถวที่ 1").fill("1.5");
+  await page.getByRole("button", { name: "เพิ่มแถว", exact: true }).click();
+  await page.getByLabel("บรรจุใส่ของแถวที่ 2").selectOption("OTHER");
+  await page.getByLabel("จำนวนของแถวที่ 2").fill("1");
+  await expect(page.locator(".problem-list")).toContainText("แถวที่ 2: กรุณาพิมพ์ชื่อบรรจุภัณฑ์");
+  await page.getByLabel("ชื่อบรรจุภัณฑ์ของแถวที่ 2").fill("ถัง");
+  await page.getByLabel("รายละเอียดของแถวที่ 2").fill("ขาตั้งโปสเตอร์ (ข้อมูลสังเคราะห์)");
+  await expect(page.locator(".pack-total")).toContainText("รวม 3 ชิ้น · กล่อง 2 · ถัง 1 · น้ำหนักที่ระบุ 3 กก.");
+  // Optional contents list, with the branch asked to count it.
+  await page.getByRole("button", { name: "เพิ่มรายการสิ่งของ" }).click();
   await page.getByLabel("หมวดของรายการที่ 1").selectOption({ label: "สื่อการตลาด" });
   await page.getByLabel("ชื่อรายการที่ 1").fill("โปสเตอร์โปรโมชัน (ข้อมูลสังเคราะห์)");
   await page.getByLabel("จำนวนของรายการที่ 1").fill("30");
   await page.getByLabel("หน่วยของรายการที่ 1").selectOption("SHEET");
-  await page.getByRole("textbox", { name: /^จำนวนหีบห่อ/ }).fill("3");
-  await page.getByLabel("ตรวจรับทั้งหีบห่อและจำนวนสิ่งของ").check();
+  await page.getByLabel(/ให้สาขานับจำนวนสิ่งของตามรายการนี้/).check();
   await expect(page.getByText("ข้อมูลครบ พร้อมส่งให้ผู้วางแผนขนส่งตรวจสอบ")).toBeVisible();
   await page.getByRole("button", { name: "บันทึกฉบับร่าง" }).click();
   await expect(success(page)).toContainText("บันทึกฉบับร่างแล้ว");
   await expect(page).toHaveURL(/\/consign\?id=/);
+  await page.reload();
+  await expect(page.getByLabel("แผนกผู้ส่ง",{exact:false})).toHaveValue("synthetic-department");
+  await expect(page.getByLabel("ชื่อบรรจุภัณฑ์ของแถวที่ 2")).toHaveValue("ถัง");
+  await expect(page.getByLabel(/ให้สาขานับจำนวนสิ่งของตามรายการนี้/)).toBeChecked();
+  await page.waitForLoadState("networkidle");
   const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles({ name: "not-really.png", mimeType: "image/png", buffer: Buffer.from("<html>not an image</html>") });
   await expect(page.locator(".form-error")).toContainText("รองรับเฉพาะไฟล์ JPG, PNG หรือ PDF");
@@ -103,6 +142,13 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   consignmentUrl = page.url().split("?")[0]; code = (await page.getByRole("heading", { level: 1 }).textContent()) ?? "";
   expect(code).toMatch(/^FS-\d{8}-/);
   await expect(page.getByText("ส่งคำขอแล้ว ผู้วางแผนขนส่งจะตรวจสอบ")).toBeVisible();
+  // The sender column shows where the pieces are, never an internal package code.
+  await expect(page.getByRole("row", { name: /กล่อง.*2 ชิ้น.*โปสเตอร์โปรโมชัน.*1.5 กก\..*อยู่กับผู้ฝาก 2 ชิ้น/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /ถัง.*1 ชิ้น.*ขาตั้งโปสเตอร์.*ไม่ระบุ.*อยู่กับผู้ฝาก 1 ชิ้น/ })).toBeVisible();
+  await expect(page.locator(".package-list")).toBeHidden();
+  await page.getByText("ดูทีละชิ้น (3 ชิ้น)").click();
+  await expect(page.locator(".package-list li")).toHaveText([/ชิ้นที่ 1\/3 · กล่อง.*อยู่กับผู้ฝาก/, /ชิ้นที่ 2\/3 · กล่อง.*อยู่กับผู้ฝาก/, /ชิ้นที่ 3\/3 · ถัง.*อยู่กับผู้ฝาก/]);
+  await expect(page.locator(".package-list")).not.toContainText(code);
 
   await login(page, account.dispatcher);
   await page.goto(consignmentUrl);
@@ -114,11 +160,12 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
   await login(page, account.warehouse);
   await page.goto(consignmentUrl);
   await page.getByRole("button", { name: "ยืนยันคลังรับของ" }).click();
-  await expect(page.locator(".form-error")).toContainText("กรุณาตรวจและยืนยันหีบห่อครบทั้ง 3 หีบห่อ");
-  await page.getByRole("button", { name: "เลือกครบทุกหีบห่อ" }).click();
+  await expect(page.locator(".form-error")).toContainText("กรุณาตรวจและยืนยันให้ครบทั้ง 3 ชิ้น");
+  await expect(page.getByLabel(/ชิ้นที่ 3\/3 · ถัง/).first()).toBeVisible();
+  await page.getByRole("button", { name: "เลือกครบทุกชิ้น" }).click();
   await page.getByRole("button", { name: "ยืนยันคลังรับของ" }).click();
   await expect(status(page)).toHaveText("คลังรับของแล้ว");
-  await page.getByRole("button", { name: "เลือกครบทุกหีบห่อ" }).click();
+  await page.getByRole("button", { name: "เลือกครบทุกชิ้น" }).click();
   await page.getByRole("button", { name: "ยืนยันขึ้นรถ" }).click();
   await expect(status(page)).toHaveText("ขึ้นรถแล้ว");
   await login(page, account.branch);
@@ -134,14 +181,19 @@ test("T14/T15/T18: marketing posters from search to closed receipt through every
 
   await login(page, account.branch);
   await page.goto(consignmentUrl);
-  const scan = page.getByLabel("สแกนหรือพิมพ์รหัสหีบห่อ");
+  const scan = page.getByLabel("สแกนคิวอาร์ หรือพิมพ์เลขชิ้นบนฉลาก");
+  // The full code still works for a scanner; a person types only the number printed large on the label.
   await scan.fill(`${code}-1/3`); await scan.press("Enter");
-  await expect(success(page)).toContainText(`เพิ่ม ${code}-1/3 แล้ว`);
-  await page.getByLabel(`${code}-2/3`).first().check();
+  await expect(success(page)).toContainText("เพิ่ม ชิ้นที่ 1/3 · กล่อง แล้ว");
+  await scan.fill("9"); await scan.press("Enter");
+  await expect(page.locator(".form-error")).toContainText("ไม่พบชิ้น “9” ในรายการนี้");
+  await scan.fill("2"); await scan.press("Enter");
+  await expect(success(page)).toContainText("เพิ่ม ชิ้นที่ 2/3 · กล่อง แล้ว");
+  await expect(page.getByLabel(/ชิ้นที่ 2\/3 · กล่อง/).first()).toBeChecked();
   await page.locator(".qty-fields input").fill("20");
   await page.getByRole("button", { name: "บันทึกรับของ" }).click();
   await expect(status(page)).toHaveText("รับบางส่วน");
-  await page.getByLabel(`${code}-3/3`).first().check();
+  await page.getByLabel(/ชิ้นที่ 3\/3 · ถัง/).first().check();
   await page.locator(".qty-fields input").fill("11");
   await page.getByRole("button", { name: "บันทึกรับของ" }).click();
   await expect(page.locator(".form-error")).toContainText("จำนวนรับเกินจำนวนที่ส่ง");

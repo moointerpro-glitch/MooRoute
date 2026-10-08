@@ -58,9 +58,12 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
   const toggle = (id: string) => setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
   const packages = (custody: string[]) => d.packages.filter((p) => custody.includes(p.custody));
   function checklist(list: ConsignmentDetail["packages"], all = false) {
-    return <fieldset className="package-checks"><legend>{all ? "ตรวจนับหีบห่อให้ครบทุกหีบห่อ" : "เลือกหีบห่อ"}</legend>
-      {list.map((p) => <label key={p.id} className="check-row"><input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />{p.label}</label>)}
-      {all && <button type="button" className="link-button" onClick={() => setSelected(list.map((p) => p.id))}>เลือกครบทุกหีบห่อ</button>}
+    // Pieces are listed by what people see on the box ("ชิ้นที่ 1/3 · กล่อง"), never by the internal code.
+    const picked = list.filter((p) => selected.includes(p.id)).length;
+    return <fieldset className="package-checks"><legend>{all ? `ตรวจนับให้ครบทั้ง ${list.length} ชิ้น` : "เลือกชิ้นที่เกี่ยวข้อง"} <span className="muted">(เลือกแล้ว {picked}/{list.length})</span></legend>
+      {all && list.length > 1 && <button type="button" className="link-button" onClick={() => setSelected((s) => picked === list.length ? s.filter((id) => !list.some((p) => p.id === id)) : [...new Set([...s, ...list.map((p) => p.id)])])}>{picked === list.length ? "ยกเลิกการเลือกทั้งหมด" : "เลือกครบทุกชิ้น"}</button>}
+      <div className="package-check-list">{list.map((p) => <label key={p.id} className="check-row"><input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} /><span>{p.name}{p.description && <small>{p.description}</small>}</span></label>)}</div>
+      {!list.length && <p className="muted small">ไม่มีชิ้นที่อยู่ในขั้นตอนนี้</p>}
     </fieldset>;
   }
   async function onScan() {
@@ -72,16 +75,18 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
       if (!response.ok) { setMessage({ tone: "error", text: data?.message ?? "ตรวจสอบฉลากไม่สำเร็จ" }); return; }
       if (data.consignment.id !== d.id) { setMessage({ tone: "error", text: `ฉลากนี้เป็นของรายการ ${data.consignment.code} ไม่ใช่รายการนี้` }); return; }
       if (data.state !== "CURRENT") { setMessage({ tone: "error", text: `ฉลากฉบับที่ ${data.number} ถูกยกเลิกแล้ว${data.replacement ? ` กรุณาใช้ฉลากฉบับที่ ${data.replacement.number}` : " กรุณาติดต่อผู้วางแผนขนส่ง"}` }); return; }
-      if (!data.package) { setMessage({ tone: "error", text: "คิวอาร์นี้ไม่ได้ระบุหีบห่อ" }); return; }
-      if (data.package.custody !== "VEHICLE") { setMessage({ tone: "error", text: `หีบห่อ ${data.package.label} ไม่ได้อยู่บนรถ` }); return; }
-      setSelected((s) => s.includes(data.package.id) ? s : [...s, data.package.id]); setMessage({ tone: "ok", text: `เพิ่ม ${data.package.label} แล้ว (ฉลากฉบับที่ ${data.number})` });
+      if (!data.package) { setMessage({ tone: "error", text: "คิวอาร์นี้ไม่ได้ระบุว่าเป็นชิ้นไหน" }); return; }
+      if (data.package.custody !== "VEHICLE") { setMessage({ tone: "error", text: `${data.package.name} ไม่ได้อยู่บนรถ` }); return; }
+      setSelected((s) => s.includes(data.package.id) ? s : [...s, data.package.id]); setMessage({ tone: "ok", text: `เพิ่ม ${data.package.name} แล้ว (ฉลากฉบับที่ ${data.number})` });
       return;
     }
     const value = scan.trim().toUpperCase(); if (!value) return;
-    const match = d.packages.find((p) => p.label.toUpperCase() === value || p.id.toUpperCase() === value);
-    if (!match) setMessage({ tone: "error", text: `ไม่พบหีบห่อ “${scan}” ในรายการนี้` });
-    else if (match.custody !== "VEHICLE") setMessage({ tone: "error", text: `หีบห่อ ${match.label} ไม่ได้อยู่บนรถ` });
-    else { setSelected((s) => s.includes(match.id) ? s : [...s, match.id]); setMessage({ tone: "ok", text: `เพิ่ม ${match.label} แล้ว` }); }
+    // Typing the piece number printed large on the label ("2", or "2/3") is enough; the full code also works.
+    const number = value.match(/^(\d{1,3})(?:\/\d{1,3})?$/);
+    const match = d.packages.find((p) => number ? p.sequence === Number(number[1]) : p.code.toUpperCase() === value || p.id.toUpperCase() === value);
+    if (!match) setMessage({ tone: "error", text: `ไม่พบชิ้น “${scan}” ในรายการนี้` });
+    else if (match.custody !== "VEHICLE") setMessage({ tone: "error", text: `${match.name} ไม่ได้อยู่บนรถ` });
+    else { setSelected((s) => s.includes(match.id) ? s : [...s, match.id]); setMessage({ tone: "ok", text: `เพิ่ม ${match.name} แล้ว` }); }
     setScan("");
   }
   const receiptLines = () => [...selected.map((packageId) => ({ packageId, quantity: "1", unit: "PACKAGE" })),
@@ -101,7 +106,7 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
       {trips && (trips.length ? <fieldset className="trip-options"><legend>รอบรถที่แวะส่ง {d.branch.name}</legend>{trips.map((t) => <label key={t.tripId} className={t.eligible ? "trip-option" : "trip-option disabled"}>
         <input type="radio" name="trip" value={t.tripId} disabled={!t.eligible || t.current} checked={tripId === t.tripId} onChange={() => setTripId(t.tripId)} />
         <span><strong>{t.routeName ?? t.code}</strong> · {roundLabel(t.roundNo)} · ออก {clock(t.departureAt)} น.{t.current ? " (รอบปัจจุบัน)" : ""}
-          <small>{t.eligible ? (t.capacity?.known ? `น้ำหนักรวม ${t.capacity.used}/${t.capacity.capacity} ${unitText(t.capacity.unit ?? "")}` : "ไม่ทราบความจุหรือไม่มีน้ำหนักหีบห่อ จึงไม่ได้ตรวจความจุ") : t.reasons.join(" · ")}</small></span></label>)}</fieldset>
+          <small>{t.eligible ? (t.capacity?.known ? `น้ำหนักรวม ${t.capacity.used}/${t.capacity.capacity} ${unitText(t.capacity.unit ?? "")}` : "ไม่ได้ตรวจความจุ (รถไม่ได้ระบุความจุเป็นกิโลกรัม หรือผู้ฝากไม่ได้ระบุน้ำหนัก)") : t.reasons.join(" · ")}</small></span></label>)}</fieldset>
         : <p className="muted">ไม่มีรอบรถที่เผยแพร่ซึ่งแวะส่งสาขานี้ในวันที่เลือก</p>)}
       {reasonField(can("assign") ? "หมายเหตุการจัดรถ" : "เหตุผลการย้าย", can("reassign"))}
       <button type="button" className="primary-button" disabled={busy || !tripId} onClick={() => void run(can("assign") ? "assign" : "reassign", { ...base, tripId, reason: reason || undefined }, can("assign") ? "จัดรถแล้ว" : "ย้ายรอบรถแล้ว และยกเลิกฉลากเดิม")}>{can("assign") ? "จัดรถ" : "ย้ายรอบรถ"}</button>
@@ -113,7 +118,7 @@ export function ConsignmentActions({ d }: { d: ConsignmentDetail }) {
     {can("depart") && currentTrip && <Panel title="บันทึกรถออก"><p>บันทึกรถออกสำหรับทุกรายการที่ขึ้นรถแล้วในรอบ {currentTrip.tripCode} ซึ่งคุณมีสิทธิ์</p>
       <button type="button" className="primary-button" disabled={busy} onClick={() => void run("depart", { tripId: currentTrip.tripId }, "บันทึกรถออกแล้ว")}>บันทึกรถออกทั้งรอบ</button></Panel>}
     {(can("receive") || can("correctiveReceive")) && <Panel title={can("receive") ? "สาขารับของ" : "รับของก่อนบันทึกรถออก (ผู้วางแผนขนส่ง)"}>
-      <div className="inline-form"><label><ScanLine size={16} aria-hidden="true" className="inline-icon" />สแกนหรือพิมพ์รหัสหีบห่อ<input value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void onScan(); } }} placeholder={d.packages[0]?.label} /></label><button type="button" className="secondary-button" onClick={() => void onScan()}>เพิ่ม</button></div>
+      <div className="inline-form"><label><ScanLine size={16} aria-hidden="true" className="inline-icon" />สแกนคิวอาร์ หรือพิมพ์เลขชิ้นบนฉลาก<input value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void onScan(); } }} placeholder="เช่น 1" /></label><button type="button" className="secondary-button" onClick={() => void onScan()}>เพิ่ม</button></div>
       {checklist(packages(["VEHICLE"]))}
       {d.receiptMode === "DETAILED" && <fieldset className="qty-fields"><legend>จำนวนสิ่งของที่รับ</legend>{d.items.map((i) => <label key={i.id}>{i.name} (ค้างรับ {Number(i.sent) - Number(i.received) - Number(i.returned)} {unitText(i.unit)})<span className="input-unit"><input value={quantities[i.id] ?? ""} inputMode="decimal" onChange={(e) => setQuantities((q) => ({ ...q, [i.id]: e.target.value }))} /><span>{unitText(i.unit)}</span></span></label>)}</fieldset>}
       {!can("receive") && reasonField("เหตุผลการแก้ไข")}

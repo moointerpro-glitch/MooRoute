@@ -7,7 +7,8 @@ export const MAX_ADDRESS_CHARACTERS = 300;
 
 export interface LabelPayload {
   schemaVersion: 1; consignmentCode: string; number: number; issuedAt: string; issuedBy: string;
-  packages: { id: string; sequence: number; total: number; label: string }[];
+  /** `label` is the scannable code. `kind` and `description` (D234) are absent on versions issued earlier. */
+  packages: { id: string; sequence: number; total: number; label: string; kind?: string; description?: string | null }[];
   recipient: { branchCode: string | null; branchName: string | null; addressLine: string | null; subdistrict: string | null; district: string | null; province: string | null; postalCode: string | null; contactName: string | null; contactPhone: string | null };
   sender: { warehouseName: string | null; warehouseCode: string | null; department: string | null; contactName: string | null; contactPhone: string | null };
   transport: { tripCode: string | null; serviceDate: string | null; roundNo: number | null; plate: string | null; province: string | null; departureAt: string | null };
@@ -30,7 +31,7 @@ export function labelProblems(p: Pick<LabelPayload, "recipient" | "sender" | "tr
   if (blank(p.sender.warehouseName)) problems.push("ไม่มีคลังต้นทาง");
   if (blank(p.transport.tripCode) || blank(p.transport.serviceDate)) problems.push("ไม่มีรอบรถหรือวันที่ให้บริการ");
   if (blank(p.transport.plate)) problems.push("ไม่มีทะเบียนรถ");
-  if (!p.packages.length) problems.push("ไม่มีหีบห่อ");
+  if (!p.packages.length) problems.push("ไม่มีสิ่งที่ฝากส่ง");
   const address = [r.addressLine, r.subdistrict, r.district, r.province].filter(Boolean).join(" ");
   if (address.length > MAX_ADDRESS_CHARACTERS) problems.push(`ที่อยู่ยาวเกิน ${MAX_ADDRESS_CHARACTERS} ตัวอักษร จะล้นพื้นที่ฉลาก กรุณาปรับที่อยู่ในข้อมูลสาขา`);
   return problems;

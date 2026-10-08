@@ -6,7 +6,7 @@ import { phonePattern } from "../domain/consignment";
 import { ROLE_NAMES, accountTypeOf, initialOf } from "../../lib/account-display";
 import { audit, guardedWrite, replay, type Transaction } from "./transaction";
 
-// Where the account works comes first; the sender department (needed to consign) comes last.
+// Where the account works comes first; optional department read scope comes last.
 const scopeOrder = { GLOBAL: 0, BRANCH: 1, WAREHOUSE: 1, DRIVER: 1, DEPARTMENT: 2 } as const;
 
 /** Who is signed in, in plain Thai: name, one account type and the data they act on (header, back office, account page). */

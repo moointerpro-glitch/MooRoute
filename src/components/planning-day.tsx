@@ -1,11 +1,13 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
-import { Ban, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, Pencil, Trash2, TriangleAlert, Undo2 } from "lucide-react";
+import { Fragment, useState } from "react";
+import { Ban, ChevronLeft, ChevronRight, Copy, Pencil, Trash2, TriangleAlert, Undo2 } from "lucide-react";
 import type { PlanningData } from "@/server/services/planning-read";
 import type { PlanningOverview, RangeResult } from "@/server/services/planning-range";
 import type { DraftTrip } from "@/server/services/plans";
 import { addDays } from "@/lib/planning-horizon";
+import {PlanningDialog} from "./planning-dialog";
+import Link from "next/link";
 import { DateInput } from "./date-time-inputs";
 import { beDate, isoDate, kindLabels } from "./planning-fields";
 
@@ -118,20 +120,24 @@ export function RoundSummary({ trips, date }: { trips: DraftTrip[]; date: string
 }
 
 /** Coverage per branch, round and category, naming the trip that covers each cell and when it arrives. */
-export function CoverageTable({ data, date, dirty }: { data: PlanningData; date: string; dirty: boolean }) {
+export function CoverageTable({ data, date, dirty, onEdit, onAdd }: { data: PlanningData; date: string; dirty: boolean; onEdit?:(trip:DraftTrip)=>void; onAdd?:()=>void }) {
+  const [cell,setCell]=useState<PlanningData["missing"][number]|null>(null);
+  const requiredCodes=["PORK","CHICKEN"].filter(code=>!data.categories.some(c=>c.active&&c.code===code));
   const codeOf = new Map(data.categories.map((c) => [c.id, c.code]));
-  const covering = (branchId: string, round: number, category: string) => active(data.trips).filter((t) => t.kind === "BRANCH_DELIVERY" && t.roundNo === round && t.stops.some((s) => s.branchId === branchId && s.categoryIds.some((id) => codeOf.get(id) === category)));
+  const covering = (branchId: string, round: number, category: string) => active(data.trips).filter((t) => t.kind === "BRANCH_DELIVERY" && t.roundNo === round && t.stops.some((s) => s.branchId === branchId && s.categoryIds.some((id) => codeOf.get(id) === category && data.categories.some(c=>c.id===id&&c.active))));
   return <section className="admin-card" aria-labelledby="coverage-heading">
     <h2 id="coverage-heading">ความครบถ้วนทุกสาขา</h2>
     <p className="muted">ทุกสาขาที่ใช้งานต้องได้รับทั้งหมูและไก่ในทั้ง ๓ รอบ เที่ยวรับเข้าคลัง รถขาย และเที่ยวที่ยกเลิกไม่นับ · แต่ละช่องบอกเที่ยวที่ส่งและเวลาถึงตามแผน</p>
+    {requiredCodes.length>0&&<div className="coverage-guidance" role="alert"><strong>ตรวจรหัสหมวดสินค้าก่อนจัดเที่ยว</strong><p>ยังไม่มีหมวดที่เปิดใช้งานด้วยรหัส {requiredCodes.join(" และ ")} ระบบจึงยังนับหมวดเหล่านี้ไม่ได้ แม้ชื่อจะแสดงว่าหมูหรือไก่ ให้ผู้ดูแลตรวจรหัสของรายการเดิมก่อนสร้างข้อมูลเพิ่ม</p><Link href="/admin/product-categories">เปิดรายการหมวดสินค้า</Link></div>}
     {dirty && <p className="form-error" role="status">มีการแก้ไขที่ยังไม่บันทึก ตารางนี้เป็นผลของฉบับที่บันทึกครั้งล่าสุด</p>}
     <div className="planner-table-scroll" tabIndex={0} role="region" aria-label="ตารางความครบถ้วน เลื่อนแนวนอนได้"><table className="coverage-table data-table">
-      <thead><tr><th scope="col">สาขา</th>{[1, 2, 3].flatMap((n) => ["หมู", "ไก่"].map((c) => <th key={`${n}${c}`} scope="col">รอบ {n}<br />{c}</th>))}</tr></thead>
+      <thead><tr><th scope="col" rowSpan={2}>สาขา</th>{[1,2,3].map(n=><th key={n} colSpan={2} scope="colgroup">รอบ {n}</th>)}</tr><tr>{[1,2,3].flatMap(n=>["หมู","ไก่"].map(c=><th key={`${n}${c}`} scope="col">{c}</th>))}</tr></thead>
       <tbody>{data.eligible.map((b) => <tr key={b.id}><th scope="row">{b.name}</th>{[1, 2, 3].flatMap((n) => ["PORK", "CHICKEN"].map((c) => {
         const missing = data.missing.some((m) => m.branchId === b.id && m.roundNo === n && m.categoryCode === c), by = missing ? [] : covering(b.id, n, c);
-        return <td key={`${n}${c}`} className={missing ? "cell-missing" : "cell-complete"}>{missing ? "ขาด" : <>✓ ครบ{by[0] && <small>{by[0].code}{by.length > 1 ? ` +${by.length - 1}` : ""}<br />{by[0].arrivalAt ? `ถึง ${clock(by[0].arrivalAt, date)}` : by[0].departureAt ? `ออก ${clock(by[0].departureAt, date)}` : "ยังไม่ระบุเวลา"}</small>}</>}</td>;
+        return <td key={`${n}${c}`} className={missing ? "cell-missing" : "cell-complete"}>{missing ? <button type="button" className="link-button" disabled={dirty} aria-label={`ดูวิธีแก้ ${b.name} รอบ ${n} ${c==="PORK"?"หมู":"ไก่"}`} onClick={()=>setCell({branchId:b.id,roundNo:n,categoryCode:c})}>ขาด · ดูวิธีแก้</button> : <>✓ ครบ{by[0] && <small>{by[0].code}{by.length > 1 ? ` +${by.length - 1}` : ""}<br />{by[0].arrivalAt ? `ถึง ${clock(by[0].arrivalAt, date)}` : by[0].departureAt ? `ออก ${clock(by[0].departureAt, date)}` : "ยังไม่ระบุเวลา"}</small>}</>}</td>;
       }))}</tr>)}</tbody>
     </table></div>
+    {cell&&<PlanningDialog title={`แก้ช่องที่ขาด · รอบ ${cell.roundNo} · ${cell.categoryCode==="PORK"?"หมู":"ไก่"}`} onClose={()=>setCell(null)}><p><strong>{data.branches.find(b=>b.id===cell.branchId)?.name}</strong></p><p>เลือกเที่ยวส่งสาขารอบนี้ แล้วตรวจว่าจุดส่งของสาขานี้เลือกหมวด {cell.categoryCode==="PORK"?"หมู":"ไก่"} ที่เปิดใช้งานและรหัสตรงกับ {cell.categoryCode} จากนั้นบันทึกเที่ยวและตรวจแผน</p>{requiredCodes.includes(cell.categoryCode)&&<p className="form-error">ต้องให้ผู้ดูแลแก้รหัสหมวดสินค้าก่อน การเพิ่มเที่ยวอย่างเดียวจะยังไม่แก้ปัญหานี้</p>}<div className="coverage-trip-options">{data.trips.filter(t=>!t.cancelled&&t.kind==="BRANCH_DELIVERY"&&t.roundNo===cell.roundNo).map(t=><div key={t.tripId}><span>{t.code}<small>{t.stops.some(s=>s.branchId===cell.branchId)?"มีจุดส่งสาขานี้แล้ว — ตรวจหมวดสินค้า":"ยังไม่มีจุดส่งสาขานี้"}</small></span>{onEdit&&<button className="secondary-button" onClick={()=>{setCell(null);onEdit(t);}}>แก้ไขเที่ยวนี้</button>}</div>)}</div>{!data.trips.some(t=>!t.cancelled&&t.kind==="BRANCH_DELIVERY"&&t.roundNo===cell.roundNo)&&<p>ยังไม่มีเที่ยวส่งสาขาในรอบนี้</p>}<div className="dialog-actions"><button className="secondary-button" onClick={()=>setCell(null)}>กลับไปตรวจสอบ</button>{onAdd&&<button className="primary-button" onClick={()=>{setCell(null);onAdd();}}>เพิ่มเที่ยว</button>}</div></PlanningDialog>}
     {!data.eligible.length && <p>ยังไม่มีสาขาที่มีผลในวันนี้ กรุณาตรวจข้อมูลหลักก่อนเผยแพร่</p>}
   </section>;
 }
@@ -139,11 +145,10 @@ export function CoverageTable({ data, date, dirty }: { data: PlanningData; date:
 export interface TripActions { edit: (trip: DraftTrip) => void; copy: (trip: DraftTrip) => void; toggleCancel: (trip: DraftTrip) => void; remove: (trip: DraftTrip) => void }
 
 /** One row per trip, grouped by round. The stops, vehicle booking and load open on demand; the editor opens under its trip. */
-export function TripTable({ trips, data, date, canWrite, actions, editingId, editor }: {
-  trips: DraftTrip[]; data: PlanningData; date: string; canWrite: boolean; actions: TripActions; editingId: string | null; editor: ReactNode;
+export function TripTable({ trips, data, date, canWrite, actions }: {
+  trips: DraftTrip[]; data: PlanningData; date: string; canWrite: boolean; actions: TripActions;
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const toggle = (id: string) => setOpen((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
+  const [detail,setDetail]=useState<DraftTrip|null>(null);
   const vehicle = (id: string | null) => data.vehicles.find((v) => v.id === id), driver = (id?: string | null) => data.drivers.find((d) => d.id === id);
   const routeName = (id?: string | null) => id ? data.routes.flatMap((r) => r.routeRevision_routeId).find((r) => r.id === id)?.name : undefined;
   const stopName = (s: DraftTrip["stops"][number]) => s.nameSnapshot ?? data.branches.find((b) => b.id === s.branchId)?.name ?? "จุดส่งเดิม";
@@ -152,41 +157,33 @@ export function TripTable({ trips, data, date, canWrite, actions, editingId, edi
     { key: "other", title: "รับเข้าคลัง รถขาย และอื่น ๆ (ไม่นับความครบถ้วน)", list: trips.filter((t) => t.kind !== "BRANCH_DELIVERY") },
   ].filter((g) => g.list.length);
   const columns = canWrite ? 8 : 7;
-  return <div className="table-scroll" role="region" aria-label="ตารางเที่ยวรถ เลื่อนแนวนอนได้" tabIndex={0}><table className="admin-table data-table trip-table">
+  return <><div className="table-scroll" role="region" aria-label="ตารางเที่ยวรถ เลื่อนแนวนอนได้" tabIndex={0}><table className="admin-table data-table trip-table">
     <thead><tr><th scope="col">เที่ยว</th><th scope="col">รถ / พนักงานขับรถ</th><th scope="col">เริ่มขึ้นของ</th><th scope="col">ออกรถ</th><th scope="col">ถึงปลายทาง</th><th scope="col">จุดส่ง</th><th scope="col">สถานะ</th>{canWrite && <th scope="col">จัดการ</th>}</tr></thead>
     {groups.map((g) => <tbody key={g.key}>
       <tr className="round-row"><th colSpan={columns} scope="colgroup">{g.title} · {g.list.filter((t) => !t.cancelled).length} เที่ยว</th></tr>
       {g.list.map((t) => {
-        const v = vehicle(t.vehicleId), incomplete = !t.cancelled && (!t.vehicleId || !t.departureAt || !t.occupancyStart || !t.occupancyEnd), expanded = open.has(t.tripId);
+        const v = vehicle(t.vehicleId), incomplete = !t.cancelled && (!t.vehicleId || !t.departureAt || !t.occupancyStart || !t.occupancyEnd);
         return <Fragment key={t.tripId}>
-          <tr className={`trip-card${t.cancelled ? " trip-cancelled" : ""}`}>
+          <tr id={`trip-${t.tripId}`} tabIndex={-1} className={`trip-card${t.cancelled ? " trip-cancelled" : ""}`}>
             <th scope="row"><strong>{t.code}</strong><span className="muted cell-sub">{routeName(t.routeRevisionId) ?? kindLabels[t.kind]}</span></th>
             <td><strong>{v?.plateNormalized ?? "ยังไม่ระบุรถ"}</strong><span className="muted cell-sub">{driver(t.driverId)?.name ?? "ยังไม่ระบุพนักงานขับรถ"}</span></td>
             <td className="num">{clock(t.loadingAt, date) || "ยังไม่ระบุ"}</td><td className="num">{clock(t.departureAt, date) || "ยังไม่ระบุ"}</td><td className="num">{clock(t.arrivalAt, date) || "ยังไม่ระบุ"}</td>
-            <td><button type="button" className="link-button stops-toggle" aria-expanded={expanded} onClick={() => toggle(t.tripId)}>{t.stops.length} จุด{expanded ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}</button>
+            <td><span>{t.stops.length} จุด</span><button type="button" className="link-button" aria-haspopup="dialog" onClick={()=>setDetail(t)}>ดูรายละเอียด</button>
               <span className="muted cell-sub">{t.stops.map(stopName).join(" → ") || "ยังไม่มีจุดส่ง"}</span></td>
-            <td><span className={`plan-chip ${t.cancelled ? "plan-none" : incomplete ? "plan-draft" : "plan-published"}`}>{t.cancelled ? "ยกเลิก" : incomplete ? "ข้อมูลยังไม่ครบ" : "ข้อมูลครบ"}</span></td>
+            <td><span className={`plan-chip ${t.cancelled ? "plan-none" : incomplete ? "plan-draft" : "plan-published"}`}>{t.cancelled ? "ยกเลิก" : incomplete ? "รถ / เวลายังไม่ครบ" : "รถ / เวลาครบ"}</span></td>
             {canWrite && <td><div className="row-actions">
               <button type="button" className="secondary-button" onClick={() => actions.edit(t)}><Pencil size={15} aria-hidden="true" />แก้ไข</button>
-              <button type="button" className="icon-action" aria-label="คัดลอก" title="คัดลอกเป็นเที่ยวใหม่" onClick={() => actions.copy(t)}><Copy size={16} aria-hidden="true" /></button>
-              <button type="button" className="icon-action" aria-label={t.cancelled ? "คืนเที่ยว" : "ยกเลิกเที่ยว"} title={t.cancelled ? "คืนเที่ยว" : "ยกเลิกเที่ยว (เก็บประวัติ)"} onClick={() => actions.toggleCancel(t)}>{t.cancelled ? <Undo2 size={16} aria-hidden="true" /> : <Ban size={16} aria-hidden="true" />}</button>
-              <button type="button" className="icon-action" aria-label="ลบเที่ยวฉบับร่าง" title="ลบเที่ยวที่ยังไม่เคยเผยแพร่" onClick={() => actions.remove(t)}><Trash2 size={16} aria-hidden="true" /></button>
+              <button type="button" className="secondary-button" aria-label="คัดลอก" title="คัดลอกเป็นเที่ยวใหม่" onClick={() => actions.copy(t)}><Copy size={16} aria-hidden="true" />คัดลอก</button>
+              <button type="button" className="secondary-button" aria-label={t.cancelled ? "คืนเที่ยว" : "ยกเลิกเที่ยว"} title={t.cancelled ? "คืนเที่ยว" : "ยกเลิกเที่ยว (เก็บประวัติ)"} onClick={() => actions.toggleCancel(t)}>{t.cancelled ? <Undo2 size={16} aria-hidden="true" /> : <Ban size={16} aria-hidden="true" />}{t.cancelled?"คืนเที่ยว":"ยกเลิกเที่ยว"}</button>
+              <button type="button" className="secondary-button" aria-label="นำเที่ยวออกจากฉบับร่าง" title="ลบเที่ยวที่ยังไม่เคยเผยแพร่" onClick={() => actions.remove(t)}><Trash2 size={16} aria-hidden="true" />นำออก</button>
             </div></td>}
           </tr>
-          {expanded && <tr className="trip-detail"><td colSpan={columns}>
-            <ol className="trip-stops">{t.stops.map((s, n) => <li key={n}>{stopName(s)}<span>{s.categoryIds.map((id) => data.categories.find((c) => c.id === id)?.name).join(" / ") || "ยังไม่ระบุหมวดสินค้า"}</span></li>)}</ol>
-            <dl className="trip-times">
-              <dt>ช่วงจองรถ</dt><dd>{clock(t.occupancyStart, date) || "ยังไม่ระบุ"} – {clock(t.occupancyEnd, date) || "ยังไม่ระบุ"} · เผื่อหลังใช้ {t.bufferMinutes} นาที</dd>
-              <dt>ความจุรถ</dt><dd>{v?.capacity ? `${v.capacity} ${unitText[v.capacityUnit ?? ""] ?? ""}` : "ยังไม่ระบุ"}</dd>
-              <dt>บรรทุกตามแผน</dt><dd>{t.plannedLoad ? `${t.plannedLoad} ${unitText[t.loadUnit ?? ""] ?? ""}` : "ยังไม่ระบุ"}</dd>
-              {t.notes && <><dt>หมายเหตุ</dt><dd>{t.notes}</dd></>}
-            </dl>
-          </td></tr>}
-          {editingId === t.tripId && <tr className="trip-editor-row"><td colSpan={columns}>{editor}</td></tr>}
         </Fragment>;
       })}
     </tbody>)}
-  </table></div>;
+  </table></div>
+  {detail&&<PlanningDialog title={`รายละเอียดเที่ยว ${detail.code}`} onClose={()=>setDetail(null)}><p className="muted">{thaiDay(date)} · {kindLabels[detail.kind]}{detail.roundNo?` · รอบ ${detail.roundNo}`:""}</p><dl className="trip-times"><dt>รถ</dt><dd>{vehicle(detail.vehicleId)?.plateNormalized??"ยังไม่ระบุ"}</dd><dt>พนักงานขับรถ</dt><dd>{driver(detail.driverId)?.name??"ยังไม่ระบุ"}</dd><dt>เริ่มขึ้นของ</dt><dd>{clock(detail.loadingAt,date)||"ยังไม่ระบุ"}</dd><dt>ออกรถ</dt><dd>{clock(detail.departureAt,date)||"ยังไม่ระบุ"}</dd><dt>ถึงปลายทาง</dt><dd>{clock(detail.arrivalAt,date)||"ยังไม่ระบุ"}</dd><dt>ช่วงจองรถ</dt><dd>{clock(detail.occupancyStart,date)||"ยังไม่ระบุ"} – {clock(detail.occupancyEnd,date)||"ยังไม่ระบุ"} · เผื่อ {detail.bufferMinutes} นาที</dd><dt>ความจุรถ</dt><dd>{vehicle(detail.vehicleId)?.capacity??"ยังไม่ระบุ"} {unitText[vehicle(detail.vehicleId)?.capacityUnit??""]}</dd><dt>บรรทุกตามแผน</dt><dd>{detail.plannedLoad??"ยังไม่ระบุ"} {unitText[detail.loadUnit??""]}</dd></dl><h3>จุดส่งและสินค้า</h3><ol className="trip-stops">{detail.stops.map((stop,n)=><li key={n}>{stopName(stop)}<span>{stop.categoryIds.map(id=>{const c=data.categories.find(c=>c.id===id);return c?`${c.name} (${c.code})${c.active?"":" — ปิดใช้งาน"}`:"หมวดเดิม";}).join(" / ")||"ยังไม่ระบุหมวดสินค้า"}</span></li>)}</ol>{detail.notes&&<p>{detail.notes}</p>}<div className="dialog-actions"><button className="secondary-button" onClick={()=>setDetail(null)}>ปิดรายละเอียด</button>{canWrite&&<button className="primary-button" onClick={()=>{setDetail(null);actions.edit(detail);}}>แก้ไขเที่ยวนี้</button>}</div></PlanningDialog>}
+  </>;
 }
 
 /** Drafts and publication for several dates at once. The server applies every rule per date and reports each result. */

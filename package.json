@@ -45,6 +45,7 @@
     "test:access:integration": "node --import tsx scripts/run-integration.ts --access",
     "db:seed:mockup:plans": "node --conditions=react-server --import tsx scripts/seed-mockup-plans.ts",
     "db:reset:dev-operations": "node --conditions=react-server --import tsx scripts/reset-dev-operations.ts",
+    "db:reset:dev-consignments": "node --conditions=react-server --import tsx scripts/reset-dev-consignments.ts",
     "test:users:e2e": "node --import tsx scripts/run-integration.ts --users-browser",
     "deploy:sql": "node --conditions=react-server --import tsx scripts/build-deploy-sql.ts",
     "deploy:package": "node --import tsx scripts/build-deploy-package.ts"

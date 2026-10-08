@@ -7,7 +7,7 @@ import { testDatabaseConfiguration } from "../../src/server/config/environment";
 import { installRoles } from "../../src/server/auth/permissions";
 import { provisionAccount } from "../../src/server/auth/provision";
 import { DomainError } from "../../src/server/domain/errors";
-import type { DraftInput } from "../../src/server/domain/consignment";
+import { packagingPieces, storedPackaging, type DraftInput } from "../../src/server/domain/consignment";
 import { saveDraft, publishPlan } from "../../src/server/services/plans";
 import {
   saveConsignmentDraft, submitConsignment, assignConsignment, reassignConsignment, rejectConsignment, cancelConsignment, warehouseReceiveConsignment,
@@ -159,6 +159,52 @@ test("T15: shortage issue keeps movement state, supervisor return and resolution
   assert.equal(await db.consignmentEvent.count({ where: { consignmentId: c.id, kind: "CORRECTION" } }), 1);
 });
 
+test("D234: the sender states what the goods are packed in; pieces, search and capacity follow those lines", async () => {
+  const packaging = [
+    { kind: "BOX", customName: null, count: 2, description: "โปสเตอร์เปิดสาขา (สังเคราะห์)", weight: "1.5" },
+    { kind: "OTHER", customName: "ถัง", count: 1, description: "น้ำยาทำความสะอาด (สังเคราะห์)", weight: null },
+  ];
+  // No item list: the packaging lines alone are a complete request.
+  const input = draft({ packaging, packageCount: undefined, packageWeight: undefined, packageWeightUnit: undefined, items: [], receiptMode: "PACKAGES" });
+  const d = await saveConsignmentDraft(db, accounts.REQUESTER, key(), input);
+  assert.equal((await consignmentDetail(db, accounts.REQUESTER, d.id)).packagingSummary, "กล่อง 2 · ถัง 1");
+  await assert.rejects(saveConsignmentDraft(db, accounts.REQUESTER, key(), { ...input, id: d.id, expectedVersion: d.version, packaging: [{ ...packaging[1], customName: null }] }), rejected("INVALID_PACKAGES"));
+  const undescribed = await saveConsignmentDraft(db, accounts.REQUESTER, key(), { ...input, id: d.id, expectedVersion: d.version, packaging: [{ ...packaging[0], description: null }] });
+  await assert.rejects(submitConsignment(db, accounts.REQUESTER, key(), { id: d.id, expectedVersion: undescribed.version }), rejected("SUBMISSION_INCOMPLETE"), "without an item list every line says what is inside");
+  const counted = await saveConsignmentDraft(db, accounts.REQUESTER, key(), { ...input, id: d.id, expectedVersion: undescribed.version, receiptMode: "DETAILED" });
+  await assert.rejects(submitConsignment(db, accounts.REQUESTER, key(), { id: d.id, expectedVersion: counted.version }), rejected("SUBMISSION_INCOMPLETE"), "detailed receipt needs an item list");
+  const saved = await saveConsignmentDraft(db, accounts.REQUESTER, key(), { ...input, id: d.id, expectedVersion: counted.version });
+  const s = await submitConsignment(db, accounts.REQUESTER, key(), { id: d.id, expectedVersion: saved.version });
+  const rows = await db.consignmentPackage.findMany({ where: { consignmentId: d.id }, orderBy: { sequence: "asc" } });
+  assert.deepEqual(rows.map((p) => [`${p.sequence}/${p.total}`, p.weight?.toString() ?? null, p.weightUnit]), [["1/3", "1.5", "KG"], ["2/3", "1.5", "KG"], ["3/3", null, null]], "one stable record per piece");
+  const stored = await db.consignment.findUniqueOrThrow({ where: { id: d.id } });
+  assert.deepEqual([stored.packageCount, stored.packageWeight, stored.packageWeightUnit], [3, null, null]);
+  assert.deepEqual(storedPackaging(stored.draftItems, { packageCount: stored.packageCount }), packaging);
+  await assert.rejects(db.consignment.update({ where: { id: d.id }, data: { draftItems: { schemaVersion: 2, items: [], packaging: [] } } }), "the packaging lines are frozen with the submitted request");
+  const detail = await consignmentDetail(db, accounts.DISPATCHER, d.id);
+  assert.deepEqual(detail.packages.map((p) => [p.name, p.line, p.description]), packagingPieces(packaging).map((p) => [`ชิ้นที่ ${p.sequence}/3 · ${p.name}`, p.line, p.description]));
+  assert.equal(detail.weightKg, "3"); assert.equal(detail.items.length, 0);
+  const found = await listConsignments(db, accounts.DISPATCHER, { query: "น้ำยาทำความสะอาด", status: [], branchId: null, categoryId: null, date: null, tripCode: null, mine: false, page: 1 });
+  assert.deepEqual(found.rows.map((r) => [r.id, r.packaging]), [[d.id, "กล่อง 2 · ถัง 1"]], "history search matches what is inside the packaging");
+  assert.equal((await listConsignments(db, accounts.DISPATCHER, { query: "100%_ไม่มี", status: [], branchId: null, categoryId: null, date: null, tripCode: null, mine: false, page: 1 })).total, 0, "wildcards in the query are literal");
+
+  // A vehicle whose capacity is not in kilograms cannot be compared with a weight: not checked, never blocked.
+  const planned = await db.trip.findUniqueOrThrow({ where: { id: trip(D6, 3) }, include: { plan: true } });
+  const revision = await db.tripRevision.findUniqueOrThrow({ where: { planRevisionId_tripId: { planRevisionId: planned.plan.publishedRevisionId!, tripId: planned.id } } });
+  const vehicle = await db.vehicle.findUniqueOrThrow({ where: { id: revision.vehicleId! } });
+  await db.vehicle.update({ where: { id: vehicle.id }, data: { capacity: "1", capacityUnit: "BOX" } });
+  try {
+    const option = (await eligibleTrips(db, accounts.DISPATCHER, d.id, D6)).trips.find((t) => t.tripId === trip(D6, 3))!;
+    assert.deepEqual([option.eligible, option.capacity?.known, option.reasons], [true, false, []]);
+    await db.vehicle.update({ where: { id: vehicle.id }, data: { capacity: "2", capacityUnit: "KG" } });
+    const over = (await eligibleTrips(db, accounts.DISPATCHER, d.id, D6)).trips.find((t) => t.tripId === trip(D6, 3))!;
+    assert.deepEqual([over.eligible, over.capacity?.used, over.reasons], [false, "3", ["น้ำหนักรวมเกินความจุรถ"]], "a kilogram capacity is still enforced against the stated weight");
+    await db.vehicle.update({ where: { id: vehicle.id }, data: { capacity: "1", capacityUnit: "BOX" } });
+    assert.equal((await assignConsignment(db, accounts.DISPATCHER, key(), { id: d.id, expectedVersion: s.version, tripId: trip(D6, 3) })).status, "ASSIGNED");
+  } finally { await db.vehicle.update({ where: { id: vehicle.id }, data: { capacity: vehicle.capacity, capacityUnit: vehicle.capacityUnit } }); }
+  await cancelConsignment(db, accounts.DISPATCHER, key(), { id: d.id, expectedVersion: await version(d.id), reason: "ปิดรายการทดสอบบรรจุภัณฑ์" });
+});
+
 test("T08: eligibility, capacity, cutoff, reassignment, cancellation and plan replacement leave no orphan records", async () => {
   const heavy = await submitted({ packageWeight: "400", packageWeightUnit: "KG" });
   await assert.rejects(assignConsignment(db, accounts.DISPATCHER, key(), { id: heavy.id, expectedVersion: heavy.version, tripId: trip(D6, 1) }), (e: unknown) => rejected("INELIGIBLE_TRIP")(e) && String((e as Error).message).includes("เกินความจุรถ"));
@@ -253,7 +299,16 @@ test("T13 (D215): the administrator holds every capability, reads private drafts
   assert.equal((await consignmentDetail(db, accounts.ADMIN, privateDraft.id)).status, "DRAFT", "the administrator reads other users' drafts");
   assert.ok((await listConsignments(db, accounts.ADMIN, { query: privateDraft.code, status: [], branchId: null, categoryId: null, date: null, tripCode: null, mine: false, page: 1 })).rows.some((r) => r.id === privateDraft.id));
   await assert.rejects(consignmentDetail(db, accounts.DISPATCHER, privateDraft.id), rejected("NOT_FOUND"), "drafts stay private for every other role");
-  await assert.rejects(submitConsignment(db, accounts.ADMIN, key(), { id: privateDraft.id, expectedVersion: privateDraft.version }), rejected("FORBIDDEN"), "only the requester submits a request");
+  await assert.rejects(submitConsignment(db, accounts.DISPATCHER, key(), { id: privateDraft.id, expectedVersion: privateDraft.version }), rejected("NOT_FOUND"), "nobody else submits another person's draft");
+  // D235: the administrator edits, attaches to and submits another person's draft; the request stays with its requester.
+  const edited = await saveConsignmentDraft(db, accounts.ADMIN, key(), draft({ id: privateDraft.id, expectedVersion: privateDraft.version, notes: "ผู้ดูแลระบบแก้ไขแทน (สังเคราะห์)" }));
+  assert.ok((await consignmentDetail(db, accounts.ADMIN, privateDraft.id)).actions.includes("saveDraft"));
+  await addAttachment(db, accounts.ADMIN, key(), { consignmentId: privateDraft.id, displayName: "แนบแทน.pdf", contentType: "application/pdf", sizeBytes: 10, sha256: "b".repeat(64), storageKey: `p6-admin-${randomBytes(4).toString("hex")}` });
+  const sent = await submitConsignment(db, accounts.ADMIN, key(), { id: privateDraft.id, expectedVersion: edited.version });
+  const owned = await db.consignment.findUniqueOrThrow({ where: { id: privateDraft.id } });
+  assert.deepEqual([sent.status, owned.requesterId, owned.notes], ["PENDING_REVIEW", accounts.REQUESTER, "ผู้ดูแลระบบแก้ไขแทน (สังเคราะห์)"]);
+  assert.equal((await db.consignmentEvent.findFirstOrThrow({ where: { consignmentId: privateDraft.id, kind: "SUBMITTED" } })).actorId, accounts.ADMIN, "history records who acted");
+  assert.equal((await cancelConsignment(db, accounts.ADMIN, key(), { id: privateDraft.id, expectedVersion: sent.version, reason: "ผู้ดูแลระบบยกเลิกแทนเจ้าของ" })).status, "CANCELLED");
 
   const x = await submitted();
   let v = (await assignConsignment(db, accounts.ADMIN, key(), { id: x.id, expectedVersion: x.version, tripId: trip(D6, 1) })).version;

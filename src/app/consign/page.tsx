@@ -6,6 +6,7 @@ import { tripDetail } from "@/server/services/trip-search";
 import { consignmentDetail, consignmentFormOptions } from "@/server/services/consignments";
 import { DomainError } from "@/server/domain/errors";
 import { ConsignForm, type ConsignInitial } from "@/components/consign-form";
+import { blankPackRow } from "@/lib/consignment-format";
 import { bangkokServiceDate } from "@/lib/bangkok-date";
 import { roundLabel } from "@/lib/trip-format";
 
@@ -18,26 +19,29 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
   const actor = await requirePageActor(), { id, trip, branch } = await searchParams, db = getDatabase();
   let options;
   try { options = await consignmentFormOptions(db, actor.id); }
-  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return denied("บัญชีนี้ยังไม่มีสิทธิ์สร้างคำขอฝากส่ง", "กรุณาติดต่อผู้ดูแลระบบเพื่อกำหนดประเภทบัญชีและแผนก"); throw error; }
-  if (!options.departments.length) return denied("ยังไม่ได้กำหนดแผนกต้นสังกัด", "ทุกบัญชีฝากส่งได้ กรุณาติดต่อผู้ดูแลเพื่อกำหนดแผนกก่อนสร้างคำขอ");
+  catch (error) { if (error instanceof DomainError && error.code === "FORBIDDEN") return denied("บัญชีนี้ยังไม่มีสิทธิ์สร้างคำขอฝากส่ง", "กรุณาติดต่อผู้ดูแลระบบเพื่อตรวจสอบประเภทบัญชี"); throw error; }
+  if (!options.departments.length) return denied("ยังไม่มีแผนกผู้ส่งที่เปิดใช้งาน", "กรุณาติดต่อผู้ดูแลเพื่อเพิ่มหรือเปิดใช้งานข้อมูลแผนก แล้วกลับมาเลือกแผนกตอนฝากส่งได้เลย ไม่ต้องผูกกับบัญชี");
   const today = bangkokServiceDate();
   let initial: ConsignInitial = {
-    id: null, code: null, version: 0, departmentId: options.departments.length === 1 ? options.departments[0].id : "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : options.defaultWarehouseId,
+    id: null, code: null, version: 0, departmentId: "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : options.defaultWarehouseId,
     destinationBranchId: "", requestedServiceDate: "", requestedRoundNo: null, requestedTripId: null, tripLabel: null, tripProblems: [],
-    senderName: options.senderName, senderPhone: options.senderPhone, recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", packageCount: "1", packageWeight: "", packageWeightUnit: "KG",
-    items: [{ categoryId: "", name: "", quantity: "", unit: "" }], attachments: [],
+    senderName: options.senderName, senderPhone: options.senderPhone, recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", packaging: [{ ...blankPackRow }],
+    items: [], attachments: [],
   };
+  let owner: string | null = null;
   if (id) {
     let d;
     try { d = await consignmentDetail(db, actor.id, id); }
     catch (error) { if (error instanceof DomainError && ["NOT_FOUND", "FORBIDDEN"].includes(error.code)) return denied("ไม่พบฉบับร่างนี้", "ฉบับร่างเปิดได้เฉพาะผู้สร้าง"); throw error; }
-    if (d.status !== "DRAFT" || !d.mine) redirect(`/consignments/${d.id}`);
-    const raw = await db.consignment.findUniqueOrThrow({ where: { id: d.id }, select: { departmentId: true } });
-    initial = { ...initial, id: d.id, code: d.code, version: d.version, departmentId: raw.departmentId, sourceWarehouseId: d.warehouse.id, destinationBranchId: d.branch.id,
+    // The server decides who may edit a draft: its requester, or the administrator (D235).
+    if (d.status !== "DRAFT" || !d.actions.includes("saveDraft")) redirect(`/consignments/${d.id}`);
+    if (!d.mine) owner = d.requester;
+    initial = { ...initial, id: d.id, code: d.code, version: d.version, departmentId: d.departmentId, sourceWarehouseId: d.warehouse.id, destinationBranchId: d.branch.id,
       requestedServiceDate: d.requested.serviceDate ?? "", requestedRoundNo: d.requested.roundNo, requestedTripId: d.requested.tripId, tripLabel: d.requested.tripCode,
       senderName: d.contacts.senderName ?? "", senderPhone: d.contacts.senderPhone ?? "", recipientName: d.contacts.recipientName ?? "", recipientPhone: d.contacts.recipientPhone ?? "",
-      notes: d.notes ?? "", receiptMode: d.receiptMode, packageCount: String(d.packageCount), packageWeight: d.packageWeight ?? "", packageWeightUnit: d.packageWeightUnit ?? "KG",
-      items: d.draftItems.length ? d.draftItems : initial.items, attachments: d.attachments.map((a) => ({ id: a.id, name: a.name, size: a.size })) };
+      notes: d.notes ?? "", receiptMode: d.receiptMode,
+      packaging: d.packaging.length ? d.packaging.map((l) => ({ kind: l.kind, customName: l.customName ?? "", count: String(l.count), description: l.description ?? "", weight: l.weight ?? "" })) : initial.packaging,
+      items: d.draftItems, attachments: d.attachments.map((a) => ({ id: a.id, name: a.name, size: a.size })) };
   } else if (trip) {
     // Pre-fill from the search page's eligible-trip action; the server re-checks eligibility on submission and assignment.
     try {
@@ -52,6 +56,7 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
     <p className="eyebrow"><span />ฝากของส่งรถ</p>
     <h1>{initial.id ? `แก้ไขฉบับร่าง ${initial.code}` : "ฝากของส่งรถ"}</h1>
     <p className="muted">ฝากสื่อการตลาด เอกสาร หรืออุปกรณ์ไปกับรถส่งสาขา หนึ่งคำขอต่อหนึ่งสาขาปลายทาง ผู้วางแผนขนส่งจะตรวจสอบและจัดรอบรถให้</p>
+    {owner && <p className="notice-panel"><span>คุณกำลังแก้ไขฉบับร่างของ {owner} ในฐานะผู้ดูแลระบบ ผู้ฝากยังเป็นเจ้าของคำขอเดิม และระบบบันทึกว่าคุณเป็นผู้แก้ไข</span></p>}
     <ConsignForm options={options} initial={initial} today={today} />
   </div>;
 }

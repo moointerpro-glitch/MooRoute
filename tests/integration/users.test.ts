@@ -63,7 +63,10 @@ test("D223: each account type is validated with the scope it needs", async () =>
   await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-v1@synthetic.test", typeCode: "BRANCH_RECEIVER" }), rejected("SCOPE_REQUIRED"));
   await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-v2@synthetic.test", typeCode: "WAREHOUSE" }), rejected("SCOPE_REQUIRED"));
   await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-v3@synthetic.test", typeCode: "SUPERVISOR" }), rejected("INVALID_TYPE"), "retired codes cannot be chosen");
-  await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-v4@synthetic.test", typeCode: "REQUESTER", departmentId: "" }), rejected("SCOPE_REQUIRED"));
+  const noDepartment=await createUser(db,accounts.ADMIN_1,key(),{...base,email:"users-v4@synthetic.test",typeCode:"REQUESTER",departmentId:""});
+  assert.deepEqual(await scopes(noDepartment.id),[]);
+  await updateUser(db,accounts.ADMIN_1,key(),{id:noDepartment.id,expectedVersion:await version(noDepartment.id),name:"เลือกแผนกตอนฝาก",reason:"ทดสอบบัญชีไม่มีแผนก",typeCode:"REQUESTER"});
+  assert.deepEqual(await scopes(noDepartment.id),[]);
   await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-v5@synthetic.test", typeCode: "REQUESTER", departmentId: "users-closed-department" }), rejected("INACTIVE_REFERENCE"));
   await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-v6@synthetic.test", typeCode: "BRANCH_RECEIVER", branchId: synthetic.inactiveBranchId }), rejected("INACTIVE_REFERENCE"));
   await assert.rejects(createUser(db, accounts.ADMIN_1, key(), { ...base, email: "users-warehouse@synthetic.test", typeCode: "REQUESTER" }), rejected("DUPLICATE_ACCOUNT"));

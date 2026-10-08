@@ -17,7 +17,7 @@ const PAGE = 20, idPattern = /^[A-Za-z0-9-]{1,36}$/, emailPattern = /^[^\s@]{1,6
 const TYPE_CODES = ACCOUNT_TYPES.map((t) => t.code);
 const GLOBAL_TYPES = ["DISPATCHER", "ADMINISTRATOR"];
 
-export interface AccessInput { typeCode: string; departmentId: string; branchId?: string | null; warehouseId?: string | null; driverId?: string | null }
+export interface AccessInput { typeCode: string; departmentId?: string | null; branchId?: string | null; warehouseId?: string | null; driverId?: string | null }
 export interface CreateUserInput extends AccessInput { name: string; email: string }
 export interface UpdateUserInput extends AccessInput { id: string; expectedVersion: number; name: string; reason: string }
 export interface UserStateInput { id: string; expectedVersion: number; reason: string }
@@ -46,11 +46,10 @@ function nameOf(input: { name?: unknown }) {
   return name;
 }
 
-/** Normalized scope plan for one account type. Every account needs a sender department (D216). */
+/** Department membership is optional read scope, independent of the sender department selected per request (D233). */
 function accessOf(input: AccessInput) {
   requireCondition(input && TYPE_CODES.includes(input.typeCode), "INVALID_TYPE", "กรุณาเลือกประเภทบัญชี");
   const departmentId = optionalId(input.departmentId), branchId = optionalId(input.branchId), warehouseId = optionalId(input.warehouseId), driverId = optionalId(input.driverId);
-  requireCondition(departmentId, "SCOPE_REQUIRED", "กรุณาเลือกแผนกต้นสังกัด");
   const type = input.typeCode;
   if (type === "BRANCH_RECEIVER") requireCondition(branchId, "SCOPE_REQUIRED", "พนักงานสาขาต้องเลือกสาขาที่ประจำ");
   if (type === "WAREHOUSE") requireCondition(warehouseId || driverId, "SCOPE_REQUIRED", "คลังและรถขนส่งต้องเลือกคลังที่ประจำ หรือคนขับ หรือทั้งสองอย่าง");
@@ -68,7 +67,7 @@ type Access = ReturnType<typeof accessOf>;
 const openBranch = () => ({ archived: false, destinationType: "BRANCH" as const, OR: [{ activeTo: null }, { activeTo: { gte: new Date(`${bangkokServiceDate()}T00:00:00Z`) } }] });
 
 async function requireActiveReferences(tx: Transaction, a: Access) {
-  requireCondition((await tx.department.findUnique({ where: { id: a.departmentId } }))?.active, "INACTIVE_REFERENCE", "แผนกที่เลือกไม่พร้อมใช้งาน");
+  if(a.departmentId)requireCondition((await tx.department.findUnique({ where: { id: a.departmentId } }))?.active, "INACTIVE_REFERENCE", "แผนกที่เลือกไม่พร้อมใช้งาน");
   if (a.branchId) requireCondition(await tx.branch.findFirst({ where: { id: a.branchId, ...openBranch() } }), "INACTIVE_REFERENCE", "สาขาที่เลือกปิดแล้วหรือไม่พร้อมใช้งาน");
   if (a.warehouseId) requireCondition((await tx.warehouse.findUnique({ where: { id: a.warehouseId } }))?.active, "INACTIVE_REFERENCE", "คลังที่เลือกไม่พร้อมใช้งาน");
   if (a.driverId) requireCondition((await tx.driver.findUnique({ where: { id: a.driverId } }))?.active, "INACTIVE_REFERENCE", "คนขับที่เลือกไม่พร้อมใช้งาน");
@@ -80,7 +79,7 @@ function scopeRows(userId: string, a: Access): Array<{ userId: string; kind: Sco
     ...(a.branchId ? [{ userId, kind: "BRANCH" as const, branchId: a.branchId }] : []),
     ...(a.warehouseId ? [{ userId, kind: "WAREHOUSE" as const, warehouseId: a.warehouseId }] : []),
     ...(a.driverId ? [{ userId, kind: "DRIVER" as const, driverId: a.driverId }] : []),
-    { userId, kind: "DEPARTMENT" as const, departmentId: a.departmentId },
+    ...(a.departmentId ? [{ userId, kind: "DEPARTMENT" as const, departmentId: a.departmentId }] : []),
   ];
 }
 
@@ -103,7 +102,8 @@ async function writeAccess(tx: Transaction, userId: string, a: Access) {
   await tx.userRole.deleteMany({ where: { userId } });
   await tx.userRole.create({ data: { userId, roleId: role.id } });
   await tx.userScope.deleteMany({ where: { userId } });
-  await tx.userScope.createMany({ data: scopeRows(userId, a) });
+  const scopes=scopeRows(userId,a);
+  if(scopes.length)await tx.userScope.createMany({ data: scopes });
 }
 
 /**

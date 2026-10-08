@@ -28,7 +28,7 @@ export default async function PrintLabelsPage({ params, searchParams }: { params
   if (sheet.revoked || !sheet.payload) return <div className="container message-page">
     <span className="eyebrow">พิมพ์ฉลาก {sheet.consignmentCode}</span>
     <h1><TriangleAlert size={26} aria-hidden="true" className="inline-icon" />ฉลากฉบับที่ {sheet.number} ถูกยกเลิกแล้ว</h1>
-    <p>เหตุผล: {sheet.revocationReason ?? "ไม่ระบุ"} ห้ามใช้ฉลากฉบับนี้ติดหีบห่อ</p>
+    <p>เหตุผล: {sheet.revocationReason ?? "ไม่ระบุ"} ห้ามใช้ฉลากฉบับนี้ติดของ</p>
     {sheet.replacement ? <Link className="primary-button" href={`/print/labels/${sheet.replacement.labelVersionId}?format=${format}`}>เปิดฉลากฉบับที่ {sheet.replacement.number} (ปัจจุบัน)</Link> : <Link className="primary-button" href={back.href}>ออกฉลากฉบับใหม่</Link>}
   </div>;
   return <div className="print-page">

@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma, TripRevision } from "../../generated/prisma/client";
 import { requireCondition, versionMatches } from "../domain/errors";
 import type { Transaction } from "./transaction";
+import { isAdministrator } from "../auth/permissions";
 
 export interface Reassignment { consignmentId: string; expectedVersion: number; tripId: string; stopSequence: number }
 /**
@@ -17,10 +18,12 @@ export async function reassignForPublication(tx: Transaction, actorId: string, i
   requireCondition(moves.length===linked.length && new Set(moves.map(m=>m.consignmentId)).size===moves.length && linked.every(c=>moves.some(m=>m.consignmentId===c.id)),"REASSIGNMENT_REQUIRED","กรุณาระบุเที่ยวและจุดส่งใหม่ให้พัสดุที่ผูกกับแผนเดิมครบทุกใบ");
   if(!linked.length)return;
   requireCondition(typeof reason==="string"&&reason.trim().length>=3&&reason.length<=500,"REASON_REQUIRED","กรุณาระบุเหตุผลการย้ายพัสดุ");
+  // D235: the administrator may move a request they created; every other reviewer still needs a second person (D216).
+  const admin=await isAdministrator(tx,actorId);
   for(const row of linked){
     await tx.$queryRaw`SELECT id FROM Consignment WHERE id=${row.id} FOR UPDATE`;
     const c=await tx.consignment.findUniqueOrThrow({where:{id:row.id},include:{currentAssignment:true,consignmentPackage_consignmentId:true}});
-    requireCondition(c.requesterId!==actorId,"SELF_REVIEW","คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนอนุมัติการย้ายผ่านแผน");
+    requireCondition(admin||c.requesterId!==actorId,"SELF_REVIEW","คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนอนุมัติการย้ายผ่านแผน");
     const move=moves.find(m=>m.consignmentId===c.id)!;
     versionMatches(c.version,move.expectedVersion);
     requireCondition(c.currentAssignment&&oldIds.includes(c.currentAssignment.tripRevisionId),"VERSION_CONFLICT","พัสดุถูกเปลี่ยนแปลงแล้ว กรุณาโหลดแผนใหม่");

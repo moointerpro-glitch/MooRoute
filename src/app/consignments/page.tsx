@@ -31,7 +31,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     <header className="list-header"><div><p className="eyebrow"><span />ประวัติฝากส่ง</p><h1>รายการฝากของส่งรถ</h1><p className="muted">แสดงเฉพาะรายการในขอบเขตงานของคุณ ฉบับร่างแสดงเฉพาะผู้สร้าง</p></div>
       {p.permissions.has("consignment.create") && <Link className="primary-button" href="/consign"><PackagePlus size={18} aria-hidden="true" />ฝากของส่งรถ</Link>}</header>
     <form className="history-filters" action="/consignments" role="search" aria-label="กรองรายการฝากส่ง">
-      <label>เลขที่หรือชื่อรายการ<input name="q" defaultValue={filter.query} maxLength={100} placeholder="เช่น FS-25691006 หรือ โปสเตอร์" /></label>
+      <label>เลขที่ หรือสิ่งที่ฝาก<input name="q" defaultValue={filter.query} maxLength={100} placeholder="เช่น FS-25691006 หรือ โปสเตอร์" /></label>
       <label>สถานะ<select name="status" defaultValue={filter.status[0] ?? ""}><option value="">ทุกสถานะ</option>{Object.entries(statusLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <label>สาขาปลายทาง<select name="branch" defaultValue={filter.branchId ?? ""}><option value="">ทุกสาขา</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}</select></label>
       <label>หมวดสิ่งของ<select name="category" defaultValue={filter.categoryId ?? ""}><option value="">ทุกหมวด</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
@@ -47,7 +47,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
         : <ul className="history-list">{result.rows.map((r) => <li key={r.id} className="history-item">
           <div className="history-main">
             <p className="history-code"><Link href={`/consignments/${r.id}`}>{r.code}</Link><span className={`status-pill ${statusTone(r.status)}`}>{statusText(r.status)}</span></p>
-            <p>{r.items.map((i) => `${i.name} ${Number(i.quantity).toLocaleString("th-TH")} ${unitText(i.unit)}`).join(", ") || "ยังไม่มีรายการ"} · {r.packageCount} หีบห่อ</p>
+            <p><strong>{r.packaging || "ยังไม่ระบุสิ่งที่ฝากส่ง"}</strong>{r.packageCount > 0 && ` (รวม ${r.packageCount} ชิ้น)`}{(r.contents.length > 0 || r.items.length > 0) && ` — ${[...r.contents, ...r.items.map((i) => `${i.name} ${Number(i.quantity).toLocaleString("th-TH")} ${unitText(i.unit)}`)].join(", ")}`}</p>
             <p className="muted small">ถึง {r.branch.name} ({r.branch.code}) · จาก {r.warehouse} · โดย {r.requester} · สร้าง {thaiDateTime(r.createdAt)} น.</p>
           </div>
           <div className="history-trip">{r.trip ? <><strong>{r.trip.code}</strong><span>{r.trip.serviceDate ? beDate(r.trip.serviceDate) : ""} · {roundLabel(r.trip.roundNo)}</span><span>{r.trip.plate ?? ""}</span></> : <span className="muted">{r.requestedServiceDate ? `ต้องการส่ง ${beDate(r.requestedServiceDate)}` : "ยังไม่จัดรถ"}</span>}</div>

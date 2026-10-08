@@ -18,6 +18,9 @@ export async function authorize(tx: Transaction, actorId: string, permission: st
     JOIN RolePermission rp ON rp.roleId=ur.roleId JOIN Permission p ON p.id=rp.permissionId
     WHERE u.id=${actorId} AND u.active=1 AND p.code=${permission} LIMIT 1`;
   requireCondition(users.length, "FORBIDDEN", "คุณไม่มีสิทธิ์ดำเนินการนี้");
+  // D235: the administrator is not limited by row scope.
+  const admin = await tx.$queryRaw<Array<{ id: string }>>`SELECT ur.id FROM UserRole ur JOIN Role r ON r.id=ur.roleId WHERE ur.userId=${actorId} AND r.code='ADMINISTRATOR' LIMIT 1`;
+  if (admin.length) return;
   const scopes = await tx.userScope.findMany({ where: { userId: actorId } });
   requireCondition(scopes.some((s) => s.kind === "GLOBAL" || (scope && (
     (s.kind === "BRANCH" && !!scope.branchId && s.branchId === scope.branchId) ||

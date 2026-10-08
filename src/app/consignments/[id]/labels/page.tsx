@@ -11,7 +11,7 @@ import { statusText } from "@/lib/consignment-format";
 import { thaiDateTime } from "@/lib/trip-format";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ฉลากหีบห่อ" };
+export const metadata = { title: "ฉลากติดของ" };
 
 export default async function LabelsPage({ params }: { params: Promise<{ id: string }> }) {
   const actor = await requirePageActor(), { id } = await params;
@@ -23,7 +23,7 @@ export default async function LabelsPage({ params }: { params: Promise<{ id: str
     : o.masterChanged ? "ข้อมูลสาขาถูกแก้ไขหลังจัดรถ ต้องให้ผู้วางแผนขนส่งกด “อัปเดตที่อยู่” ก่อน" : o.problems.length ? `ข้อมูลไม่ครบ: ${o.problems.join(" · ")}` : null;
   return <div className="container detail-page">
     <Link href={`/consignments/${o.consignment.id}`} className="text-link"><ArrowLeft size={17} aria-hidden="true" />กลับไปรายการฝากส่ง</Link>
-    <header className="detail-header"><div><p className="eyebrow"><span />ฉลากหีบห่อ</p><h1>{o.consignment.code}</h1><p className="muted">ถึง {o.consignment.branch} · {statusText(o.consignment.status)}</p></div></header>
+    <header className="detail-header"><div><p className="eyebrow"><span />ฉลากติดของ</p><h1>{o.consignment.code}</h1><p className="muted">ถึง {o.consignment.branch} · {statusText(o.consignment.status)}</p></div></header>
     {o.masterChanged && <p className="notice-panel"><TriangleAlert size={20} aria-hidden="true" /><span>ที่อยู่หรือผู้ติดต่อของสาขาในข้อมูลหลักต่างจากที่บันทึกไว้ตอนจัดรถ ฉลากที่ออกแล้วยังใช้ข้อมูลเดิม หากต้องการแก้ ให้ผู้วางแผนขนส่งอัปเดตที่อยู่ ระบบจะยกเลิกฉลากเดิมและออกฉบับใหม่</span></p>}
     <div className="consignment-layout">
       <div>

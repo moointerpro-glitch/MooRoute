@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
 import { DomainError, requireCondition, versionMatches } from "../domain/errors";
-import { idPattern, reasonText } from "../domain/consignment";
+import { idPattern, packagingPieces, packagingSummary, pieceName, reasonText, storedPackaging } from "../domain/consignment";
 import { LABEL_FORMATS, labelProblems, lookupPath, type LabelPayload } from "../domain/labels";
 import { principal, type Principal } from "../auth/permissions";
 import { requireConsignmentAccess } from "../auth/resource-policy";
@@ -27,13 +27,17 @@ async function loadForLabel(tx: Transaction, consignmentId: string, lock: boolea
   return c;
 }
 type Loaded = Awaited<ReturnType<typeof loadForLabel>>;
+const packagingOf = (c: { draftItems: unknown; packageCount: number; packageWeight: Prisma.Decimal | null; packageWeightUnit: string | null }) =>
+  storedPackaging(c.draftItems, { packageCount: c.packageCount, packageWeight: c.packageWeight?.toString() ?? null, packageWeightUnit: c.packageWeightUnit });
 
 /** Builds the printable content only from the frozen assignment snapshots, never from live master data. */
 function buildPayload(c: Loaded, number: number, token: string, issuedBy: string, issuedAt: Date): LabelPayload {
   const a = c.currentAssignment!, recipient = a.recipientSnapshot.payload as Snapshot, sender = a.senderSnapshot.payload as Snapshot, t = a.transportSnapshot as Transport;
+  // The request document is frozen at submission, so piece N always maps to the same packaging line.
+  const pieces = packagingPieces(packagingOf(c));
   return {
     schemaVersion: 1, consignmentCode: c.code, number, issuedAt: issuedAt.toISOString(), issuedBy,
-    packages: c.consignmentPackage_consignmentId.map((x) => ({ id: x.id, sequence: x.sequence, total: x.total, label: `${c.code}-${x.sequence}/${x.total}` })),
+    packages: c.consignmentPackage_consignmentId.map((x) => ({ id: x.id, sequence: x.sequence, total: x.total, label: `${c.code}-${x.sequence}/${x.total}`, kind: pieces[x.sequence - 1]?.name ?? "หีบห่อ", description: pieces[x.sequence - 1]?.description ?? null })),
     recipient: { branchCode: recipient.branch?.code ?? null, branchName: recipient.branch?.name ?? null, addressLine: recipient.branch?.addressLine ?? null, subdistrict: recipient.branch?.subdistrict ?? null, district: recipient.branch?.district ?? null, province: recipient.branch?.province ?? null, postalCode: recipient.branch?.postalCode ?? null, contactName: recipient.contact?.name ?? null, contactPhone: recipient.contact?.phone ?? null },
     sender: { warehouseName: sender.warehouse?.name ?? null, warehouseCode: sender.warehouse?.code ?? null, department: sender.department?.name ?? null, contactName: sender.contact?.name ?? null, contactPhone: sender.contact?.phone ?? null },
     transport: { tripCode: a.trip.code, serviceDate: t.serviceDate ?? a.trip.plan.serviceDate.toISOString().slice(0, 10), roundNo: t.roundNo ?? null, plate: t.plate ?? null, province: t.province ?? null, departureAt: t.departureAt ?? null },
@@ -154,15 +158,16 @@ export async function lookupLabel(db: PrismaClient, actorId: string, token: stri
   requireCondition(typeof token === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(token), "NOT_FOUND", "ไม่พบฉลากนี้ในระบบ");
   return db.$transaction(async (tx) => {
     const label = await tx.labelVersion.findUnique({ where: { lookupToken: token }, include: { assignment: { select: { consignmentId: true } }, labelPackage_labelVersionId: { include: { package: true } } } });
+    const printed = ((label?.payload ?? {}) as unknown as Partial<LabelPayload>).packages ?? [];
     requireCondition(label, "NOT_FOUND", "ไม่พบฉลากนี้ในระบบ");
     const c = await requireConsignmentAccess(tx, actorId, label.assignment.consignmentId);
     const item = sequence ? label.labelPackage_labelVersionId.find((x) => x.package.sequence === sequence)?.package ?? null : null;
-    requireCondition(!sequence || item, "NOT_FOUND", "ไม่พบหีบห่อนี้บนฉลาก");
+    requireCondition(!sequence || item, "NOT_FOUND", "ไม่พบชิ้นนี้บนฉลาก");
     const revoked = !!label.revokedAt, replacement = revoked ? await replacementOf(tx, c.id) : null;
     return {
       state: revoked ? "REVOKED" as const : "CURRENT" as const, number: label.number, revokedAt: label.revokedAt?.toISOString() ?? null, revocationReason: label.revocationReason,
       replacement, consignment: { id: c.id, code: c.code, status: c.status },
-      package: item ? { id: item.id, sequence: item.sequence, total: item.total, label: `${c.code}-${item.sequence}/${item.total}`, custody: item.custody } : null,
+      package: item ? { id: item.id, sequence: item.sequence, total: item.total, label: `${c.code}-${item.sequence}/${item.total}`, name: pieceName({ sequence: item.sequence, total: item.total, name: printed.find((x) => x.id === item.id)?.kind ?? "หีบห่อ" }), custody: item.custody } : null,
     };
   }, { isolationLevel: "RepeatableRead" });
 }
@@ -188,7 +193,8 @@ export async function tripManifest(db: PrismaClient, actorId: string, tripId: st
     const groups = revision.tripStop_tripRevisionId.map((stop) => {
       const consignments = rows.filter((c) => c.currentAssignment!.stop.sequence === stop.sequence).map((c) => {
         const snapshot = c.currentAssignment!.recipientSnapshot.payload as Snapshot;
-        return { id: c.id, code: c.code, status: c.status, warehouse: c.sourceWarehouse.name, packages: c.consignmentPackage_consignmentId.length, labelNumber: c.currentAssignment!.labelVersion_assignmentId[0]?.number ?? null,
+        const packaging = packagingOf(c);
+        return { id: c.id, code: c.code, status: c.status, warehouse: c.sourceWarehouse.name, packages: c.consignmentPackage_consignmentId.length, packaging: packagingSummary(packaging), contents: [...new Set(packaging.flatMap((l) => l.description ? [l.description] : []))], labelNumber: c.currentAssignment!.labelVersion_assignmentId[0]?.number ?? null,
           recipient: snapshot.contact?.name ?? null, items: c.consignmentItem_consignmentId.map((i) => ({ name: i.name, quantity: i.sentQuantity.toString(), unit: i.unit })) };
       });
       const unitTotals = new Map<string, Prisma.Decimal>();

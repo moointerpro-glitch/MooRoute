@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
-import { Check, Copy, KeyRound, Power, Save, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Check, Copy, KeyRound, Power, Save, ShieldCheck, UserPlus } from "lucide-react";
+import {AdminDialog,AdminFormBoundary} from "./admin-form-boundary";
 import { ACCOUNT_TYPES } from "@/lib/account-display";
 import type { UserDetail, UserFormOptions } from "@/server/services/users";
 
@@ -37,38 +38,39 @@ export function PasswordReveal({ email, password, title }: { email: string; pass
 type Values = { name: string; email: string; typeCode: string; departmentId: string; branchId: string; warehouseId: string; driverId: string; reason: string };
 
 /** Create or edit an account: one account type and the scope that type needs. */
-export function UserForm({ options, user }: { options: UserFormOptions; user?: UserDetail }) {
+export function UserForm({ options, user, backHref="/admin/users" }: { options: UserFormOptions; user?: UserDetail; backHref?:string }) {
   const router = useRouter();
   const [values, setValues] = useState<Values>({ name: user?.name ?? "", email: user?.email ?? "", typeCode: user?.access.typeCode ?? "", departmentId: user?.access.departmentId ?? "",
     branchId: user?.access.branchId ?? "", warehouseId: user?.access.warehouseId ?? "", driverId: user?.access.driverId ?? "", reason: "" });
   const [busy, setBusy] = useState(false), [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [created, setCreated] = useState<{ id: string; password: string | null } | null>(null);
+  const [dirty,setDirty]=useState(false);
   const set = (key: keyof Values, value: string) => setValues((v) => ({ ...v, [key]: value }));
   const type = values.typeCode, selfAdmin = !!user?.self && user.access.typeCode === "ADMINISTRATOR";
-  const missing = !values.name.trim() ? "กรอกชื่อที่แสดง" : !user && !values.email.trim() ? "กรอกอีเมล" : !type ? "เลือกประเภทบัญชี" : !values.departmentId ? "เลือกแผนกต้นสังกัด"
+  const missing = !values.name.trim() ? "กรอกชื่อที่แสดง" : !user && !values.email.trim() ? "กรอกอีเมล" : !type ? "เลือกประเภทบัญชี"
     : type === "BRANCH_RECEIVER" && !values.branchId ? "เลือกสาขาที่ประจำ" : type === "WAREHOUSE" && !values.warehouseId && !values.driverId ? "เลือกคลังที่ประจำ หรือคนขับ"
     : user && values.reason.trim().length < 3 ? "ระบุเหตุผลการเปลี่ยนแปลง" : "";
 
   if (created) return <div className="admin-card">
     {created.password ? <PasswordReveal email={values.email.trim().toLowerCase()} password={created.password} title="สร้างบัญชีแล้ว" />
       : <p className="form-success" role="status">สร้างบัญชีแล้ว (ส่งคำขอซ้ำ จึงไม่แสดงรหัสผ่านอีก ให้ออกรหัสผ่านใหม่ที่หน้าบัญชี)</p>}
-    <div className="form-actions"><Link className="primary-button" href={`/admin/users/${created.id}`}>เปิดหน้าบัญชีนี้</Link><Link className="secondary-button" href="/admin/users/new" onClick={() => setCreated(null)}>เพิ่มบัญชีอีก</Link></div>
+    <div className="form-actions"><Link className="primary-button" href={`/admin/users/${created.id}?returnTo=${encodeURIComponent(backHref)}`}>เปิดหน้าบัญชีนี้</Link><button type="button" className="secondary-button" onClick={() => { setCreated(null); setMessage(null); setDirty(false); setValues({name:"",email:"",typeCode:"",departmentId:"",branchId:"",warehouseId:"",driverId:"",reason:""}); }}>เพิ่มบัญชีอีก</button><Link className="secondary-button admin-back-button" href={backHref}><ArrowLeft size={18} aria-hidden="true"/>กลับรายชื่อผู้ใช้</Link></div>
   </div>;
 
-  return <form className="admin-card admin-form user-form" onSubmit={async (e) => {
+  return <AdminFormBoundary dirty={dirty} busy={busy} onDirty={()=>setDirty(true)} backHref={backHref}><form className="admin-card admin-form user-form" onSubmit={async (e) => {
     e.preventDefault(); if (missing) { setMessage({ ok: false, text: `ยังบันทึกไม่ได้: ${missing}` }); return; }
     setBusy(true); setMessage(null);
     const access = { typeCode: type, departmentId: values.departmentId, branchId: values.branchId || null, warehouseId: values.warehouseId || null, driverId: values.driverId || null };
     try {
       if (user) {
         await post("update", { id: user.id, expectedVersion: user.version, name: values.name, reason: values.reason, ...access });
-        setMessage({ ok: true, text: "บันทึกแล้ว สิทธิ์ใหม่มีผลทันทีในคำขอถัดไปของผู้ใช้" }); set("reason", ""); router.refresh();
+        setDirty(false);setMessage({ ok: true, text: "บันทึกแล้ว สิทธิ์ใหม่มีผลทันทีในคำขอถัดไปของผู้ใช้" }); set("reason", ""); router.refresh();
       } else {
         const r = await post<{ id: string; temporaryPassword: string | null }>("create", { name: values.name, email: values.email, ...access });
-        setCreated({ id: r.id, password: r.temporaryPassword });
+        setDirty(false);setCreated({ id: r.id, password: r.temporaryPassword });
       }
     } catch (error) { setMessage({ ok: false, text: (error as Error).message }); } finally { setBusy(false); }
-  }}>
+  }}><fieldset disabled={busy} className="admin-form-fields">
     <fieldset className="user-fieldset"><legend>ข้อมูลบัญชี</legend>
       <div className="form-grid">
         <label><span>ชื่อที่แสดง<span className="required">*</span></span><input value={values.name} onChange={(e) => set("name", e.target.value)} maxLength={120} required autoComplete="off" placeholder="เช่น สมหญิง ใจดี" /></label>
@@ -89,9 +91,9 @@ export function UserForm({ options, user }: { options: UserFormOptions; user?: U
 
     <fieldset className="user-fieldset"><legend>ขอบเขตข้อมูล</legend>
       <div className="form-grid">
-        <label><span>แผนกต้นสังกัด<span className="required">*</span></span><select value={values.departmentId} onChange={(e) => set("departmentId", e.target.value)} required aria-describedby="dept-hint">
-          <option value="">เลือกแผนก</option>{options.departments.map(option)}</select>
-          <span id="dept-hint" className="field-hint">ใช้ตอนฝากของ และให้พนักงานทั่วไปดูรายการของแผนก</span></label>
+        <label><span>แผนกต้นสังกัด (ไม่จำเป็น)</span><select value={values.departmentId} onChange={(e) => set("departmentId", e.target.value)} aria-describedby="dept-hint">
+          <option value="">ไม่กำหนดแผนก</option>{options.departments.map(option)}</select>
+          <span id="dept-hint" className="field-hint">ใช้กำหนดสิทธิ์ดูรายการของแผนกสำหรับพนักงานทั่วไป ส่วนแผนกผู้ส่งเลือกเองตอนฝากแต่ละครั้งได้</span></label>
         {type === "BRANCH_RECEIVER" && <label><span>สาขาที่ประจำ<span className="required">*</span></span><select value={values.branchId} onChange={(e) => set("branchId", e.target.value)} required>
           <option value="">เลือกสาขา</option>{options.branches.map(option)}</select></label>}
         {type === "WAREHOUSE" && <>
@@ -101,17 +103,17 @@ export function UserForm({ options, user }: { options: UserFormOptions; user?: U
             <span className="field-hint">บันทึกรถออกและแจ้งปัญหาในรอบที่ตนเองขับ เลือกคลัง คนขับ หรือทั้งสองอย่าง</span></label>
         </>}
         {(type === "DISPATCHER" || type === "ADMINISTRATOR") && <p className="scope-note">ประเภทนี้ทำงานกับข้อมูลทั้งบริษัท ไม่ต้องเลือกสาขาหรือคลัง</p>}
-        {type === "REQUESTER" && <p className="scope-note">พนักงานทั่วไปเห็นรายการฝากส่งของตัวเองและของแผนกที่เลือก</p>}
+        {type === "REQUESTER" && <p className="scope-note">พนักงานทั่วไปเห็นรายการของตัวเอง หากกำหนดแผนก จะดูคำขอที่ส่งแล้วของแผนกนั้นได้ด้วย การเลือกแผนกตอนฝากไม่เพิ่มสิทธิ์ดูรายการคนอื่น</p>}
       </div>
     </fieldset>
 
     {user && <label><span>เหตุผลการเปลี่ยนแปลง<span className="required">*</span></span><input value={values.reason} onChange={(e) => set("reason", e.target.value)} maxLength={300} placeholder="เช่น ย้ายไปประจำคลังสินค้าแช่แข็ง" /></label>}
     {message && <p className={message.ok ? "form-success" : "form-error"} role={message.ok ? "status" : "alert"}>{message.text}</p>}
-    <div className="form-actions">
+    <div className="form-actions admin-editor-footer">
       <button className="primary-button" disabled={busy}>{user ? <Save size={17} aria-hidden="true" /> : <UserPlus size={17} aria-hidden="true" />}{busy ? "กำลังบันทึก…" : user ? "บันทึกการเปลี่ยนแปลง" : "สร้างบัญชี"}</button>
-      <Link className="secondary-button" href="/admin/users">กลับรายชื่อผู้ใช้</Link>
+      {!user&&<Link className="secondary-button admin-back-button" href={backHref}><ArrowLeft size={18} aria-hidden="true"/>กลับรายชื่อผู้ใช้</Link>}
     </div>
-  </form>;
+  </fieldset></form></AdminFormBoundary>;
 }
 
 /** Disable / re-enable and temporary password, each with a reason and an explicit confirmation step. */
@@ -134,18 +136,18 @@ export function UserActions({ user }: { user: UserDetail }) {
   return <div className="admin-card user-actions">
     <h2>การจัดการบัญชี</h2>
     {user.self ? <p className="muted">นี่คือบัญชีของคุณ เปลี่ยนรหัสผ่านได้ที่ <Link href="/account">บัญชีของฉัน</Link> และปิดใช้งานบัญชีตัวเองไม่ได้</p> : <>
-      {!mode && <div className="form-actions">
+      <div className="form-actions">
         {user.active && <button type="button" className="secondary-button" onClick={() => setMode("reset")}><KeyRound size={17} aria-hidden="true" />ออกรหัสผ่านชั่วคราวใหม่</button>}
         {user.active ? <button type="button" className="danger-button" onClick={() => setMode("deactivate")}><Power size={17} aria-hidden="true" />ปิดใช้งานบัญชี</button>
           : <button type="button" className="primary-button" onClick={() => setMode("reactivate")}><Power size={17} aria-hidden="true" />เปิดใช้งานอีกครั้ง</button>}
-      </div>}
-      {mode && <div className="delete-confirm">
+      </div>
+      {mode && <AdminDialog title={confirmText} busy={busy} onClose={()=>{setMode("");setReason("");setError("");}}><div className="delete-confirm admin-form"><strong>{user.name} · {user.email}</strong>
         <p>{mode === "deactivate" ? "บัญชีจะเข้าสู่ระบบไม่ได้ทันที ประวัติงานทั้งหมดยังเก็บไว้ เปิดใช้งานคืนได้ภายหลัง" : mode === "reset" ? "รหัสผ่านเดิมจะใช้ไม่ได้ทันที ระบบแสดงรหัสใหม่ให้ครั้งเดียว" : "บัญชีจะเข้าสู่ระบบได้อีกครั้งด้วยรหัสผ่านเดิม ถ้าไม่แน่ใจให้ออกรหัสผ่านใหม่หลังเปิดใช้งาน"}</p>
         <label><span>เหตุผล<span className="required">*</span></span><input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} autoFocus placeholder={mode === "deactivate" ? "เช่น ลาออก" : "เช่น ลืมรหัสผ่าน"} /></label>
-        <div className="form-actions"><button type="button" className={mode === "deactivate" ? "danger-button" : "primary-button"} disabled={busy} onClick={() => void run()}>{busy ? "กำลังดำเนินการ…" : `ยืนยัน${confirmText}`}</button>
-          <button type="button" className="secondary-button" onClick={() => { setMode(""); setReason(""); setError(""); }}>ยกเลิก</button></div>
-      </div>}
+        {error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className={mode === "deactivate" ? "danger-button" : "primary-button"} disabled={busy} onClick={() => void run()}>{busy ? "กำลังดำเนินการ…" : `ยืนยัน${confirmText}`}</button>
+          <button type="button" className="secondary-button" disabled={busy} onClick={() => { setMode(""); setReason(""); setError(""); }}>ยกเลิก</button></div>
+      </div></AdminDialog>}
     </>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && !mode && <p className="form-error" role="alert">{error}</p>}
   </div>;
 }

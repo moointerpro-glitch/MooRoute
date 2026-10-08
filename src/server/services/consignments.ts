@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma, type ConsignmentStatus, type PrismaClient } from "../../generated/prisma/client";
 import { DomainError, requireCondition, versionMatches } from "../domain/errors";
 import { serviceDate } from "../domain/planning";
-import { idPattern, normalizeDraft, reasonText, requireTransition, submissionProblems, issueTypes, quantityPattern, transitionMatrix, statusLabels, type ActorRule, type DraftInput } from "../domain/consignment";
+import { idPattern, normalizeDraft, reasonText, requireTransition, submissionProblems, issueTypes, quantityPattern, transitionMatrix, statusLabels, storedPackaging, packagingPieces, packagingSummary, packagingWeightKg, pieceName, type ActorRule, type DraftInput, type NormalizedDraft } from "../domain/consignment";
 import { principal, requireCapability, type Principal } from "../auth/permissions";
 import { contactPolicy } from "./trip-search";
 import { consignmentScope, requireConsignmentAccess } from "../auth/resource-policy";
@@ -33,6 +33,8 @@ async function lockConsignment(tx: Transaction, id: string) {
 type Locked = Awaited<ReturnType<typeof lockConsignment>>;
 
 function satisfies(p: Principal, actorId: string, rule: ActorRule, c: Locked) {
+  // D235: the administrator acts on any request, including a draft created by someone else.
+  if (p.admin) return true;
   if (rule === "OWN_REQUESTER") return c.requesterId === actorId;
   if (p.global) return true;
   if (rule === "SOURCE_WAREHOUSE") return p.scopes.some((s) => s.kind === "WAREHOUSE" && s.warehouseId === c.sourceWarehouseId);
@@ -46,8 +48,12 @@ function requireActor(p: Principal, actorId: string, action: string, c: Locked) 
   // Out-of-scope rows look missing to avoid disclosing their existence.
   if (!ok && c.status === "DRAFT" && c.requesterId !== actorId && !p.permissions.has("consignment.read.drafts")) throw new DomainError("NOT_FOUND", "ไม่พบรายการฝากส่ง");
   requireCondition(ok, "FORBIDDEN", "คุณไม่มีสิทธิ์ดำเนินการกับรายการฝากส่งนี้");
-  if (["assign", "reject", "reassign"].includes(action)) requireCondition(c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
+  // D216: a reviewer cannot review their own request. D235: the administrator is exempt.
+  if (["assign", "reject", "reassign"].includes(action)) requireCondition(p.admin || c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
 }
+/** Packaging lines of a stored request, including requests saved before D234. */
+export const packagingOf = (c: { draftItems: unknown; packageCount: number; packageWeight: Prisma.Decimal | null; packageWeightUnit: string | null }) =>
+  storedPackaging(c.draftItems, { packageCount: c.packageCount, packageWeight: c.packageWeight?.toString() ?? null, packageWeightUnit: c.packageWeightUnit });
 async function bump(tx: Transaction, id: string, data: Prisma.ConsignmentUpdateInput) {
   return tx.consignment.update({ where: { id }, data: { ...data, version: { increment: 1 } } });
 }
@@ -56,7 +62,7 @@ async function event(tx: Transaction, consignmentId: string, actorId: string, ki
 }
 const ok = (c: { id: string; status: string; version: number }): Result => ({ id: c.id, status: c.status, version: c.version });
 const idList = (value: unknown, max = 500) => {
-  requireCondition(Array.isArray(value) && value.length <= max && value.every((v) => typeof v === "string" && idPattern.test(v)) && new Set(value).size === value.length, "INVALID_INPUT", "รายการหีบห่อไม่ถูกต้อง");
+  requireCondition(Array.isArray(value) && value.length <= max && value.every((v) => typeof v === "string" && idPattern.test(v)) && new Set(value).size === value.length, "INVALID_INPUT", "รายการชิ้นที่เลือกไม่ถูกต้อง");
   return value as string[];
 };
 
@@ -68,12 +74,11 @@ function consignmentCode(now = new Date()) {
   const [y, m, d] = bangkokServiceDate(now).split("-");
   return `FS-${Number(y) + 543}${m}${d}-${[...bytes].map((b) => alphabet[b % alphabet.length]).join("")}`;
 }
-function requireSenderDepartment(p: Principal, departmentId: string) {
-  requireCondition(p.scopes.some((s) => s.kind === "DEPARTMENT" && s.departmentId === departmentId), "FORBIDDEN", "คุณสร้างคำขอได้เฉพาะแผนกในขอบเขตของคุณ");
+async function requireSenderDepartment(tx: Transaction, departmentId: string) {
+  // The selected sender department belongs to the request, not to the account's read scopes (D233).
+  requireCondition((await tx.department.findUnique({ where: { id: departmentId } }))?.active, "INACTIVE_REFERENCE", "แผนกผู้ส่งไม่พร้อมใช้งาน กรุณาเลือกแผนกที่เปิดใช้งาน");
 }
-async function validateReferences(tx: Transaction, p: Principal, d: DraftInput) {
-  requireSenderDepartment(p, d.departmentId);
-  requireCondition((await tx.department.findUnique({ where: { id: d.departmentId } }))?.active, "INACTIVE_REFERENCE", "แผนกไม่พร้อมใช้งาน");
+async function validateReferences(tx: Transaction, d: NormalizedDraft) {
   requireCondition((await tx.warehouse.findUnique({ where: { id: d.sourceWarehouseId } }))?.active, "INACTIVE_REFERENCE", "คลังต้นทางไม่พร้อมใช้งาน");
   const branch = await tx.branch.findUnique({ where: { id: d.destinationBranchId } });
   requireCondition(branch && !branch.archived && branch.destinationType === "BRANCH", "INACTIVE_REFERENCE", "สาขาปลายทางไม่พร้อมใช้งาน");
@@ -81,13 +86,14 @@ async function validateReferences(tx: Transaction, p: Principal, d: DraftInput) 
   requireCondition((await tx.consignmentCategory.count({ where: { id: { in: categories }, active: true } })) === categories.length, "INACTIVE_REFERENCE", "หมวดสิ่งของบางรายการไม่พร้อมใช้งาน");
   return branch;
 }
-function draftData(d: DraftInput) {
+function draftData(d: NormalizedDraft) {
   return {
     departmentId: d.departmentId, sourceWarehouseId: d.sourceWarehouseId, destinationBranchId: d.destinationBranchId, receiptMode: d.receiptMode,
     requestedServiceDate: d.requestedServiceDate ? serviceDate(d.requestedServiceDate) : null, requestedRoundNo: d.requestedRoundNo, requestedTripId: d.requestedTripId,
     senderName: d.senderName, senderPhone: d.senderPhone, recipientName: d.recipientName, recipientPhone: d.recipientPhone, notes: d.notes,
-    packageCount: d.packageCount, packageWeight: d.packageWeight, packageWeightUnit: d.packageWeightUnit,
-    draftItems: { schemaVersion: 1, items: d.items.map((i) => ({ ...i })) },
+    // D234: the request document carries the packaging lines; the count is their total and weights are per line.
+    packageCount: d.packageCount, packageWeight: null, packageWeightUnit: null,
+    draftItems: { schemaVersion: 2, items: d.items.map((i) => ({ ...i })), packaging: d.packaging.map((l) => ({ ...l })) },
   };
 }
 
@@ -97,18 +103,18 @@ export async function saveConsignmentDraft(db: PrismaClient, actorId: string, ke
     const p = await principal(tx, actorId); requireCapability(p, "consignment.create");
     let existing: Locked | null = null;
     if (d.id) { existing = await lockConsignment(tx, d.id); requireActor(p, actorId, "saveDraft", existing); }
-    requireSenderDepartment(p, d.departmentId);
+    await requireSenderDepartment(tx, d.departmentId);
     const prior = await replay<Result & { code: string }>(tx, idem); if (prior) return prior;
-    await validateReferences(tx, p, d);
+    await validateReferences(tx, d);
     if (existing) {
       versionMatches(existing.version, d.expectedVersion); requireTransition("saveDraft", existing.status);
       const updated = await bump(tx, existing.id, draftData(d));
-      await audit(tx, actorId, "CONSIGNMENT_DRAFT_SAVED", "Consignment", existing.id, idem, { version: updated.version });
+      await audit(tx, actorId, "CONSIGNMENT_DRAFT_SAVED", "Consignment", existing.id, idem, { version: updated.version, departmentId: d.departmentId, previousDepartmentId: existing.departmentId });
       return { ...ok(updated), code: updated.code };
     }
     versionMatches(0, d.expectedVersion);
     const created = await tx.consignment.create({ data: { id: randomUUID(), code: consignmentCode(), requesterId: actorId, ...draftData(d) } });
-    await audit(tx, actorId, "CONSIGNMENT_DRAFT_CREATED", "Consignment", created.id, idem, { code: created.code });
+    await audit(tx, actorId, "CONSIGNMENT_DRAFT_CREATED", "Consignment", created.id, idem, { code: created.code, departmentId: d.departmentId });
     return { ...ok(created), code: created.code };
   });
 }
@@ -118,15 +124,15 @@ export async function submitConsignment(db: PrismaClient, actorId: string, key: 
   requireCondition(input && Number.isInteger(input.expectedVersion), "INVALID_INPUT", "ข้อมูลไม่ถูกต้อง");
   return guardedWrite(db, actorId, "consignment.submit", key, input, async (tx, idem) => {
     const p = await principal(tx, actorId), c = await lockConsignment(tx, input.id); requireActor(p, actorId, "submit", c);
-    requireSenderDepartment(p, c.departmentId);
+    await requireSenderDepartment(tx, c.departmentId);
     const prior = await replay<Result>(tx, idem); if (prior) return prior;
     versionMatches(c.version, input.expectedVersion); requireTransition("submit", c.status);
     const items = ((c.draftItems ?? { items: [] }) as unknown as DraftItems).items ?? [];
     const draft = normalizeDraft({ id: c.id, expectedVersion: c.version, departmentId: c.departmentId, sourceWarehouseId: c.sourceWarehouseId, destinationBranchId: c.destinationBranchId,
       requestedServiceDate: c.requestedServiceDate?.toISOString().slice(0, 10) ?? null, requestedRoundNo: c.requestedRoundNo, requestedTripId: c.requestedTripId,
       senderName: c.senderName, senderPhone: c.senderPhone, recipientName: c.recipientName, recipientPhone: c.recipientPhone, notes: c.notes, receiptMode: c.receiptMode,
-      packageCount: c.packageCount, packageWeight: c.packageWeight?.toString() ?? null, packageWeightUnit: c.packageWeightUnit, items });
-    const branch = await validateReferences(tx, p, draft);
+      packaging: packagingOf(c), items });
+    const branch = await validateReferences(tx, draft);
     const recipientKnown = !!((draft.recipientName || branch.contactName) && (draft.recipientPhone || branch.contactPhone));
     const problems = submissionProblems(draft, bangkokServiceDate(), recipientKnown);
     if (draft.requestedServiceDate) {
@@ -139,13 +145,13 @@ export async function submitConsignment(db: PrismaClient, actorId: string, key: 
       else if (draft.requestedServiceDate && check.serviceDate !== draft.requestedServiceDate) problems.push("รอบรถที่เลือกไม่ตรงกับวันที่ต้องการส่ง");
     }
     if (problems.length) throw new DomainError("SUBMISSION_INCOMPLETE", problems.join(" · "), problems);
-    // Items and packages are materialized while still DRAFT; database triggers freeze them afterwards.
+    // Items and one package record per piece are materialized while still DRAFT; database triggers freeze them afterwards.
     for (const item of draft.items) await tx.consignmentItem.create({ data: { consignmentId: c.id, categoryId: item.categoryId, name: item.name, sentQuantity: item.quantity, unit: item.unit } });
-    for (let sequence = 1; sequence <= draft.packageCount; sequence++) {
-      await tx.consignmentPackage.create({ data: { consignmentId: c.id, sequence, total: draft.packageCount, weight: draft.packageWeight, weightUnit: draft.packageWeightUnit, custody: "SENDER" } });
+    for (const piece of packagingPieces(draft.packaging)) {
+      await tx.consignmentPackage.create({ data: { consignmentId: c.id, sequence: piece.sequence, total: piece.total, weight: piece.weight, weightUnit: piece.weight ? "KG" : null, custody: "SENDER" } });
     }
     const updated = await bump(tx, c.id, { status: "PENDING_REVIEW", submittedAt: new Date() });
-    await event(tx, c.id, actorId, "SUBMITTED", idem, { receiptMode: c.receiptMode, items: draft.items.length, packages: draft.packageCount });
+    await event(tx, c.id, actorId, "SUBMITTED", idem, { receiptMode: c.receiptMode, items: draft.items.length, packages: draft.packageCount, packaging: packagingSummary(draft.packaging) });
     await audit(tx, actorId, "CONSIGNMENT_SUBMITTED", "Consignment", c.id, idem, ok(updated));
     return ok(updated);
   });
@@ -153,7 +159,7 @@ export async function submitConsignment(db: PrismaClient, actorId: string, key: 
 
 // ---------------------------------------------------------------- trip eligibility and assignment
 
-export async function tripEligibility(tx: Transaction, c: { id: string; destinationBranchId: string; packageCount: number; packageWeight: Prisma.Decimal | null; packageWeightUnit: string | null }, tripId: string, stopSequence: number | null, now: Date) {
+export async function tripEligibility(tx: Transaction, c: { id: string; destinationBranchId: string; draftItems: unknown; packageCount: number; packageWeight: Prisma.Decimal | null; packageWeightUnit: string | null }, tripId: string, stopSequence: number | null, now: Date) {
   const reasons: string[] = [];
   const trip = idPattern.test(tripId) ? await tx.trip.findUnique({ where: { id: tripId }, include: { plan: true } }) : null;
   const revision = trip?.plan.publishedRevisionId ? await tx.tripRevision.findUnique({ where: { planRevisionId_tripId: { planRevisionId: trip.plan.publishedRevisionId, tripId } }, include: { vehicle: true, tripStop_tripRevisionId: { orderBy: { sequence: "asc" } } } }) : null;
@@ -166,19 +172,17 @@ export async function tripEligibility(tx: Transaction, c: { id: string; destinat
   const cutoff = base ? new Date(base.valueOf() - cutoffLeadMinutes() * 60_000) : null;
   if (!cutoff) reasons.push("รอบรถนี้ยังไม่ระบุเวลาขึ้นของหรือเวลาออกรถ");
   else if (now >= cutoff) reasons.push("เลยเวลาปิดรับฝากของสำหรับรอบนี้แล้ว");
-  // Capacity is enforced only with a known capacity and the same unit; otherwise it is reported as unknown.
+  // D234: weight is compared only when the vehicle states its capacity in kilograms and the request states a weight.
+  // A capacity in another unit (boxes, cubic metres) or an unstated weight cannot be compared: it is reported as
+  // not checked and never blocks the assignment.
   let capacity: { known: boolean; capacity: string | null; unit: string | null; used: string | null } = { known: false, capacity: null, unit: null, used: null };
-  const v = revision.vehicle;
-  if (v?.capacity && v.capacityUnit && c.packageWeight && c.packageWeightUnit) {
-    if (c.packageWeightUnit !== v.capacityUnit) reasons.push("หน่วยน้ำหนักหีบห่อไม่ตรงกับหน่วยความจุรถ");
-    else {
-      const others = await tx.consignment.findMany({ where: { id: { not: c.id }, status: { in: [...ACTIVE_LOAD] }, currentAssignment: { tripId }, packageWeightUnit: v.capacityUnit } });
-      let used = revision.plannedLoad && revision.loadUnit === v.capacityUnit ? new Prisma.Decimal(revision.plannedLoad) : new Prisma.Decimal(0);
-      for (const o of others) used = used.plus(new Prisma.Decimal(o.packageWeight!).times(o.packageCount));
-      const total = used.plus(new Prisma.Decimal(c.packageWeight).times(c.packageCount));
-      capacity = { known: true, capacity: v.capacity.toString(), unit: v.capacityUnit, used: total.toString() };
-      if (total.gt(v.capacity)) reasons.push("น้ำหนักรวมเกินความจุรถ");
-    }
+  const v = revision.vehicle, own = packagingWeightKg(packagingOf(c));
+  if (v?.capacity && v.capacityUnit === "KG" && own) {
+    const others = await tx.consignmentPackage.aggregate({ _sum: { weight: true }, where: { weightUnit: "KG", consignment: { id: { not: c.id }, status: { in: [...ACTIVE_LOAD] }, currentAssignment: { tripId } } } });
+    const planned = revision.plannedLoad && revision.loadUnit === "KG" ? new Prisma.Decimal(revision.plannedLoad) : new Prisma.Decimal(0);
+    const total = planned.plus(others._sum.weight ?? 0).plus(own);
+    capacity = { known: true, capacity: v.capacity.toString(), unit: "KG", used: total.toString() };
+    if (total.gt(v.capacity)) reasons.push("น้ำหนักรวมเกินความจุรถ");
   }
   return { eligible: reasons.length === 0, reasons, revision, stop, serviceDate: trip.plan.serviceDate.toISOString().slice(0, 10), capacity, cutoff: cutoff?.toISOString() ?? null };
 }
@@ -317,7 +321,7 @@ async function packageHandover(db: PrismaClient, actorId: string, key: string, i
     versionMatches(c.version, input.expectedVersion); requireTransition(action, c.status);
     const packages = await tx.consignmentPackage.findMany({ where: { consignmentId: c.id }, orderBy: { sequence: "asc" } });
     // Explicit handover of every stable package ID; a partial handover is reported as an issue instead.
-    requireCondition(packages.length === packageIds.length && packages.every((x) => packageIds.includes(x.id) && x.custody === spec.from), "PACKAGE_HANDOVER", `กรุณาตรวจและยืนยันหีบห่อครบทั้ง ${packages.length} หีบห่อ หากขาดให้แจ้งปัญหา`);
+    requireCondition(packages.length === packageIds.length && packages.every((x) => packageIds.includes(x.id) && x.custody === spec.from), "PACKAGE_HANDOVER", `กรุณาตรวจและยืนยันให้ครบทั้ง ${packages.length} ชิ้น หากขาดให้แจ้งปัญหา`);
     if (action === "load") {
       const plan = await tx.dailyPlan.findUnique({ where: { id: c.currentAssignment!.tripRevision.planId } });
       requireCondition(plan?.publishedRevisionId === c.currentAssignment!.tripRevision.planRevisionId && !c.currentAssignment!.tripRevision.cancelled, "ASSIGNMENT_STALE", "รอบรถที่จัดไว้เปลี่ยนแปลงหรือถูกยกเลิกแล้ว กรุณาให้ผู้วางแผนขนส่งย้ายรอบก่อนขึ้นรถ");
@@ -388,7 +392,7 @@ export async function reportIssue(db: PrismaClient, actorId: string, key: string
     const prior = await replay<Result>(tx, idem); if (prior) return prior;
     versionMatches(c.version, input.expectedVersion); requireTransition("reportIssue", c.status);
     const packages = await tx.consignmentPackage.findMany({ where: { consignmentId: c.id } });
-    requireCondition(packageIds.every((id) => packages.some((x) => x.id === id)), "INVALID_INPUT", "หีบห่อที่ระบุไม่อยู่ในรายการนี้");
+    requireCondition(packageIds.every((id) => packages.some((x) => x.id === id)), "INVALID_INPUT", "ชิ้นที่ระบุไม่อยู่ในรายการนี้");
     // The movement state is preserved so recovery returns to an unambiguous state.
     const updated = await bump(tx, c.id, { status: "ISSUE", resumeStatus: c.status, hasOpenIssue: true });
     await event(tx, c.id, actorId, "ISSUE", idem, { type: input.type, description, packageIds, resumeStatus: c.status });
@@ -416,7 +420,7 @@ export async function resolveIssue(db: PrismaClient, actorId: string, key: strin
 export async function recordReturn(db: PrismaClient, actorId: string, key: string, input: { id: string; expectedVersion: number; reason: string; packageIds?: string[]; items?: { itemId: string; quantity: string }[] }) {
   const reason = reasonText(input?.reason), packageIds = idList(input.packageIds ?? []), items = input.items ?? [];
   requireCondition(Array.isArray(items) && items.length <= 50 && items.every((i) => i && idPattern.test(i.itemId) && typeof i.quantity === "string" && quantityPattern.test(i.quantity) && Number(i.quantity) > 0) && new Set(items.map((i) => i.itemId)).size === items.length, "INVALID_QUANTITY", "จำนวนส่งคืนไม่ถูกต้อง");
-  requireCondition(packageIds.length + items.length > 0, "INVALID_INPUT", "กรุณาเลือกหีบห่อหรือรายการที่ส่งคืน");
+  requireCondition(packageIds.length + items.length > 0, "INVALID_INPUT", "กรุณาเลือกชิ้นหรือรายการที่ส่งคืน");
   return guardedWrite(db, actorId, "consignment.return", key, input, async (tx, idem) => {
     const p = await principal(tx, actorId), c = await lockConsignment(tx, input.id); requireActor(p, actorId, "recordReturn", c);
     const prior = await replay<Result>(tx, idem); if (prior) return prior;
@@ -425,7 +429,7 @@ export async function recordReturn(db: PrismaClient, actorId: string, key: strin
     for (const id of packageIds) {
       const x = b.packages.find((pk) => pk.id === id);
       // Only undelivered packages can be returned to the source; received packages stay in the receipt ledger.
-      requireCondition(x && ["WAREHOUSE", "VEHICLE", "SENDER"].includes(x.custody) && !b.receivedPackages.has(id) && !b.returnedPackages.has(id), "RETURN_PACKAGE", "ส่งคืนได้เฉพาะหีบห่อที่ยังไม่ได้รับและยังไม่ส่งคืน");
+      requireCondition(x && ["WAREHOUSE", "VEHICLE", "SENDER"].includes(x.custody) && !b.receivedPackages.has(id) && !b.returnedPackages.has(id), "RETURN_PACKAGE", "ส่งคืนได้เฉพาะชิ้นที่ยังไม่ได้รับและยังไม่ส่งคืน");
     }
     for (const line of items) {
       const item = b.items.find((i) => i.id === line.itemId);
@@ -467,11 +471,10 @@ export async function closeConsignment(db: PrismaClient, actorId: string, key: s
 export async function consignmentFormOptions(db: PrismaClient, actorId: string) {
   return db.$transaction(async (tx) => {
     const p = await principal(tx, actorId); requireCapability(p, "consignment.create");
-    const departmentIds = p.scopes.flatMap((s) => s.kind === "DEPARTMENT" && s.departmentId ? [s.departmentId] : []);
     // D220/D221: saved contact details pre-fill a new request; an archived default warehouse is ignored.
     const profile = await tx.userProfile.findUnique({ where: { userId: actorId }, include: { defaultWarehouse: { select: { active: true } } } });
     return {
-      departments: await tx.department.findMany({ where: { active: true, id: { in: departmentIds } }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
+      departments: await tx.department.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
       warehouses: await tx.warehouse.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
       categories: await tx.consignmentCategory.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } }),
       branches: (await tx.branch.findMany({ where: { archived: false, destinationType: "BRANCH" }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true, contactName: true, contactPhone: true } })).map((b) => ({ ...b, hasRecipient: !!(b.contactName && b.contactPhone), ...(contactPolicy(p).branch(b.id) ? {} : { contactName: null, contactPhone: null }) })),
@@ -489,7 +492,7 @@ export async function listConsignments(db: PrismaClient, actorId: string, f: His
     const p = await principal(tx, actorId); requireCapability(p, "consignment.read");
     const scope = await consignmentScope(tx, p, actorId);
     const parts: Prisma.Sql[] = [scope.sql()];
-    if (f.query) { const like = `%${f.query.replace(/[\\%_]/g, (m) => `\\${m}`)}%`; parts.push(Prisma.sql`(c.code LIKE ${like} OR EXISTS (SELECT 1 FROM ConsignmentItem qi WHERE qi.consignmentId=c.id AND qi.name LIKE ${like}))`); }
+    if (f.query) { const like = `%${f.query.replace(/[\\%_]/g, (m) => `\\${m}`)}%`; parts.push(Prisma.sql`(c.code LIKE ${like} OR EXISTS (SELECT 1 FROM ConsignmentItem qi WHERE qi.consignmentId=c.id AND qi.name LIKE ${like}) OR JSON_SEARCH(c.draftItems, 'one', ${like}, NULL, '$.packaging[*].description') IS NOT NULL)`); }
     if (f.status.length) parts.push(Prisma.sql`c.status IN (${Prisma.join(f.status)})`);
     if (f.branchId) parts.push(Prisma.sql`c.destinationBranchId=${f.branchId}`);
     if (f.categoryId) parts.push(Prisma.sql`EXISTS (SELECT 1 FROM ConsignmentItem ci WHERE ci.consignmentId=c.id AND ci.categoryId=${f.categoryId})`);
@@ -510,6 +513,7 @@ export async function listConsignments(db: PrismaClient, actorId: string, f: His
       rows: ids.map(({ id }) => { const c = rows.find((r) => r.id === id)!; const t = c.currentAssignment?.transportSnapshot as { serviceDate?: string; roundNo?: number; plate?: string } | undefined; return {
         id: c.id, code: c.code, status: c.status, createdAt: c.createdAt.toISOString(), requestedServiceDate: c.requestedServiceDate?.toISOString().slice(0, 10) ?? null,
         branch: c.destinationBranch, warehouse: c.sourceWarehouse.name, requester: c.requester.displayName, packageCount: c.packageCount,
+        packaging: packagingSummary(packagingOf(c)), contents: [...new Set(packagingOf(c).flatMap((l) => l.description ? [l.description] : []))],
         items: c.consignmentItem_consignmentId.length ? c.consignmentItem_consignmentId.map((i) => ({ name: i.name, quantity: i.sentQuantity.toString(), unit: i.unit, category: i.category.name })) : (((c.draftItems ?? { items: [] }) as unknown as DraftItems).items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, unit: i.unit, category: "" })),
         trip: c.currentAssignment ? { code: c.currentAssignment.trip.code, serviceDate: t?.serviceDate ?? null, roundNo: t?.roundNo ?? null, plate: t?.plate ?? null } : null,
       }; }),
@@ -525,7 +529,7 @@ function actionAvailability(p: Principal, actorId: string, c: Locked, accounted:
   for (const [action, rule] of Object.entries(transitionMatrix)) {
     if (!rule.actors.some((a) => p.permissions.has(a.capability) && satisfies(p, actorId, a.scope, c))) continue;
     let reason = "";
-    if (["assign", "reject", "reassign"].includes(action) && c.requesterId === actorId)
+    if (["assign", "reject", "reassign"].includes(action) && c.requesterId === actorId && !p.admin)
       reason = "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ";
     else if (!(rule.from as string[]).includes(c.status))
       reason = action === "receive" && ["ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED"].includes(c.status)
@@ -553,25 +557,27 @@ export async function consignmentDetail(db: PrismaClient, actorId: string, id: s
     const b = await balances(tx, id);
     const categories = await tx.consignmentCategory.findMany({ where: { id: { in: b.items.map((i) => i.categoryId) } } });
     const draftItems = ((c.draftItems ?? { items: [] }) as unknown as DraftItems).items ?? [];
+    const packaging = packagingOf(c), pieces = packagingPieces(packaging);
     const { actions, blockedActions } = actionAvailability(p, actorId, base, c.receiptMode === "PACKAGES"
       ? b.packages.every((x) => b.receivedPackages.has(x.id) || b.returnedPackages.has(x.id)) : b.accounted);
     // Contacts on the request are personal data: shown to parties of this consignment only.
     return {
       id: c.id, code: c.code, status: c.status, resumeStatus: c.resumeStatus, hasOpenIssue: c.hasOpenIssue, version: c.version, receiptMode: c.receiptMode,
       createdAt: c.createdAt.toISOString(), submittedAt: c.submittedAt?.toISOString() ?? null, closedAt: c.closedAt?.toISOString() ?? null,
-      requester: c.requester.displayName, mine: c.requesterId === actorId, department: c.department.name, warehouse: { id: c.sourceWarehouseId, name: c.sourceWarehouse.name, address: c.sourceWarehouse.address },
+      requester: c.requester.displayName, mine: c.requesterId === actorId, departmentId: c.departmentId, department: c.department.name, warehouse: { id: c.sourceWarehouseId, name: c.sourceWarehouse.name, address: c.sourceWarehouse.address },
       branch: { id: c.destinationBranchId, code: c.destinationBranch.code, name: c.destinationBranch.name },
       requested: { serviceDate: c.requestedServiceDate?.toISOString().slice(0, 10) ?? null, roundNo: c.requestedRoundNo, tripId: c.requestedTripId, tripCode: c.requestedTrip?.code ?? null },
       contacts: { senderName: c.senderName, senderPhone: c.senderPhone, recipientName: c.recipientName, recipientPhone: c.recipientPhone }, notes: c.notes,
-      packageCount: c.packageCount, packageWeight: c.packageWeight?.toString() ?? null, packageWeightUnit: c.packageWeightUnit,
+      packageCount: c.packageCount, packaging, packagingSummary: packagingSummary(packaging), weightKg: packagingWeightKg(packaging),
       items: b.items.length ? b.items.map((i) => ({ id: i.id, name: i.name, category: categories.find((x) => x.id === i.categoryId)?.name ?? "", sent: i.sentQuantity.toString(), received: i.received.toString(), returned: i.returned.toString(), unit: i.unit }))
         : draftItems.map((i, n) => ({ id: `draft-${n}`, name: i.name, category: "", sent: i.quantity, received: "0", returned: "0", unit: i.unit, categoryId: i.categoryId })),
       draftItems,
-      packages: b.packages.map((x) => ({ id: x.id, label: `${c.code}-${x.sequence}/${x.total}`, sequence: x.sequence, total: x.total, custody: x.custody, received: b.receivedPackages.has(x.id), returned: b.returnedPackages.has(x.id), weight: x.weight?.toString() ?? null, weightUnit: x.weightUnit })),
+      // `code` is the scannable identifier; `name` is what people read ("ชิ้นที่ 1/3 · กล่อง").
+      packages: b.packages.map((x) => { const piece = pieces[x.sequence - 1]; return { id: x.id, code: `${c.code}-${x.sequence}/${x.total}`, name: pieceName({ sequence: x.sequence, total: x.total, name: piece?.name ?? "หีบห่อ" }), line: piece?.line ?? 0, description: piece?.description ?? null, sequence: x.sequence, total: x.total, custody: x.custody, received: b.receivedPackages.has(x.id), returned: b.returnedPackages.has(x.id), weight: x.weight?.toString() ?? null, weightUnit: x.weightUnit }; }),
       assignments: c.consignmentAssignment_consignmentId.map((a) => ({ id: a.id, current: a.id === c.currentAssignmentId, tripId: a.tripId, tripCode: a.trip.code, stop: a.stop, reason: a.reason, approvedBy: a.approvedBy.displayName, approvedAt: a.approvedAt.toISOString(), transport: a.transportSnapshot as Record<string, unknown>, sender: a.senderSnapshot.payload as Record<string, unknown>, recipient: a.recipientSnapshot.payload as Record<string, unknown>, labels: a.labelVersion_assignmentId.map((l) => ({ number: l.number, revoked: !!l.revokedAt })) })),
       events: c.consignmentEvent_consignmentId.map((e) => ({ id: e.id, kind: e.kind, at: e.occurredAt.toISOString(), actor: e.actor.displayName, payload: e.payload as Record<string, unknown>, compensates: e.compensatesEventId })),
       attachments: c.attachment_consignmentId.map((a) => ({ id: a.id, name: a.displayName, contentType: a.contentType, size: a.sizeBytes, uploader: a.uploader.displayName, at: a.createdAt.toISOString() })),
-      actions, blockedActions, canUpload: c.requesterId === actorId && ["DRAFT", "PENDING_REVIEW"].includes(c.status) && p.permissions.has("consignment.create"),
+      actions, blockedActions, canUpload: (c.requesterId === actorId || p.admin) && ["DRAFT", "PENDING_REVIEW"].includes(c.status) && p.permissions.has("consignment.create"),
     };
   }, { isolationLevel: "RepeatableRead", timeout: 20_000 });
 }
@@ -583,9 +589,9 @@ export async function eligibleTrips(db: PrismaClient, actorId: string, id: strin
   return db.$transaction(async (tx) => {
     const p = await principal(tx, actorId), c = await tx.consignment.findUnique({ where: { id }, include: { currentAssignment: { include: { tripRevision: true } } } });
     // Someone else's draft is indistinguishable from a missing record, as in the detail view.
-    requireCondition(c && (c.status !== "DRAFT" || c.requesterId === actorId || p.permissions.has("consignment.read.drafts")), "NOT_FOUND", "ไม่พบรายการฝากส่ง");
+    requireCondition(c && (c.status !== "DRAFT" || c.requesterId === actorId || p.admin || p.permissions.has("consignment.read.drafts")), "NOT_FOUND", "ไม่พบรายการฝากส่ง");
     requireCondition(p.permissions.has("consignment.assign") && p.global, "FORBIDDEN", "คุณไม่มีสิทธิ์จัดรถ");
-    requireCondition(c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
+    requireCondition(p.admin || c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
     const plan = await tx.dailyPlan.findUnique({ where: { serviceDate: serviceDate(date) } });
     if (!plan?.publishedRevisionId) return { published: false, trips: [] };
     const revisions = await tx.tripRevision.findMany({ where: { planRevisionId: plan.publishedRevisionId, kind: "BRANCH_DELIVERY", cancelled: false, tripStop_tripRevisionId: { some: { branchId: c.destinationBranchId } } }, include: { trip: { select: { code: true } }, routeRevision: { select: { name: true } } }, orderBy: [{ departureAt: "asc" }, { tripId: "asc" }] });
@@ -606,7 +612,7 @@ export async function addAttachment(db: PrismaClient, actorId: string, key: stri
   const fingerprinted = { consignmentId: input.consignmentId, displayName: input.displayName, contentType: input.contentType, sizeBytes: input.sizeBytes, sha256: input.sha256 };
   return guardedWrite(db, actorId, "consignment.attachment", key, fingerprinted, async (tx, idem) => {
     const p = await principal(tx, actorId), c = await lockConsignment(tx, input.consignmentId);
-    requireCondition(p.permissions.has("consignment.create") && c.requesterId === actorId, c.status === "DRAFT" ? "NOT_FOUND" : "FORBIDDEN", "แนบไฟล์ได้เฉพาะผู้สร้างคำขอ");
+    requireCondition(p.permissions.has("consignment.create") && (c.requesterId === actorId || p.admin), c.status === "DRAFT" ? "NOT_FOUND" : "FORBIDDEN", "แนบไฟล์ได้เฉพาะผู้สร้างคำขอ");
     const prior = await replay<{ id: string; storageKey: string }>(tx, idem); if (prior) return prior;
     requireCondition(["DRAFT", "PENDING_REVIEW"].includes(c.status), "INVALID_TRANSITION", "แนบไฟล์ได้เฉพาะก่อนจัดรถ");
     requireCondition((await tx.attachment.count({ where: { consignmentId: c.id, deletedAt: null } })) < ATTACHMENT_LIMITS.maxFiles, "ATTACHMENT_LIMIT", "แนบไฟล์ได้ไม่เกิน ๕ ไฟล์ต่อคำขอ");

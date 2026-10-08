@@ -1,3 +1,4 @@
+import {adminReturnHref} from "@/lib/admin-return";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requirePageActor } from "@/server/auth/session";
@@ -12,8 +13,9 @@ export const metadata = { title: "บัญชีผู้ใช้" };
 
 const when = (iso: string) => new Date(iso).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" });
 
-export default async function UserPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function UserPage({ params,searchParams }: { params: Promise<{ id: string }>;searchParams:Promise<{returnTo?:string}> }) {
   const actor = await requirePageActor(), { id } = await params, db = getDatabase();
+  const backHref=adminReturnHref((await searchParams).returnTo,"/admin/users");
   let user, options;
   try { [user, options] = await Promise.all([userDetail(db, actor.id, id), userFormOptions(db, actor.id)]); }
   catch (error) { return <div className="admin-card" role="alert"><h1>ไม่สามารถเปิดบัญชีนี้ได้</h1><p>{error instanceof DomainError ? error.message : "ระบบไม่พร้อมใช้งาน กรุณาลองอีกครั้ง"}</p><Link href="/admin/users">กลับรายชื่อผู้ใช้</Link></div>; }
@@ -21,7 +23,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
   const keep = (list: { id: string; code: string; name: string }[], value: string) => value && !list.some((o) => o.id === value) ? [...list, { id: value, code: "-", name: "รายการเดิม (ไม่พร้อมใช้งาน)" }] : list;
   const formOptions = { departments: keep(options.departments, user.access.departmentId), branches: keep(options.branches, user.access.branchId), warehouses: keep(options.warehouses, user.access.warehouseId), drivers: keep(options.drivers, user.access.driverId) };
   return <>
-    <Link href="/admin/users" className="text-link"><ArrowLeft size={18} aria-hidden="true" />รายชื่อผู้ใช้</Link>
+    <Link href={backHref} className="secondary-button admin-back-button"><ArrowLeft size={18} aria-hidden="true" />กลับรายชื่อผู้ใช้</Link>
     <header className="account-head user-head">
       <span className="profile-badge profile-badge-large" aria-hidden="true">{initialOf(user.name)}</span>
       <div><h1>{user.name}</h1><p className="muted">{user.email} · สร้างเมื่อ {when(user.createdAt)}</p></div>
@@ -29,7 +31,7 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
     </header>
     {user.roleNames.length > 1 && <p className="notice-panel">บัญชีนี้มีหลายบทบาทจากระบบเดิม เมื่อบันทึก ระบบจะเหลือประเภทเดียวตามที่เลือก</p>}
     <div className="user-layout">
-      <UserForm options={formOptions} user={user} />
+      <UserForm backHref={backHref} options={formOptions} user={user} />
       <aside className="user-side">
         <UserActions user={user} />
         <section className="admin-card user-history" aria-labelledby="history-heading">

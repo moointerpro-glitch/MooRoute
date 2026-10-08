@@ -15,6 +15,83 @@
 }
 
 :root { color-scheme: light; }
+/* Consistent back-office forms, list actions and import workflow. */
+.admin-edit-shell { max-width:1040px; margin-inline:auto; }
+.admin-form-fields { display:grid; gap:22px; min-width:0; padding:0; margin:0; border:0; }
+.admin-field-group { min-width:0; border:1px solid #dce3eb; border-radius:12px; padding:20px; margin:0; }
+.admin-field-group legend { font-size:17px; font-weight:600; padding-inline:8px; color:#243f53; }
+.admin-editor-footer { position:sticky; bottom:0; z-index:20; background:#fff; border-top:1px solid #dce3eb; padding:16px 0; align-items:center; box-shadow:0 -5px 14px #13233508; }
+.admin-form-boundary .primary-button { background:var(--color-brand-navy); border-color:var(--color-brand-navy); }
+.admin-form-boundary .primary-button:hover { background:#294961; }
+.admin-form-boundary .danger-button { margin-left:auto; }
+.admin-row-link { display:inline-flex; align-items:center; min-height:44px; padding:6px 12px; border:1px solid #ced9e4; border-radius:8px; white-space:nowrap; }
+.admin-row-link:hover { background:#f1f6fa; }
+.admin-page .admin-back-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 16px; border:1px solid #aebfd0; border-radius:10px; background:#fff; color:#243f53; font-weight:600; text-decoration:none; }
+.admin-page .admin-back-button:hover { background:#edf3f8; border-color:#718ba2; }
+.admin-page .admin-back-button:focus-visible { outline:3px solid #93b7d4; outline-offset:3px; }
+.admin-back-button svg { flex-shrink:0; }
+.admin-toolbar { padding:20px; background:white; border:1px solid var(--color-border); border-radius:14px; }
+.backoffice-group-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 20px; margin-top:32px; }
+.backoffice-group-heading + .admin-grid { margin-top:16px; }
+.admin-process { display:flex; flex-wrap:wrap; gap:12px; list-style:none; padding:0; margin:24px 0; }
+.admin-process li { flex:1; min-width:145px; padding:12px 16px; background:#eaf0f5; border-radius:10px; color:#526277; }
+.admin-process li[aria-current] { background:#1b3044; color:white; font-weight:600; }
+.admin-template-list { margin-top:16px; }
+.admin-template-list > div { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:16px 0; border-bottom:1px solid var(--color-border); }
+.admin-template-list strong { flex:1 1 180px; }
+.admin-file-control { position:relative; display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:14px; border:1px dashed #aebfd0; border-radius:10px; overflow-wrap:anywhere; }
+.admin-file-control input[type=file] { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.admin-file-control:focus-within { outline:3px solid #93b7d4; outline-offset:3px; }
+.admin-form-boundary input,.admin-form-boundary select,.admin-form-boundary textarea { scroll-margin-block:120px; }
+.planning-dialog .delete-confirm { padding:0; background:transparent; color:var(--color-ink); }
+.planning-dialog .delete-confirm > p { margin-block:14px; }
+.planning-dialog .mapping-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.planning-dialog .mapping-grid label { display:grid; gap:6px; }
+.planning-dialog .mapping-grid select { min-width:0; width:100%; min-height:44px; border:1px solid #cbd5e1; border-radius:8px; padding:8px; }
+@media(max-width:600px){.admin-field-group{padding:14px}.admin-toolbar{padding:16px}.admin-editor-footer{gap:8px}.admin-editor-footer>*{flex:1 1 135px}.admin-form-boundary .danger-button{margin-left:0}.planning-dialog .mapping-grid{grid-template-columns:1fr}.admin-template-list strong{flex-basis:100%}.admin-template-list a{flex:1;white-space:nowrap}.admin-process{gap:6px}.admin-process li{min-width:0;font-size:13px;padding:10px}}
+/* D230: dedicated planning editors and focused review dialogs. */
+.planning-edit-page { max-width: 1040px; margin-inline: auto; }
+.planning-back { display:inline-flex; align-items:center; gap:8px; min-height:44px; margin-bottom:20px; padding:6px 0; border:0; background:transparent; color:#334155; text-align:left; }
+.planning-back:hover { text-decoration:underline; }
+.planning-edit-page .planner-editor { background:#fff; border:1px solid var(--color-border); border-radius:16px; padding:24px; }
+.planning-edit-page .planner-title h1 { font-size:30px; font-weight:700; }
+.planning-edit-page .planner-title p { margin-top:8px; }
+.planning-edit-page .editor-save-bar { position:sticky; bottom:0; z-index:25; margin:12px -12px -12px; padding:16px 12px; background:#fff; border-top:1px solid var(--color-border); justify-content:flex-end; box-shadow:0 -6px 16px #10233408; }
+.planning-edit-page .primary-button,.planning-dialog .primary-button { background:var(--color-brand-navy); border-color:var(--color-brand-navy); }
+.planning-edit-page .primary-button:hover,.planning-dialog .primary-button:hover { background:#294961; }
+.planning-dialog { position:fixed; inset:0; margin:auto; width:min(720px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); padding:0; overflow:auto; border:1px solid #d7dfe8; border-radius:20px; color:var(--color-ink); background:#fff; box-shadow:0 24px 80px #07152740; }
+.planning-dialog::backdrop { background:#0d1c2c88; }
+.planning-dialog > header { position:sticky; top:0; z-index:1; display:flex; justify-content:space-between; align-items:center; gap:16px; padding:20px 24px; background:white; border-bottom:1px solid var(--color-border); }
+.planning-dialog h2 { font-size:21px; font-weight:650; overflow-wrap:anywhere; }
+.planning-dialog h3 { font-size:17px; font-weight:600; margin:20px 0 10px; }
+.planning-dialog-body { padding:24px; }
+.planning-dialog-body > p + p { margin-top:12px; }
+.planning-dialog .trip-times { margin:20px 0; grid-template-columns:145px minmax(0,1fr); }
+.planning-dialog .trip-times dd { overflow-wrap:anywhere; }
+.planning-dialog .trip-stops { padding-left:24px; }
+.planning-dialog .trip-stops li { margin-block:12px; }
+.planning-dialog .trip-stops span { display:block; color:#526277; font-size:14px; }
+.dialog-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:24px; }
+.coverage-guidance { border:1px solid #e2ba74; border-left:4px solid #ac6e0b; border-radius:10px; padding:16px; margin:16px 0; background:#fffbf2; }
+.coverage-guidance p { margin:6px 0 10px; }
+.coverage-guidance a { text-decoration:underline; }
+.coverage-trip-options > div { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; border-bottom:1px solid var(--color-border); }
+.coverage-trip-options small { display:block; color:#526277; }
+.saving-indicator { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#183b50; color:#fff; padding:12px 24px; border-radius:12px; z-index:80; }
+.trip-card:focus { outline:3px solid #244f6e; outline-offset:-3px; background:#f2f8fc; }
+.trip-table .link-button { display:block; min-height:44px; text-decoration:underline; }
+.coverage-table .link-button { min-height:44px; padding:4px; }
+@media(max-width:600px){
+ .planning-edit-page .planner-editor { padding:16px; }
+ .planning-edit-page .editor-save-bar { flex-wrap:wrap; }
+ .planning-edit-page .editor-save-bar button { flex:1 1 140px; }
+ .planning-dialog { width:calc(100vw - 16px); max-height:calc(100dvh - 16px); border-radius:14px; }
+ .planning-dialog > header,.planning-dialog-body { padding:16px; }
+ .planning-dialog h2 { font-size:18px; }
+ .planning-dialog .trip-times { grid-template-columns:110px minmax(0,1fr); }
+ .dialog-actions button { flex:1 1 130px; }
+ .coverage-trip-options > div { align-items:stretch; flex-direction:column; }
+}
 .admin-page{padding-block:32px 64px}.admin-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}.admin-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:28px}.admin-card{display:block;background:white;border:1px solid var(--color-border);border-radius:16px;padding:28px;color:var(--color-ink);margin-block:20px}.admin-grid .admin-card{margin:0}.admin-card h2{font-size:20px}.card-mark{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:#fff1f3;color:var(--color-primary);margin-bottom:18px}
 .admin-tile{transition:border-color .15s,box-shadow .15s}.admin-tile:hover,.admin-tile:focus-visible{border-color:#ffc2cc;box-shadow:0 6px 18px #0f172a14}
 .admin-tile h2,.admin-tile h3{display:flex;align-items:center;justify-content:space-between;gap:8px}.admin-tile h3{font-size:18px;font-weight:600;margin:0 0 6px}.tile-chevron{color:#94a3b8;flex-shrink:0;transition:transform .15s,color .15s}.admin-tile:hover .tile-chevron{color:var(--color-primary);transform:translateX(3px)}
@@ -454,6 +531,22 @@ input::placeholder { color: #718096; }
 .item-rows { list-style:none; margin:0 0 14px; padding:0; display:grid; gap:12px; }
 .item-row { display:grid; grid-template-columns:1.1fr 2fr .8fr 1fr 44px; gap:10px; align-items:end; padding:12px; border:1px solid #edf0f4; border-radius:12px; background:#fbfcfd; }
 .icon-action { display:grid; place-items:center; width:44px; height:46px; border:1px solid #eea8b5; border-radius:8px; background:#fff; color:#b00020; }
+.icon-action:disabled { border-color:#e2e8f0; color:#94a3b8; cursor:not-allowed; }
+/* D234: "what is being sent" rows. Packaging, count, contents, weight per piece. */
+.pack-row { display:grid; grid-template-columns:1.2fr .7fr 2.1fr 1.1fr 44px; gap:10px; align-items:start; padding:12px; border:1px solid #edf0f4; border-radius:12px; background:#fbfcfd; }
+/* The delete button lines up with the first input row even when a custom packaging name adds a second row. */
+.pack-row > .icon-action { align-self:start; margin-top:27px; }
+.pack-kind { display:grid; gap:10px; min-width:0; }
+.pack-foot { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin-bottom:14px; }
+.pack-total { margin:0; font-size:14px; color:#334155; }
+.optional-tag { margin-left:6px; padding:1px 8px; border-radius:999px; background:#f1f5f9; color:#475569; font-size:12px; font-weight:500; }
+.form-section .check-row.count-confirm { margin:12px 0; padding:8px 12px; border:1px solid #f5d38a; border-radius:10px; background:#fffaeb; }
+.piece-details { margin-top:12px; }
+.piece-details > summary { cursor:pointer; font-size:14px; font-weight:500; color:#334155; min-height:32px; }
+.sub-title { margin:18px 0 8px; font-size:15px; }
+.package-list li > span:first-child, .check-row > span { display:grid; min-width:0; overflow-wrap:anywhere; }
+.package-list small, .check-row small { color:#64748b; font-size:12px; font-weight:400; }
+.package-check-list { display:grid; gap:4px; max-height:320px; overflow-y:auto; }
 .input-unit { display:flex; align-items:center; gap:8px; }
 .input-unit span { font-size:13px; color:#475569; white-space:nowrap; }
 .sample-help { margin:12px 0; padding:12px 14px; border-radius:10px; background:#f1f5f9; color:#334155; font-size:13px; }
@@ -519,7 +612,7 @@ input::placeholder { color: #718096; }
 .admin-table.compact { min-width:480px; }
 .admin-table.compact th, .admin-table.compact td { padding:10px 12px; font-size:14px; }
 @media (max-width: 1100px) { .consignment-layout { grid-template-columns:minmax(0, 1fr); } .action-column { position:static; } .history-filters { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .item-row { grid-template-columns:1fr 1fr; } .item-row .item-name { grid-column:1 / -1; } }
+@media (max-width: 760px) { .item-row { grid-template-columns:1fr 1fr; } .item-row .item-name { grid-column:1 / -1; } .pack-row { grid-template-columns:1fr 1fr; } .pack-row .item-name { grid-column:1 / -1; } }
 @media (max-width: 600px) {
  .form-section { padding:18px; }
  .history-filters { grid-template-columns:1fr; padding:16px; }
@@ -561,6 +654,11 @@ input::placeholder { color: #718096; }
 .label-meta dl div { display:grid; grid-template-columns:19mm minmax(0, 1fr); gap:1.5mm; }
 .label-meta dt { font-size:8pt; }
 .label-meta dd { margin:0; font-size:9pt; font-weight:600; overflow-wrap:anywhere; }
+/* D234: packaging and sender are single lines cut with an ellipsis, so a long text can never push the QR code off the label. */
+.label-head { display:flex; flex-direction:column; min-width:0; flex:1; padding-right:3mm; line-height:1.3; }
+.label-kind { font-size:10pt; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.label-from { margin:auto 0 0; padding-top:1.5mm; border-top:0.3mm solid #000; font-size:9pt; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.label-from + .label-meta { margin-top:-1.5mm; border-top:0; padding-top:0; }
 .label-qr { display:flex; flex-direction:column; align-items:center; gap:0.8mm; flex-shrink:0; }
 .label-qr svg { display:block; width:30mm; height:30mm; }
 .label-noqr { display:grid; place-items:center; width:30mm; height:30mm; border:0.3mm dashed #000; font-size:8pt; text-align:center; }
@@ -866,6 +964,10 @@ input::placeholder { color: #718096; }
 .trip-detail .trip-times { margin: 0; grid-template-columns: 130px minmax(0, 1fr); }
 .stops-toggle { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 600; }
 .row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.trip-table .row-actions { display:grid; grid-template-columns:repeat(2,max-content); }
+.trip-table .row-actions button { white-space:nowrap; }
+.trip-table th:first-child { min-width:155px; }
+.trip-table .num { white-space:nowrap; }
 .planner-fieldset .row-actions .secondary-button { min-height: 38px; padding: 6px 12px; gap: 6px; font-size: 14px; }
 .planner-fieldset .row-actions .icon-action { display: inline-grid; place-items: center; width: 38px; min-height: 38px; padding: 0; border: 1px solid #dbe2eb; border-radius: 8px; background: #fff; color: #475569; }
 .planner-fieldset .row-actions .icon-action:hover { color: var(--color-primary); border-color: #f5b8c3; }

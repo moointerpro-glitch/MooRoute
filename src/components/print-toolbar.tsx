@@ -26,7 +26,7 @@ export function PrintToolbar({ labelVersionId, format, printed, formats, back }:
     {labelVersionId && <label>จำนวนชุด<input value={copies} inputMode="numeric" onChange={(e) => setCopies(e.target.value.replace(/\D/g, "").slice(0, 2))} /></label>}
     {labelVersionId && printed > 0 && <label className="reprint-reason">เหตุผลการพิมพ์ซ้ำ<span className="required">*</span><input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="เช่น ฉลากเดิมชำรุด" /></label>}
     <button type="button" className="primary-button" disabled={busy} onClick={() => void print()}><Printer size={18} aria-hidden="true" />{labelVersionId ? (printed > 0 ? "บันทึกและพิมพ์ซ้ำ" : "บันทึกและพิมพ์") : "พิมพ์"}</button>
-    {labelVersionId && <p className="field-hint">{printed > 0 ? `ฉลากฉบับนี้พิมพ์แล้ว ${printed} ครั้ง การพิมพ์ซ้ำไม่สร้างรายการหรือหีบห่อใหม่` : "ตั้งค่าเครื่องพิมพ์เป็นขนาดจริง (100%) ไม่มีขอบกระดาษ"}</p>}
+    {labelVersionId && <p className="field-hint">{printed > 0 ? `ฉลากฉบับนี้พิมพ์แล้ว ${printed} ครั้ง การพิมพ์ซ้ำไม่สร้างรายการหรือชิ้นใหม่` : "ตั้งค่าเครื่องพิมพ์เป็นขนาดจริง (100%) ไม่มีขอบกระดาษ"}</p>}
     {message && <p className="form-error" role="alert">{message}</p>}
   </div>;
 }

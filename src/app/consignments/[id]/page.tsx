@@ -5,7 +5,7 @@ import { requirePageActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
 import { consignmentDetail } from "@/server/services/consignments";
 import { DomainError } from "@/server/domain/errors";
-import { custodyLabels, eventLabels, issueTypes, receiptModeLabels } from "@/server/domain/consignment";
+import { custodyLabels, eventLabels, issueTypes, packagingName, receiptModeLabels } from "@/server/domain/consignment";
 import { ConsignmentActions } from "@/components/consignment-actions";
 import { statusText, statusTone, unitText } from "@/lib/consignment-format";
 import { beDate, roundLabel, thaiDateTime } from "@/lib/trip-format";
@@ -32,6 +32,12 @@ export default async function ConsignmentPage({ params, searchParams }: { params
   }
   const current = d.assignments.find((a) => a.current), t = current?.transport ?? {}, recipient = (current?.recipient ?? {}) as Snapshot;
   const receivedCount = d.packages.filter((p) => p.received).length;
+  // "Where is it now" per packaging line, e.g. "อยู่บนรถ 2 · สาขารับแล้ว 1"; before submission there are no piece records yet.
+  const whereabouts = (line: number) => {
+    const counts = new Map<string, number>();
+    for (const p of d.packages) if (p.line === line) counts.set(p.custody, (counts.get(p.custody) ?? 0) + 1);
+    return [...counts].map(([custody, n]) => `${custodyLabels[custody]} ${n} ชิ้น`).join(" · ");
+  };
   return <div className="container detail-page">
     <Link href="/consignments" className="text-link"><ArrowLeft size={17} aria-hidden="true" />กลับไปประวัติฝากส่ง</Link>
     {submitted && <p className="form-success" role="status"><CheckCircle2 size={16} aria-hidden="true" className="inline-icon" />ส่งคำขอแล้ว ผู้วางแผนขนส่งจะตรวจสอบและจัดรอบรถให้</p>}
@@ -65,13 +71,20 @@ export default async function ConsignmentPage({ params, searchParams }: { params
             </dl> : <p className="muted">ยังไม่จัดรอบรถ</p>}
           </section>
         </div>
-        <section className="detail-card" aria-labelledby="items-title"><h2 id="items-title"><Package size={19} aria-hidden="true" />สิ่งของและหีบห่อ</h2>
-          <p className="muted small">{receiptModeLabels[d.receiptMode]} · รับแล้ว {receivedCount}/{d.packages.length || d.packageCount} หีบห่อ</p>
-          <div className="table-scroll"><table className="admin-table compact"><caption className="sr-only">รายการสิ่งของ</caption>
-            <thead><tr><th scope="col">รายการ</th><th scope="col">หมวด</th><th scope="col">ส่ง</th><th scope="col">รับแล้ว</th><th scope="col">ส่งคืน</th></tr></thead>
-            <tbody>{d.items.map((i) => <tr key={i.id}><td>{i.name}</td><td>{i.category || "—"}</td><td>{Number(i.sent).toLocaleString("th-TH")} {unitText(i.unit)}</td><td>{Number(i.received).toLocaleString("th-TH")}</td><td>{Number(i.returned).toLocaleString("th-TH")}</td></tr>)}</tbody></table></div>
-          {d.packages.length > 0 ? <ul className="package-list">{d.packages.map((p) => <li key={p.id}><strong>{p.label}</strong><span className={`custody custody-${p.custody.toLowerCase()}`}>{custodyLabels[p.custody]}</span></li>)}</ul>
-            : <p className="muted small">หีบห่อ {d.packageCount} หีบห่อ จะได้รหัสถาวรเมื่อส่งคำขอ</p>}
+        <section className="detail-card" aria-labelledby="items-title"><h2 id="items-title"><Package size={19} aria-hidden="true" />สิ่งที่ฝากส่ง</h2>
+          <p className="muted small">รวม {d.packageCount.toLocaleString("th-TH")} ชิ้น{d.weightKg ? ` · น้ำหนักที่ระบุ ${Number(d.weightKg).toLocaleString("th-TH")} กก.` : ""} · {receiptModeLabels[d.receiptMode]}{d.packages.length > 0 && ` · สาขารับแล้ว ${receivedCount}/${d.packages.length} ชิ้น`}</p>
+          {d.packaging.length > 0 ? <div className="table-scroll"><table className="admin-table compact"><caption className="sr-only">สิ่งที่ฝากส่งแยกตามบรรจุภัณฑ์</caption>
+            <thead><tr><th scope="col">บรรจุใส่</th><th scope="col">จำนวน</th><th scope="col">รายละเอียด</th><th scope="col">น้ำหนักต่อชิ้น</th><th scope="col">ตอนนี้อยู่ที่</th></tr></thead>
+            <tbody>{d.packaging.map((l, n) => <tr key={n}><th scope="row">{packagingName(l)}</th><td>{l.count.toLocaleString("th-TH")} ชิ้น</td><td>{l.description ?? "—"}</td><td>{l.weight ? `${Number(l.weight).toLocaleString("th-TH")} กก.` : "ไม่ระบุ"}</td>
+              <td>{d.packages.length ? whereabouts(n) || "—" : d.status === "DRAFT" ? "ยังไม่ส่งคำขอ" : "—"}</td></tr>)}</tbody></table></div>
+            : <p className="muted">ยังไม่ระบุสิ่งที่ฝากส่ง</p>}
+          {d.packages.length > 0 && <details className="piece-details"><summary>ดูทีละชิ้น ({d.packages.length.toLocaleString("th-TH")} ชิ้น)</summary>
+            <ul className="package-list">{d.packages.map((p) => <li key={p.id}><span><strong>{p.name}</strong>{p.description && <small>{p.description}</small>}</span><span className={`custody custody-${p.custody.toLowerCase()}`}>{custodyLabels[p.custody]}</span></li>)}</ul></details>}
+          {d.items.length > 0 && <><h3 className="sub-title">รายการสิ่งของข้างใน</h3>
+            <div className="table-scroll"><table className="admin-table compact"><caption className="sr-only">รายการสิ่งของข้างใน</caption>
+              <thead><tr><th scope="col">รายการ</th><th scope="col">หมวด</th><th scope="col">ส่ง</th><th scope="col">รับแล้ว</th><th scope="col">ส่งคืน</th></tr></thead>
+              <tbody>{d.items.map((i) => <tr key={i.id}><td>{i.name}</td><td>{i.category || "—"}</td><td>{Number(i.sent).toLocaleString("th-TH")} {unitText(i.unit)}</td><td>{Number(i.received).toLocaleString("th-TH")}</td><td>{Number(i.returned).toLocaleString("th-TH")}</td></tr>)}</tbody></table></div></>}
+          {d.notes && <p className="small"><strong>หมายเหตุ:</strong> {d.notes}</p>}
         </section>
         <section className="detail-card" aria-labelledby="timeline-title"><h2 id="timeline-title"><History size={19} aria-hidden="true" />ลำดับเหตุการณ์</h2>
           {d.events.length ? <ol className="timeline">{d.events.map((e) => <li key={e.id}><span className="timeline-dot" aria-hidden="true" /><div><strong>{eventLabels[e.kind] ?? e.kind}</strong> <span className="muted small"><Clock3 size={12} aria-hidden="true" className="inline-icon" />{thaiDateTime(e.at)} น. · {e.actor}</span>{eventDetail(e.kind, e.payload) && <p>{eventDetail(e.kind, e.payload)}</p>}</div></li>)}</ol>
@@ -85,7 +98,7 @@ export default async function ConsignmentPage({ params, searchParams }: { params
             {a.labels.length > 0 && <p className="small">ฉลาก: {a.labels.map((l) => `ฉบับที่ ${l.number}${l.revoked ? " (ยกเลิกแล้ว)" : ""}`).join(", ")}</p>}
           </li>; })}</ol>
           <p className="muted small">เมื่อย้ายรอบรถ เปลี่ยนรถ หรือแก้ไขที่อยู่ ฉลากเดิมจะถูกยกเลิกโดยอัตโนมัติและต้องออกฉบับใหม่</p>
-          <div className="form-actions"><Link className="secondary-button" href={`/consignments/${d.id}/labels`}>ฉลากหีบห่อและประวัติการพิมพ์</Link>{current && <Link className="secondary-button" href={`/print/manifest/${encodeURIComponent(current.tripId)}`}>ใบคุมรถของรอบนี้</Link>}</div>
+          <div className="form-actions"><Link className="secondary-button" href={`/consignments/${d.id}/labels`}>ฉลากติดของและประวัติการพิมพ์</Link>{current && <Link className="secondary-button" href={`/print/manifest/${encodeURIComponent(current.tripId)}`}>ใบคุมรถของรอบนี้</Link>}</div>
         </section>}
         <section className="detail-card" aria-labelledby="files-title"><h2 id="files-title"><FileText size={19} aria-hidden="true" />เอกสารแนบ</h2>
           {d.attachments.length ? <ul className="attachment-list">{d.attachments.map((a) => <li key={a.id}><a href={`/api/attachments/${a.id}`}>{a.name}</a> <span className="muted small">{Math.ceil(a.size / 1024).toLocaleString("th-TH")} KB · {a.uploader}</span></li>)}</ul> : <p className="muted">ไม่มีเอกสารแนบ</p>}

@@ -8,8 +8,11 @@ function Label({ payload: p, item, baseUrl, sample }: { payload: LabelPayload; i
   // The QR carries only the authenticated lookup URL with an opaque token and the package sequence.
   const qr = sample ? null : qrSvg(`${baseUrl}${p.lookupPath}?p=${item.sequence}`);
   const r = p.recipient, t = p.transport;
+  // D234: what this piece is packed in and who sent it. Both stay on one line so the label height never depends on them.
+  const packed = [item.kind, item.description].filter(Boolean).join(" · ");
+  const from = [p.sender.contactName, p.sender.contactPhone ? `โทร ${p.sender.contactPhone}` : null, p.sender.department].filter(Boolean).join(" · ");
   return <article className={sample ? "label label-sample" : "label"} data-package={item.sequence}>
-    <header className="label-top"><span className="label-brand">หมูอินเตอร์ · ฝากของส่งสาขา</span><span className="label-count" aria-label={`หีบห่อที่ ${item.sequence} จาก ${item.total}`}>{item.sequence}/{item.total}</span></header>
+    <header className="label-top"><div className="label-head"><span className="label-brand">หมูอินเตอร์ · ฝากของส่งสาขา</span>{packed && <span className="label-kind">{packed}</span>}</div><span className="label-count" aria-label={`ชิ้นที่ ${item.sequence} จาก ${item.total}`}>{item.sequence}/{item.total}</span></header>
     {sample && <p className="label-watermark">ตัวอย่าง</p>}
     <section className="label-to">
       <span className="label-cap">ส่งถึง</span>
@@ -17,6 +20,7 @@ function Label({ payload: p, item, baseUrl, sample }: { payload: LabelPayload; i
       <p className="label-address">{[r.addressLine, r.subdistrict, r.district, r.province, r.postalCode].filter(Boolean).join(" ") || "ยังไม่มีที่อยู่"}</p>
       <p className="label-contact">ผู้รับ: {r.contactName ?? "ยังไม่ระบุ"} · โทร {r.contactPhone ?? "ยังไม่ระบุ"}</p>
     </section>
+    {from && <p className="label-from">ผู้ฝาก: {from}</p>}
     <section className="label-meta">
       <dl>
         <div><dt>เลขที่ฝากส่ง</dt><dd>{p.consignmentCode}</dd></div>

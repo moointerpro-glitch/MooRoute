@@ -64,6 +64,16 @@ test("T16/T17: issue, actual-size A4 and 100×150 mm print with long Thai addres
   expect(Math.abs(sheet[0] - 210 * MM)).toBeLessThan(1.5); expect(Math.abs(sheet[1] - 297 * MM)).toBeLessThan(1.5);
   const label = await page.locator(".label").first().evaluate((el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; });
   expect(Math.abs(label[0] - 105 * MM)).toBeLessThan(1.5); expect(Math.abs(label[1] - 148.5 * MM)).toBeLessThan(1.5);
+  // D234: the packaging and the sender are printed, and the label still fits with an address at the 300-character limit.
+  await expect(page.locator(".label-kind").first()).toHaveText("หีบห่อ");
+  await expect(page.locator(".label-from").first()).toContainText("ผู้ฝาก: ผู้ฝากสังเคราะห์ · โทร 000-000-1000");
+  const limit = await page.locator(".label").first().evaluate((el) => {
+    const address = el.querySelector(".label-address")!, original = address.textContent!, mm = (v: number) => Math.round(v / (96 / 25.4) * 10) / 10;
+    address.textContent = original.repeat(2).slice(0, 306); // 300 characters plus the postal code
+    const result = { fits: el.scrollHeight <= el.clientHeight + 1, spare: mm(el.querySelector(".label-from")!.getBoundingClientRect().top - el.querySelector(".label-to")!.getBoundingClientRect().bottom), was: original.length };
+    address.textContent = original; return result;
+  });
+  expect(limit.fits, "a 300-character address leaves room for the packaging and sender lines").toBe(true);
   expect(await fits(page)).toBe(true);
   await expect(page.locator(".label-address").first()).toContainText("ซอยทดสอบการตัดบรรทัดภาษาไทย");
   const addressFont = await page.locator(".label-address").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
@@ -123,7 +133,7 @@ test("T16/T18: incomplete address blocks a real label; sample is watermarked wit
   await expect(page.getByRole("heading", { name: "ใบคุมรถฝากของส่งสาขา" })).toBeVisible();
   await expect(page.locator(".manifest-group")).toHaveCount(2);
   await expect(page.locator(".manifest-group").first()).toContainText("ฉบับที่ 1"); await expect(page.locator(".manifest-group").nth(1)).toContainText("ยังไม่ออก");
-  await expect(page.locator(".manifest-foot")).toContainText("2 รายการ · 5 หีบห่อ");
+  await expect(page.locator(".manifest-foot")).toContainText("2 รายการ · 5 ชิ้น");
   await expect(page.locator(".signatures div")).toHaveText(["ผู้ส่งมอบ (คลัง)", "พนักงานขับรถ", "ผู้ตรวจสอบ"]);
   await shot(page, "manifest-screen");
   const manifest = await pdfPages(page, "manifest");
@@ -143,7 +153,8 @@ test("T17/T13: revoked QR is rejected with the replacement; lookup needs sign-in
   await login(page, f.branch);
   await page.goto(path);
   await expect(page.locator(".form-success")).toContainText("ฉลากฉบับที่ 1 เป็นฉบับปัจจุบัน");
-  await expect(page.getByText(/-1\/3 · ผู้ฝาก/)).toBeVisible();
+  // The scan result names the piece and where it is; it never shows an internal code as if it were the sender.
+  await expect(page.getByText("ชิ้นที่ 1/3 · หีบห่อ · อยู่กับผู้ฝาก")).toBeVisible();
   // A receiver of another branch is out of scope; the administrator sees everything (D215).
   await login(page, f.otherBranch);
   await page.goto(path);
@@ -190,6 +201,15 @@ test("T22: staged import with Thai row errors stays uncommitted until handled; s
   await login(page, f.branch);
   expect((await page.request.get("/api/imports/template?kind=schedule&format=csv")).status()).toBe(403);
   await login(page, f.admin);
+  await page.goto("/admin/imports/new");
+  mkdirSync("docs/evidence/backoffice-ux/imports",{recursive:true});
+  for(const width of [1440,390]){
+    await page.setViewportSize({width,height:1000});
+    await expect(page.getByRole("heading",{name:"อัปโหลดไฟล์ใหม่",exact:true})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:`docs/evidence/backoffice-ux/imports/upload-${width}.png`,fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:1000});
   const fields = importKinds.branches.fields, row = (over: Record<string, string>) => fields.map((x) => ({ code: "E2E-B01", name: "สาขานำเข้าหน้าจอ (สังเคราะห์)", destinationType: "สาขา", addressLine: "๑ ถนนสังเคราะห์", subdistrict: "ตำบลสังเคราะห์", district: "อำเภอสังเคราะห์", province: "จังหวัดสังเคราะห์", postalCode: "50000", contactName: "ผู้รับนำเข้า (สังเคราะห์)", contactPhone: "000-000-7002", activeFrom: "01/01/2578", ...over } as Record<string, string>)[x.name] ?? "");
   const csv = Buffer.from(toCsv([fields.map((x) => x.label), row({}), row({ code: "E2E-B02", postalCode: "ABCDE", activeFrom: "31/02/2578" })]), "utf8");
   await page.locator('input[name="file"]').setInputFiles({ name: "reference.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7 synthetic") });
@@ -198,22 +218,34 @@ test("T22: staged import with Thai row errors stays uncommitted until handled; s
   await expect(page.locator(".form-error")).toContainText("เป็นเอกสารอ้างอิงเท่านั้น");
   await page.locator('input[name="file"]').setInputFiles({ name: "สาขา.csv", mimeType: "text/csv", buffer: csv });
   await page.getByRole("button", { name: "อัปโหลดเพื่อตรวจสอบ" }).click();
-  await expect(page).toHaveURL(/\/admin\/imports\/[^/?]+$/);
+  await expect(page).toHaveURL(/\/admin\/imports\/(?!new$)[^/?]+$/);
   const batchUrl = page.url();
   await expect(page.locator(".import-summary")).toContainText("1 เพิ่มใหม่"); await expect(page.locator(".import-summary li.bad")).toContainText("1 ต้องแก้ไข");
   await expect(page.locator(".row-errors")).toContainText("ต้องเป็นวันที่แบบ");
   await expect(page.getByRole("button", { name: "นำเข้าจริง" })).toBeDisabled();
   await shot(page, "import-review-1440");
+  await page.getByRole("button",{name:"แก้ไขการจับคู่คอลัมน์"}).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.screenshot({path:"docs/evidence/backoffice-ux/imports/mapping-dialog-1440.png",fullPage:true});
+  await page.getByRole("button",{name:"ยกเลิกการจับคู่"}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   const forced = await page.request.post(batchUrl.replace("/admin/imports/", "/api/imports/"), { headers: { "Content-Type": "application/json", "Idempotency-Key": "e2e-force-commit", Origin: ORIGIN }, data: { action: "commit", input: { expectedVersion: 2 } } });
   expect(forced.status()).toBe(400); expect((await forced.json()).code).toBe("IMPORT_HAS_ERRORS");
   await page.getByRole("button", { name: /ข้ามแถวที่ต้องแก้ไขทั้งหมด/ }).click();
   await expect(page.locator(".form-success")).toContainText("ข้ามแถวที่ผิดพลาดแล้ว");
   await page.getByRole("button", { name: "นำเข้าจริง" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.screenshot({path:"docs/evidence/backoffice-ux/imports/commit-dialog-1440.png",fullPage:true});
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "นำเข้าจริง" })).toBeEnabled();
+  await page.getByRole("button", { name: "นำเข้าจริง" }).click();
+  await page.getByRole("button", { name: "ยืนยันดำเนินการ" }).click();
   await expect(page.locator(".form-success")).toContainText("นำเข้าข้อมูลแล้ว");
   await expect(page.locator(".status-badge")).toHaveText("นำเข้าแล้ว");
   await expect(page.getByRole("button", { name: "นำเข้าจริง" })).toHaveCount(0);
 
   await page.goto("/admin/imports");
+  await page.getByRole("link", {name:"อัปโหลดไฟล์ใหม่",exact:true}).click();
   await page.locator('input[name="file"]').setInputFiles({ name: "สาขา.csv", mimeType: "text/csv", buffer: csv });
   await page.getByLabel("ชุดหรือวันที่ของเอกสารอ้างอิง").fill("ชุดทดสอบหน้าจอ 01/10/2569");
   await page.getByRole("button", { name: "อัปโหลดเพื่อตรวจสอบ" }).click();

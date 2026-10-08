@@ -1,3 +1,4 @@
+import {AdminListLink,RestoreAdminList} from "@/components/admin-list-link";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { requirePageActor } from "@/server/auth/session";
@@ -17,9 +18,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   catch (error) { return <div className="admin-card" role="alert"><h1>ไม่สามารถเปิดรายชื่อผู้ใช้ได้</h1><p>{error instanceof DomainError ? error.message : "ระบบไม่พร้อมใช้งาน กรุณาลองอีกครั้ง"}</p><Link href="/admin">กลับหน้าจัดการหลังบ้าน</Link></div>; }
   const f = result.filter, link = (changes: Record<string, string>) => `/admin/users?${new URLSearchParams({ q: f.q, type: f.type, status: f.status, page: "1", ...changes })}`;
   const pages = Math.max(1, Math.ceil(result.total / result.pageSize));
-  return <>
+  return <><RestoreAdminList/>
     <div className="admin-heading"><div><h1>ผู้ใช้งาน</h1><p className="muted">หนึ่งบัญชีมีหนึ่งประเภท และขอบเขตตามงาน · ปิดใช้งานแทนการลบ เพื่อเก็บประวัติงาน</p></div>
-      <Link className="primary-button" href="/admin/users/new"><UserPlus size={17} aria-hidden="true" />เพิ่มบัญชี</Link></div>
+      <Link className="primary-button" href={`/admin/users/new?returnTo=${encodeURIComponent(link({page:String(result.page)}))}`}><UserPlus size={17} aria-hidden="true" />เพิ่มบัญชี</Link></div>
     <nav className="type-filter" aria-label="กรองตามประเภทบัญชี">
       <Link href={link({ type: "" })} aria-current={!f.type ? "page" : undefined}>ทุกประเภท</Link>
       {ACCOUNT_TYPES.map((t) => <Link key={t.code} href={link({ type: t.code })} aria-current={f.type === t.code ? "page" : undefined}>{t.name}<span>{result.counts[t.code] ?? 0}</span></Link>)}
@@ -28,7 +29,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       <input type="hidden" name="type" value={f.type} />
       <label>ค้นหา<input name="q" defaultValue={f.q} placeholder="ชื่อหรืออีเมล" maxLength={100} /></label>
       <label>สถานะ<select name="status" defaultValue={f.status}><option value="active">ใช้งาน</option><option value="inactive">ปิดใช้งาน</option><option value="all">ทั้งหมด</option></select></label>
-      <button className="primary-button">ค้นหา</button>
+      <button className="primary-button">ค้นหา</button><Link href="/admin/users" className="secondary-button">ล้างตัวกรอง</Link>
     </form>
     <div className="admin-card">
       <p className="result-count">พบ {result.total.toLocaleString("th-TH")} บัญชี</p>
@@ -39,7 +40,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             <td><span className="type-chip">{u.typeName}</span></td>
             <td>{u.where}{u.department && <span className="muted cell-sub">แผนก {u.department}</span>}</td>
             <td><span className={u.active ? "status-active" : "status-archived"}>{u.active ? "ใช้งาน" : "ปิดใช้งาน"}</span></td>
-            <td><Link href={`/admin/users/${u.id}`}>ดู / แก้ไข</Link></td>
+            <td><AdminListLink className="admin-row-link" href={`/admin/users/${u.id}?returnTo=${encodeURIComponent(link({page:String(result.page)}))}`}>ดู / แก้ไข</AdminListLink></td>
           </tr>)}</tbody></table>
         {!result.rows.length && <p className="empty-list">ไม่พบบัญชีตามเงื่อนไข ลองเปลี่ยนคำค้น ประเภท หรือสถานะ</p>}
       </div>

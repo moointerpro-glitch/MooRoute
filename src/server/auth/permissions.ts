@@ -22,9 +22,10 @@ export const retiredRoles = RETIRED_ROLE_TYPES;
 const operationalRoles: Record<string, string[]> = { ...accountTypes, ...Object.fromEntries(Object.entries(retiredRoles).map(([code, into]) => [code, accountTypes[into]])) };
 /**
  * Owner decision D215: the administrator can do and see everything — every capability of every other role,
- * full master maintenance, and read-only access to other users' consignment drafts. It is derived from the
+ * full master maintenance, and access to other users' consignment drafts. It is derived from the
  * other roles, so a capability added to any role reaches the administrator automatically.
- * Actions reserved to the request's own requester (edit, submit or cancel a draft) stay with that requester.
+ * D235 removes the remaining limits: the administrator may also edit, submit or cancel another person's
+ * request and may review a request they created themselves (see `principal().admin`).
  */
 export const rolePermissions: Record<string, string[]> = {
   ...Object.fromEntries(Object.entries(operationalRoles).map(([role, capabilities]) => [role, [...new Set([...capabilities, "trip.read.company", "trip.read", "consignment.create", "consignment.read"])]])),
@@ -41,12 +42,18 @@ export async function installRoles(db: PrismaClient) {
     }
   });
 }
+/** D235: true for an account holding the ADMINISTRATOR type. Shared by every scope check so the rule lives in one place. */
+export async function isAdministrator(tx: Transaction, actorId: string) {
+  return (await tx.$queryRaw<Array<{id:string}>>`SELECT ur.id FROM UserRole ur JOIN Role r ON r.id=ur.roleId WHERE ur.userId=${actorId} AND r.code='ADMINISTRATOR' LIMIT 1`).length>0;
+}
 export async function principal(tx: Transaction, actorId: string) {
   const user=await tx.user.findUnique({where:{id:actorId}});
   requireCondition(user?.active,"FORBIDDEN","คุณไม่มีสิทธิ์ดำเนินการนี้");
   const permissions=await tx.$queryRaw<Array<{code:string}>>`SELECT DISTINCT p.code FROM UserRole ur JOIN RolePermission rp ON rp.roleId=ur.roleId JOIN Permission p ON p.id=rp.permissionId WHERE ur.userId=${actorId}`;
   const scopes=await tx.userScope.findMany({where:{userId:actorId}});
-  return {user, permissions:new Set(permissions.map(p=>p.code)),scopes,global:scopes.some(s=>s.kind==="GLOBAL")};
+  // D235: the administrator is never limited by row scope or by ownership of a request.
+  const admin=await isAdministrator(tx,actorId);
+  return {user, permissions:new Set(permissions.map(p=>p.code)),scopes,admin,global:admin||scopes.some(s=>s.kind==="GLOBAL")};
 }
 export type Principal=Awaited<ReturnType<typeof principal>>;
 export function requireCapability(p:Principal,code:string) { requireCondition(p.permissions.has(code),"FORBIDDEN","คุณไม่มีสิทธิ์ดำเนินการนี้"); }

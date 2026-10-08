@@ -13,8 +13,8 @@ type ConsignmentRow = { requesterId: string; status: string; destinationBranchId
 export async function consignmentScope(tx: Transaction, p: Principal, actorId: string) {
   const requester = p.permissions.has("consignment.create");
   const ids = (kind: string, key: "branchId" | "warehouseId" | "departmentId" | "driverId") => p.scopes.flatMap((s) => s.kind === kind && s[key] ? [s[key]!] : []);
-  // Drafts are private to their requester; only the administrator capability may read other users' drafts (D215).
-  const readsDrafts = p.permissions.has("consignment.read.drafts");
+  // Drafts are private to their requester; only the administrator may read other users' drafts (D215, D235).
+  const readsDrafts = p.admin || p.permissions.has("consignment.read.drafts");
   const branchIds = ids("BRANCH", "branchId"), warehouseIds = ids("WAREHOUSE", "warehouseId"), departmentIds = p.permissions.has("consignment.read.department") ? ids("DEPARTMENT", "departmentId") : [], driverIds = ids("DRIVER", "driverId");
   return {
     allows(c: ConsignmentRow, currentDriverId: string | null) {
@@ -42,7 +42,7 @@ export async function requireConsignmentAccess(tx:Transaction,actorId:string,id:
   const c=await tx.consignment.findUnique({where:{id},include:{currentAssignment:{include:{tripRevision:true}}}});
   requireCondition(c,"NOT_FOUND","ไม่พบข้อมูลหรือคุณไม่มีสิทธิ์เข้าถึง");
   // Someone else's draft is indistinguishable from a missing record.
-  requireCondition(c.status!=="DRAFT"||c.requesterId===actorId||p.permissions.has("consignment.read.drafts"),"NOT_FOUND","ไม่พบข้อมูลหรือคุณไม่มีสิทธิ์เข้าถึง");
+  requireCondition(c.status!=="DRAFT"||c.requesterId===actorId||p.admin||p.permissions.has("consignment.read.drafts"),"NOT_FOUND","ไม่พบข้อมูลหรือคุณไม่มีสิทธิ์เข้าถึง");
   const scope=await consignmentScope(tx,p,actorId);
   requireCondition(scope.allows(c,c.currentAssignment?.tripRevision.driverId??null),"FORBIDDEN","คุณไม่มีสิทธิ์เข้าถึงพัสดุนี้");return c;
 }
