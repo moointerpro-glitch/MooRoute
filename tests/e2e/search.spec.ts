@@ -4,7 +4,7 @@ import { readFileSync, mkdirSync } from "node:fs";
 // Synthetic fixture from tests/fixtures/search.ts: 2028-03-01 (พ.ศ. 2571) has 8 published branch trips.
 const account = JSON.parse(readFileSync(".local/auth/e2e-search.json", "utf8")) as { password: string; requester: string; branch: string; supervisor: string; admin: string; warehouse: string };
 const DATE = "2028-03-01", A = "synthetic-branch-a";
-const evidence = "docs/evidence/phase-5";
+const evidence = process.env.E2E_EVIDENCE_DIR ?? "docs/evidence/phase-5";
 mkdirSync(evidence, { recursive: true });
 
 // The real sign-in throttle allows 5 attempts/minute, so each account signs in through the UI once per worker.
@@ -61,12 +61,12 @@ test("T04/T05/T06/T19/T20: three search modes, aliases, chips, range validation,
   await page.getByLabel("ประเภทเวลาที่ใช้ค้นหา").selectOption("departure");
 
   await page.getByRole("tab", { name: "เลือกช่วงเวลา", exact: true }).click();
-  await page.getByLabel("เริ่มต้น", { exact: true }).selectOption("16:00");
-  await page.getByLabel("สิ้นสุด", { exact: true }).selectOption("15:30");
+  await page.getByLabel("เริ่มต้น", { exact: true }).fill("16:00");
+  await page.getByLabel("สิ้นสุด", { exact: true }).fill("15:30");
   await page.getByRole("button", { name: "ค้นหา", exact: true }).click();
   await expect(page.locator(".field-error")).toContainText("เวลาสิ้นสุดต้องไม่ก่อนเวลาเริ่มต้น");
-  await page.getByLabel("เริ่มต้น", { exact: true }).selectOption("15:30");
-  await page.getByLabel("สิ้นสุด", { exact: true }).selectOption("16:00");
+  await page.getByLabel("เริ่มต้น", { exact: true }).fill("15:30");
+  await page.getByLabel("สิ้นสุด", { exact: true }).fill("16:00");
   await page.getByRole("button", { name: "ค้นหา", exact: true }).click();
   await expect(badge(page)).toHaveText("พบ 2 รอบรถ");
   await expect(page.getByText("รวมเวลาเริ่มต้นและเวลาสิ้นสุด", { exact: false })).toBeVisible();
@@ -147,6 +147,92 @@ test("T13: branch scope, contact visibility and denied roles on pages and APIs",
   await login(page, account.admin);
   await page.goto(`/?date=${DATE}`);
   await expect(badge(page)).toHaveText("พบ 8 รอบรถ");
+});
+
+for (const width of [1440, 390]) {
+  test(`time input: typed validation, scroll wheels, cancel and confirmation at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await login(page, account.requester);
+    await page.goto(`/?date=${DATE}&mode=range&from=08:30&to=23:59`);
+    await expect(badge(page)).toHaveText(/^พบ \d+ รอบรถ$/);
+    const start = page.getByRole("textbox", { name: "เริ่มต้น", exact: true });
+    const clock = page.locator(".range-fields .time-field").first().getByRole("button", { name: "เปิดตัวเลือกเวลา" });
+    const popup = page.getByRole("dialog", { name: "เลือกเวลา", exact: true });
+    await expect(page.locator(".range-fields select")).toHaveCount(0);
+    await start.fill(""); await start.pressSequentially("830"); await start.press("Tab");
+    await expect(start).toHaveValue("08:30");
+    await start.fill("24:00"); await start.press("Tab");
+    await expect(start).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator(".time-input-error")).toContainText("00:00–23:59");
+    await page.getByRole("button", { name: "ค้นหา", exact: true }).click();
+    await expect(page.locator(".field-error")).toContainText("ให้ถูกต้อง");
+    await start.fill("08:30"); await start.press("Tab");
+    await clock.click();
+    await expect(popup.getByRole("spinbutton", { name: "ชั่วโมง", exact: true })).toBeFocused();
+    await expect(popup.locator("select, [role=listbox]")).toHaveCount(0);
+    await popup.getByRole("button", { name: "เพิ่มชั่วโมง", exact: true }).click();
+    await expect(start, "picker changes are drafts until confirmed").toHaveValue("08:30");
+    await popup.getByRole("button", { name: "ยกเลิก", exact: true }).click();
+    await expect(popup).toHaveCount(0); await expect(clock).toBeFocused();
+    await clock.click();
+    const hours = popup.getByRole("spinbutton", { name: "ชั่วโมง", exact: true });
+    const minutes = popup.getByRole("spinbutton", { name: "นาที", exact: true });
+    await hours.press("End"); await expect(hours).toHaveAttribute("aria-valuenow", "23");
+    await expect(popup.getByRole("button", { name: "เพิ่มชั่วโมง", exact: true })).toBeDisabled();
+    await hours.press("Home"); await hours.press("PageUp"); await hours.press("ArrowUp");
+    await expect(hours).toHaveAttribute("aria-valuenow", "6");
+    await minutes.hover(); await page.mouse.wheel(0, 132);
+    await expect(minutes).toHaveAttribute("aria-valuenow", "33");
+    await minutes.press("End"); await expect(minutes).toHaveAttribute("aria-valuenow", "59");
+    await expect(popup.getByRole("button", { name: "เพิ่มนาที", exact: true })).toBeDisabled();
+    expect(await noHorizontalScroll(page)).toBe(true);
+    const bounds = await popup.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(bounds!.y).toBeGreaterThanOrEqual(0); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844);
+    const shots = "docs/evidence/time-picker"; mkdirSync(shots, { recursive: true });
+    await page.screenshot({ path: `${shots}/picker-${width}.png`, fullPage: true });
+    await popup.screenshot({ path: `${shots}/panel-${width}.png` });
+    await popup.getByRole("button", { name: "ใช้เวลา 06:59", exact: true }).click();
+    await expect(start).toHaveValue("06:59"); await expect(start).toBeFocused();
+    await start.press("Alt+ArrowDown"); await expect(popup).toBeVisible();
+    await hours.press("ArrowDown"); await hours.press("Escape");
+    await expect(popup).toHaveCount(0); await expect(start).toHaveValue("06:59");
+    await clock.click(); await popup.getByRole("button", { name: "ล้างเวลา", exact: true }).click();
+    await expect(start).toHaveValue("");
+    await clock.click(); await popup.getByRole("button", { name: "ยกเลิก", exact: true }).click();
+    await expect(start, "opening an empty field must not invent a time").toHaveValue("");
+    await start.fill("08:00"); await clock.click();
+    await popup.getByRole("button", { name: "เพิ่มชั่วโมง", exact: true }).click();
+    await page.getByRole("textbox", { name: "สิ้นสุด", exact: true }).click();
+    await expect(popup).toHaveCount(0); await expect(start).toHaveValue("08:00");
+    await expect(page.getByRole("textbox", { name: "สิ้นสุด", exact: true })).toBeFocused();
+  });
+}
+
+test("time picker supports native touch scrolling without committing until confirmation", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: "th-TH", timezoneId: "Asia/Bangkok" });
+  const page = await context.newPage();
+  try {
+    await login(page, account.requester);
+    await page.goto(`/?date=${DATE}&mode=range&from=08:30&to=23:59`);
+    await expect(badge(page)).toHaveText(/^พบ \d+ รอบรถ$/);
+    await page.locator(".range-fields .time-field").first().getByRole("button", { name: "เปิดตัวเลือกเวลา" }).tap();
+    const popup = page.getByRole("dialog", { name: "เลือกเวลา", exact: true });
+    const minutes = popup.getByRole("spinbutton", { name: "นาที", exact: true });
+    const box = (await minutes.boundingBox())!;
+    const session = await context.newCDPSession(page);
+    const x = box.x + box.width / 2, y = box.y + box.height / 2 + 35;
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (const delta of [15, 30, 45, 60, 80]) {
+      await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - delta }] });
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect.poll(async () => Number(await minutes.getAttribute("aria-valuenow"))).toBeGreaterThan(30);
+    await expect(page.getByRole("textbox", { name: "เริ่มต้น", exact: true })).toHaveValue("08:30");
+    await popup.getByRole("button", { name: "ยกเลิก", exact: true }).tap();
+    await expect(page.getByRole("textbox", { name: "เริ่มต้น", exact: true })).toHaveValue("08:30");
+  } finally { await context.close(); }
 });
 
 for (const width of [1440, 768, 390]) {

@@ -1,10 +1,25 @@
 import {test,expect,type Page} from "@playwright/test";
 import {readFileSync,mkdirSync} from "node:fs";
 const account=JSON.parse(readFileSync(".local/auth/e2e.json","utf8")) as {password:string;dispatcher:string;supervisor:string;branch:string};
+async function checkTemplateTimeInput(page: Page) {
+ await page.goto("/admin/planning");
+ await page.getByRole("button", { name: "แม่แบบประจำ", exact: true }).click();
+ await page.getByRole("button", { name: "เพิ่มแม่แบบ", exact: true }).click();
+ const departure = page.locator('input[name="departureMinute"]');
+ await departure.fill("0830"); await departure.press("Tab");
+ await expect(departure).toHaveValue("08:30");
+ await departure.locator("..").getByRole("button", { name: "เปิดตัวเลือกเวลา" }).click();
+ const popup = page.getByRole("dialog", { name: "เลือกเวลา", exact: true });
+ await popup.getByRole("button", { name: "เพิ่มชั่วโมง", exact: true }).click();
+ await popup.getByRole("button", { name: "ใช้เวลา 09:30", exact: true }).click();
+ await expect(departure).toHaveValue("09:30");
+ expect(await departure.evaluate((input: HTMLInputElement) => new FormData(input.form!).get("departureMinute"))).toBe("09:30");
+ await expect(page.getByRole("button", { name: "บันทึกแม่แบบ", exact: true })).toBeVisible();
+}
 async function login(page:Page,email:string){await page.goto("/login");await page.getByLabel("อีเมล").fill(email);await page.getByLabel("รหัสผ่าน").fill(account.password);await page.getByRole("button",{name:"เข้าสู่ระบบ",exact:true}).click();await expect(page).toHaveURL(email === account.branch ? /\/(?:\?.*)?$/ : /\/admin$/);}
 test("T01/T02/T08/T12/T21 and D225: Thai route/template generation, copy/edit/reduce, preview rejection, publish, responsive history, day navigation and multi-day tools",async({page})=>{
  test.setTimeout(120_000);
- await login(page,account.dispatcher);await page.getByRole("link",{name:/แผนเดินรถรายวัน/}).click();await expect(page.getByRole("heading",{name:"ความครบถ้วนทุกสาขา"})).toBeVisible();
+ await login(page,account.dispatcher);await checkTemplateTimeInput(page);await page.goto("/admin");await page.getByRole("link",{name:/แผนเดินรถรายวัน/}).click();await expect(page.getByRole("heading",{name:"ความครบถ้วนทุกสาขา"})).toBeVisible();
  await page.getByLabel("วันที่ให้บริการ (พ.ศ.)",{exact:true}).fill("01/05/2570");await page.getByRole("button",{name:"เปิดวันที่",exact:true}).click();await expect(page.getByText("ยังไม่มีเที่ยวในวันนี้",{exact:true})).toBeVisible();
  await page.getByRole("button",{name:"เส้นทาง",exact:true}).click();await page.getByRole("button",{name:"เพิ่มเส้นทาง",exact:true}).click();await page.getByLabel("รหัสเส้นทาง",{exact:true}).fill("UI-SYNTHETIC");await page.getByLabel("ชื่อเส้นทาง",{exact:true}).fill("เส้นทางทดสอบหน้าจอ (สังเคราะห์)");
  for(let n=0;n<3;n++){if(n)await page.getByRole("button",{name:"เพิ่มจุดส่ง",exact:true}).click();await page.getByRole("combobox",{name:`จุดส่งที่ ${n+1}`,exact:true}).selectOption(`synthetic-branch-${["a","b","c"][n]}`);}

@@ -37,10 +37,16 @@ test("dates are read in the Buddhist era and impossible dates are refused", () =
 test("time typing is shaped to ชช:นน and read as 24-hour time", () => {
   assert.equal(maskTimeText("0"), "0");
   assert.equal(maskTimeText("08"), "08");
-  assert.equal(maskTimeText("083"), "08:3");
+  assert.equal(maskTimeText("083"), "083", "keep HMM editable until a fourth digit or blur");
+  assert.equal(normalizeTimeText(maskTimeText("830")), "08:30");
+  assert.equal(normalizeTimeText(maskTimeText("123")), "01:23");
   assert.equal(maskTimeText("0830"), "08:30");
   assert.equal(maskTimeText("8.30"), "8:30");
   assert.equal(maskTimeText("๑๓๔๕"), "13:45");
+  let typed = "";
+  for (const digit of "0830") typed = maskTimeText(typed + digit);
+  assert.equal(typed, "08:30", "four-digit entry works one keystroke at a time");
+  assert.equal(parseTime(maskTimeText("2400")), null, "do not silently turn an invalid hour into a valid time");
   assert.equal(parseTime("8:30"), "08:30");
   assert.equal(parseTime("830"), "08:30");
   assert.equal(parseTime("8"), "08:00");

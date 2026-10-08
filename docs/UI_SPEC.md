@@ -32,6 +32,8 @@ Use consistent translations: draft ฉบับร่าง; pending review ร�
 
 Display dates in a consistent Thai locale with an explicit พ.ศ. calendar convention; accept/store ISO Gregorian service dates internally. Display times in 24-hour HH:mm format with น. where useful. Use Asia/Bangkok consistently. Do not mix calendar years within one workflow.
 
+Time entry (D229): use a dedicated numeric HH:MM field with a clock icon, not a select dropdown. The icon opens a Thai popup with independently scrollable hour/minute wheels, arrow buttons and explicit confirmation. Support direct typing, minute precision, mouse, touch and keyboard. Enforce 00:00–23:59; show invalid entry for correction. Cancel/Escape/outside dismissal do not commit provisional selections. Unknown times stay empty until the user confirms a value. Apply this shared control to search range endpoints, planning, templates and master-data time/date-time fields.
+
 Print layouts are monochrome-readable and omit navigation/buttons. Preview A4 four-label pages and 100 x 150 mm stickers at actual scale. Include Thai branch/address text, clear package numbering, safe QR lookup and current label version. Test long addresses and page boundaries. Do not shrink essential recipient text to fit an overcrowded label.
 
 ## Visual acceptance

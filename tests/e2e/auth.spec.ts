@@ -8,6 +8,25 @@ async function login(page:Page,role:"admin"|"branch"="admin"){
 }
 test("real login, Thai backend, create/edit/delete masters and server validation",async({page})=>{
   await login(page);await expect(page.getByRole("heading",{name:"งานหลังบ้านของคุณ"})).toBeVisible();
+  // Native browser constraints must agree with the server's integer wheel range.
+  await page.goto("/admin/vehicle-types/new");
+  const wheels=page.getByRole("spinbutton",{name:"จำนวนล้อ *",exact:true});
+  for(const value of ["2","4","6","30"]){await wheels.fill(value);expect(await wheels.evaluate((input:HTMLInputElement)=>input.checkValidity()),`accept ${value} wheels`).toBe(true);}
+  for(const value of ["1","4.001","31"]){await wheels.fill(value);expect(await wheels.evaluate((input:HTMLInputElement)=>input.checkValidity()),`reject ${value} wheels`).toBe(false);}
+  await wheels.fill("4");await wheels.press("ArrowUp");await expect(wheels).toHaveValue("5");await wheels.press("ArrowDown");await expect(wheels).toHaveValue("4");
+  await page.locator('[name="code"]').fill("BROWSER-WHEELS");await page.locator('[name="name"]').fill("รถสังเคราะห์ทดสอบจำนวนล้อ");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบบันทึกจำนวนล้อเต็มผ่านหน้าจอ");
+  await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
+  await page.goto("/admin/vehicle-types?q=BROWSER-WHEELS");await page.getByRole("link",{name:"ดู / แก้ไข"}).click();await expect(wheels).toHaveValue("4");await page.reload();await expect(wheels).toHaveValue("4");
+  await wheels.fill("6");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบแก้จำนวนล้อเต็ม");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");await page.reload();await expect(wheels).toHaveValue("6");
+  await page.goto("/admin/vehicles/new");
+  await page.locator('[name="plateNormalized"]').fill("ทด-ล้อ4");await page.locator('[name="province"]').fill("จังหวัดสังเคราะห์");
+  await page.locator('[name="typeId"]').selectOption({label:"BROWSER-WHEELS · รถสังเคราะห์ทดสอบจำนวนล้อ"});await page.locator('[name="storageConditionId"]').selectOption({index:1});
+  await wheels.fill("4");expect(await wheels.evaluate((input:HTMLInputElement)=>input.checkValidity())).toBe(true);
+  await page.locator('[name="capacity"]').fill("1500.125");await page.locator('[name="capacityUnit"]').selectOption("KG");
+  expect(await page.locator('[name="capacity"]').evaluate((input:HTMLInputElement)=>input.checkValidity())).toBe(true);
+  await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบรถสี่ล้อและความจุทศนิยม");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
+  await page.goto("/admin/vehicles?q="+encodeURIComponent("ทดล้อ4"));await page.getByRole("link",{name:"ดู / แก้ไข"}).click();await expect(wheels).toHaveValue("4");await page.reload();await expect(wheels).toHaveValue("4");await expect(page.locator('[name="capacity"]')).toHaveValue("1500.125");
+  for(const value of [4.001,31]){const rejected=await page.request.post("/api/masters/vehicle-types",{headers:{origin:"http://127.0.0.1:3011","idempotency-key":`e2e-invalid-wheels-${value}`},data:{action:"save",expectedVersion:0,reason:"ทดสอบข้ามการตรวจหน้าเว็บ",values:{code:"BAD-WHEELS",name:"ข้อมูลสังเคราะห์",wheelCount:value,active:true}}});expect(rejected.status()).toBe(400);expect((await rejected.json()).message).toContain("จำนวนเต็ม");}
   await page.goto("/admin/drivers/new");await page.getByLabel("รหัส",{exact:false}).fill("BROWSER3");await page.getByLabel("ชื่อ",{exact:false}).fill("พนักงานสังเคราะห์ผ่านหน้าจอ");await page.getByLabel("เบอร์ติดต่อ").fill("0800000000");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบบันทึกจริงผ่านหน้าจอ");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
   await page.goto("/admin/drivers?q=BROWSER3");await page.getByRole("link",{name:"ดู / แก้ไข"}).click();await page.getByLabel("ชื่อ",{exact:false}).fill("พนักงานสังเคราะห์แก้ไขแล้ว");await page.getByLabel("เหตุผลการเปลี่ยนแปลง").fill("ทดสอบแก้ไขพร้อมบันทึกประวัติ");await page.getByRole("button",{name:"บันทึกข้อมูล"}).click();await expect(page.getByRole("status")).toContainText("บันทึกข้อมูลสำเร็จ");
   await page.reload();await expect(page.getByLabel("ชื่อ",{exact:false})).toHaveValue("พนักงานสังเคราะห์แก้ไขแล้ว");

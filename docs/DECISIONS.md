@@ -53,6 +53,7 @@ Use clearly labeled synthetic defaults in development and keep unverified operat
 - Reason/source: Current user instructions and PROMPTS.md Phase 1. JPG/PNG originals are now present in the workspace root; identical ignored copies are retained in references/. The operational PDF is still absent.
 - Affected files: Phase 1 source, tests, configuration, references/README.md and handoff documents.
 - Migration impact: No operational models, migrations or seeds. No existing database migration was performed.
+- Reference availability update (2026-10-07): the operational PDF is now present and all three pages have been visually inspected. Its hash and identical private reference copy are recorded in references/README.md. This resolves the historical missing-file limitation only; ambiguous annotations and source values remain unapproved, and no PDF data has been imported. See PROGRESS “PDF review and installation baseline comparison”.
 
 ## D203 Foundation technology and isolated native MySQL
 
@@ -314,3 +315,12 @@ Status: Implemented. The owner chose the application's own password accounts for
 ## D228 — No consign button in trip lists (owner request, 2026-10-07)
 
 Status: Implemented. The per-row "ฝากของกับรอบนี้" action added in D226 was removed from search results and รอบรถทั้งหมด at the owner's request; the last column is again รายละเอียด. Consigning starts from the trip detail page, which keeps the D226 choice of destination stops, and from the ฝากของส่งรถ menu.
+
+## D229 — Dedicated time entry and hour/minute wheel popup (2026-10-07)
+
+Status: Implemented on the owner's explicit request to replace time dropdowns with direct entry and a clock-triggered popup for upward/downward selection. Supersedes D218's 30-minute time list. All shared TimeInput/DateTimeInput consumers use the new wheel; search range start/end dropdowns now use TimeInput. The published-time multi-select chips and time-basis/category selectors retain their existing purpose.
+
+- Thai 24-hour text entry accepts normal HH:MM, Thai digits and supported compact entry; e.g. 830 normalizes to 08:30 on blur. Three compact digits remain editable until blur or the fourth digit, preventing premature punctuation from breaking entry. Invalid hours/minutes are retained for correction, marked invalid and blocked by existing form validation; the range action independently parses/validates and canonicalizes before requesting results. Server validation and payload formats remain unchanged.
+- Clock opens separate bounded hour (00–23) and minute (00–59) wheels with native mouse/touch scrolling, up/down buttons, spinbutton keyboard controls and an explicit use-time action. There is no select/listbox of time values. Popup edits are provisional until confirmation; cancel, Escape and outside click preserve the field. Opening an empty optional field leaves it empty; clearing remains available only for optional inputs. No rounding to 30-minute slots, no automatic midnight/date rollover, no invented operational timestamps.
+- Popup is portaled outside labels/scroll containers, kept within the viewport and internally scrollable on short screens. Focus is restored on explicit close/confirmation; outside dismissal preserves the destination focus. Styling follows the existing Thai red/white interface. No dependency, schema, migration, authorization or operational-data change.
+- Verified in local production-build browser tests on disposable MySQL: direct entry/invalid values, mouse wheel, touch emulation, keyboard boundaries, cancel/clear/outside dismissal, responsive placement and template FormData. Physical mobile devices, screen readers and the deployed host are not verified for this change. See evidence/time-picker/VERIFICATION.md.

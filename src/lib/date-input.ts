@@ -70,7 +70,7 @@ export function parseTime(text: string): string | null {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-/** Shapes time while typing: a colon is inserted once the third digit arrives; "." is read as ":". */
+/** Keep three digits editable (830 -> 08:30 on blur); insert a colon once all four HHMM digits arrive. */
 export function maskTimeText(raw: string): string {
   const t = thaiDigitsToArabic(raw).replace(/\./g, ":").replace(/[^\d:]/g, "");
   if (t.includes(":")) {
@@ -78,7 +78,7 @@ export function maskTimeText(raw: string): string {
     return `${hour.slice(0, 2)}:${minute.slice(0, 2)}`;
   }
   const digits = t.slice(0, 4);
-  return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  return digits.length < 4 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
 export function normalizeTimeText(text: string): string {

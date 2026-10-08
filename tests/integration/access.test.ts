@@ -15,6 +15,7 @@ import { saveConsignmentDraft, submitConsignment, consignmentDetail, listConsign
 import { saveDraft, publishPlan } from "../../src/server/services/plans";
 import { planningData } from "../../src/server/services/planning-read";
 import { navigationAccess } from "../../src/lib/navigation";
+import { updateUser } from "../../src/server/services/users";
 import { seedMasters, synthetic, completeDraft } from "../fixtures/synthetic";
 
 const db = createDatabase(testDatabaseConfiguration(process.env)), accounts: Record<string, string> = {};
@@ -61,6 +62,23 @@ test("D216: every role creates/submits/cancels its own request without expanding
     }
     assert.equal((await cancelConsignment(db, actor, key(), { id: d.id, expectedVersion: submitted.version, reason: "ยกเลิกคำขอทดสอบ" })).status, "CANCELLED");
   }
+});
+
+test("host bootstrap administrator can consign after assigning its own sender department", async () => {
+  const account = await provisionAccount(db, { email: "access-bootstrap-admin@synthetic.test", name: "ผู้ดูแลแรกทดสอบ", password: randomBytes(24).toString("base64url"), role: "ADMINISTRATOR", scope: "GLOBAL" });
+  const actor = account.id;
+  const before = await db.$transaction(tx => principal(tx, actor));
+  assert.equal(before.permissions.has("consignment.create"), true);
+  assert.equal(before.global, true);
+  assert.equal((await consignmentFormOptions(db, actor)).departments.length, 0);
+  await assert.rejects(saveConsignmentDraft(db, actor, key(), draft()), denied("FORBIDDEN"));
+  const user = await db.user.findUniqueOrThrow({ where: { id: actor } });
+  await updateUser(db, actor, key(), { id: actor, expectedVersion: user.version, name: user.displayName, typeCode: "ADMINISTRATOR", departmentId, reason: "กำหนดแผนกผู้ดูแลแรกเพื่อทดสอบฝากส่ง" });
+  assert.deepEqual((await consignmentFormOptions(db, actor)).departments.map(d => d.id), [departmentId]);
+  const saved = await saveConsignmentDraft(db, actor, key(), draft());
+  const submitted = await submitConsignment(db, actor, key(), { id: saved.id, expectedVersion: saved.version });
+  assert.equal(submitted.status, "PENDING_REVIEW");
+  await assert.rejects(assignConsignment(db, actor, key(), { id: saved.id, expectedVersion: submitted.version, tripId: "access-trip-1", stopSequence: 1, reason: "ทดสอบการจัดรถให้ตัวเอง" }), denied("SELF_REVIEW"));
 });
 
 test("D216: a sender needs an assigned active department; contact-safe form and role-filtered navigation", async () => {

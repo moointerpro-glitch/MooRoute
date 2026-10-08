@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { AlertCircle, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Info, MapPin, RefreshCw, Route, Search, SlidersHorizontal, X } from "lucide-react";
 import type { SearchResult } from "@/server/services/trip-search";
 import { TripResults } from "./trip-results";
-import { DateInput } from "./date-time-inputs";
-import { parseThaiDate } from "@/lib/date-input";
+import { DateInput, TimeInput } from "./date-time-inputs";
+import { parseThaiDate, parseTime } from "@/lib/date-input";
 import { beDate, shiftDate, thaiLongDate, timeBasisLabels, tripKindLabels } from "@/lib/trip-format";
 
 type Mode = "branch" | "time" | "range";
@@ -22,7 +22,7 @@ const modes = [
   { id: "range" as const, title: "เลือกช่วงเวลา", icon: CalendarDays, heading: "เลือกช่วงเวลาที่ต้องการ", description: "เลือกเวลาเริ่มต้นและสิ้นสุด เพื่อดูรอบรถที่ให้บริการในช่วงเวลานั้น" },
 ];
 const clock = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-const minuteOf = (text: string) => /^\d{2}:\d{2}$/.test(text) ? Number(text.slice(0, 2)) * 60 + Number(text.slice(3)) : null;
+const minuteOf = (text: string) => { const time = parseTime(text); return time ? Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) : null; };
 const ids = (text: string | undefined) => (text ?? "").split(",").map((v) => v.trim()).filter(Boolean);
 
 function initialQuery(params: Record<string, string | undefined>, today: string, options: SearchOptions): Query {
@@ -143,9 +143,10 @@ export function TripSearch({ today, options, params }: { today: string; options:
   }
   function submitRange() {
     const from = minuteOf(rangeDraft.from), to = minuteOf(rangeDraft.to);
-    if (from === null || to === null) { setRangeError("กรุณาเลือกทั้งเวลาเริ่มต้นและเวลาสิ้นสุด"); return; }
+    if (from === null || to === null) { setRangeError("กรุณากรอกเวลาเริ่มต้นและเวลาสิ้นสุดให้ถูกต้อง (00:00–23:59)"); return; }
     if (to < from) { setRangeError("เวลาสิ้นสุดต้องไม่ก่อนเวลาเริ่มต้น ระบบยังไม่รองรับช่วงเวลาข้ามวัน"); return; }
-    setRangeError(""); update({ mode: "range", from: rangeDraft.from, to: rangeDraft.to });
+    const normalized = { from: clock(from), to: clock(to) };
+    setRangeDraft(normalized); setRangeError(""); update({ mode: "range", ...normalized });
   }
   function clearAll() {
     setSelected(null); setBranchText(""); setRangeDraft({ from: "", to: "" }); setRangeError("");
@@ -153,11 +154,6 @@ export function TripSearch({ today, options, params }: { today: string; options:
   }
 
   const facets = result?.facets, span = facets?.span;
-  const rangeOptions = useMemo(() => {
-    const values = new Set<number>([...Array.from({ length: 48 }, (_, i) => i * 30), 1439, ...(facets?.times ?? []).filter((t) => t.offset >= 0 && t.offset < 1440).map((t) => t.offset)]);
-    for (const v of [rangeDraft.from, rangeDraft.to]) { const m = minuteOf(v); if (m !== null) values.add(m); }
-    return [...values].sort((a, b) => a - b).map(clock);
-  }, [facets, rangeDraft]);
   const basisLabel = timeBasisLabels[query.basis];
   const showing = result && result.total ? `${(result.page - 1) * result.pageSize + 1}–${Math.min(result.total, result.page * result.pageSize)}` : "0";
   const filterText = [
@@ -250,14 +246,14 @@ export function TripSearch({ today, options, params }: { today: string; options:
         {query.mode === "range" && <div className="time-fields">{basisSelect}
           <div className="range-block">
             <div className="range-fields">
-              <div className="filter"><label htmlFor={`${uid}-from`}>เริ่มต้น</label><div className="select-wrap"><select id={`${uid}-from`} value={rangeDraft.from} onChange={(e) => setRangeDraft((r) => ({ ...r, from: e.target.value }))} aria-describedby={`${uid}-range-help`}>
-                <option value="">เลือกเวลา</option>{rangeOptions.map((t) => <option key={t} value={t}>{t} น.</option>)}</select><ChevronDown size={16} aria-hidden="true" /></div></div>
+              <div className="filter"><label htmlFor={`${uid}-from`}>เริ่มต้น</label><TimeInput id={`${uid}-from`} value={rangeDraft.from}
+                onChange={(from) => { setRangeDraft(r => ({ ...r, from })); setRangeError(""); }} aria-describedby={`${uid}-range-help`} /></div>
               <span className="range-separator" aria-hidden="true">–</span>
-              <div className="filter"><label htmlFor={`${uid}-to`}>สิ้นสุด</label><div className="select-wrap"><select id={`${uid}-to`} value={rangeDraft.to} onChange={(e) => setRangeDraft((r) => ({ ...r, to: e.target.value }))} aria-describedby={`${uid}-range-help`}>
-                <option value="">เลือกเวลา</option>{rangeOptions.map((t) => <option key={t} value={t}>{t} น.</option>)}</select><ChevronDown size={16} aria-hidden="true" /></div></div>
+              <div className="filter"><label htmlFor={`${uid}-to`}>สิ้นสุด</label><TimeInput id={`${uid}-to`} value={rangeDraft.to}
+                onChange={(to) => { setRangeDraft(r => ({ ...r, to })); setRangeError(""); }} aria-describedby={`${uid}-range-help`} /></div>
               <button type="button" className="primary-button" onClick={submitRange}><Search size={19} aria-hidden="true" />ค้นหา</button>
             </div>
-            {rangeError ? <p className="field-error" role="alert">{rangeError}</p> :
+            {rangeError ? <p id={`${uid}-range-help`} className="field-error" role="alert">{rangeError}</p> :
               <p id={`${uid}-range-help`} className="field-hint">รวมเวลาเริ่มต้นและเวลาสิ้นสุด{span ? ` · ${basisLabel}ที่มีในวันนี้ ${span.fromLabel}–${span.toLabel} น.` : ""}</p>}
           </div>
         </div>}

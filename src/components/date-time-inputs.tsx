@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Clock3 } from "lucide-react";
+import { TimePicker } from "./time-picker";
 import { THAI_MONTHS, THAI_WEEKDAYS, THAI_WEEKDAYS_SHORT, addDays, addMonths, bangkokToday, formatBeDate, maskDateText, maskTimeText, monthGrid, normalizeDateText, normalizeTimeText, parseThaiDate, parseTime, thaiDateLabel } from "@/lib/date-input";
 
 /**
@@ -26,7 +27,7 @@ function useText(value: string | undefined, defaultValue: string | undefined, on
 }
 
 /** Fixed-position popover under (or above) its anchor; follows scrolling and resizing; closes on outside press. */
-function Popover({ anchor, owner, open, onClose, label, children }: { anchor: RefObject<HTMLElement | null>; owner: RefObject<HTMLElement | null>; open: boolean; onClose: () => void; label: string; children: ReactNode }) {
+function Popover({ anchor, owner, open, onClose, label, children, id }: { anchor: RefObject<HTMLElement | null>; owner: RefObject<HTMLElement | null>; open: boolean; onClose: () => void; label: string; children: ReactNode; id?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<{ top: number; left: number } | null>(null);
   useLayoutEffect(() => {
@@ -36,7 +37,7 @@ function Popover({ anchor, owner, open, onClose, label, children }: { anchor: Re
       if (!a || !box) return;
       const w = box.offsetWidth, h = box.offsetHeight, gap = 6;
       const below = a.bottom + gap + h <= window.innerHeight || a.top - gap - h < 0;
-      setStyle({ top: below ? a.bottom + gap : a.top - gap - h, left: Math.max(8, Math.min(a.left, window.innerWidth - w - 8)) });
+      setStyle({ top: Math.max(8, Math.min(below ? a.bottom + gap : a.top - gap - h, window.innerHeight - h - 8)), left: Math.max(8, Math.min(a.left, window.innerWidth - w - 8)) });
     };
     place();
     window.addEventListener("resize", place); window.addEventListener("scroll", place, true);
@@ -49,7 +50,7 @@ function Popover({ anchor, owner, open, onClose, label, children }: { anchor: Re
     return () => document.removeEventListener("pointerdown", press);
   }, [open, onClose, owner]);
   if (!open || typeof document === "undefined") return null;
-  return createPortal(<div ref={ref} role="dialog" aria-label={label} className="picker-popover"
+  return createPortal(<div ref={ref} id={id} role="dialog" aria-label={label} className="picker-popover"
     style={style ? { top: style.top, left: style.left } : { top: -9999, left: -9999 }}>{children}</div>, document.body);
 }
 const inPicker = (node: EventTarget | null) => node instanceof Element && !!node.closest(".picker-popover");
@@ -129,45 +130,35 @@ export function DateInput({ value, defaultValue, onChange, onPick, min, max, ...
 
 // ------------------------------------------------------------------ time
 
-function TimeList({ selected, step, onPick, onClose }: { selected: string | null; step: number; onPick: (time: string) => void; onClose: () => void }) {
-  const slots = Array.from({ length: Math.floor(1440 / step) }, (_, i) => `${String(Math.floor((i * step) / 60)).padStart(2, "0")}:${String((i * step) % 60).padStart(2, "0")}`);
-  const nearest = selected ?? (() => { const now = new Date(Date.now() + 7 * 3_600_000), m = now.getUTCHours() * 60 + now.getUTCMinutes(); return slots[Math.min(slots.length - 1, Math.round(m / step))]; })();
-  const list = useRef<HTMLDivElement>(null);
-  // Scroll only inside the list; the page itself must not move when the picker opens.
-  useEffect(() => { const box = list.current, b = box?.querySelector<HTMLButtonElement>(`[data-time="${nearest}"]`) ?? box?.querySelector("button"); if (!box || !b) return; box.scrollTop = b.offsetTop - box.clientHeight / 2 + b.offsetHeight / 2; b.focus({ preventScroll: true }); }, [nearest]);
-  function key(e: KeyboardEvent<HTMLButtonElement>, i: number) {
-    const go = (n: number) => { e.preventDefault(); const b = list.current?.querySelectorAll<HTMLButtonElement>("button")[Math.max(0, Math.min(slots.length - 1, n))]; b?.focus({ preventScroll: true }); b?.scrollIntoView({ block: "nearest" }); };
-    if (e.key === "ArrowDown") go(i + 1); else if (e.key === "ArrowUp") go(i - 1); else if (e.key === "PageDown") go(i + 4); else if (e.key === "PageUp") go(i - 4);
-    else if (e.key === "Home") go(0); else if (e.key === "End") go(slots.length - 1); else if (e.key === "Escape") { e.preventDefault(); onClose(); }
-  }
-  return <div ref={list} className="time-list" aria-label="เวลาแบบ ๒๔ ชั่วโมง">{slots.map((t, i) =>
-    <button key={t} type="button" data-time={t} tabIndex={t === nearest ? 0 : -1} aria-pressed={t === selected} className={t === selected ? "is-selected" : undefined}
-      onClick={() => onPick(t)} onKeyDown={(e) => key(e, i)}>{t} น.</button>)}
-    <p className="picker-help">พิมพ์เวลาอื่นในช่องได้ เช่น 08:15</p>
-  </div>;
-}
-
-export function TimeInput({ value, defaultValue, onChange, step = 30, ...field }: FieldProps & { value?: string; defaultValue?: string; onChange?: (text: string) => void; step?: number }) {
+export function TimeInput({ value, defaultValue, onChange, ...field }: FieldProps & { value?: string; defaultValue?: string; onChange?: (text: string) => void }) {
   const [text, setText] = useText(value, defaultValue, onChange);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false), [touched, setTouched] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null), input = useRef<HTMLInputElement>(null), trigger = useRef<HTMLButtonElement>(null);
-  const autoId = useId(), id = field.id ?? `time-${autoId}`;
+  const autoId = useId(), id = field.id ?? `time-${autoId}`, pickerId = `${id}-picker`, errorId = `${id}-error`;
   const time = parseTime(text), invalid = text.trim() !== "" && !time;
   const locked = field.readOnly || field.disabled;
-  useEffect(() => { input.current?.setCustomValidity(invalid ? "กรุณากรอกเวลาแบบ ๒๔ ชั่วโมง ชช:นน เช่น 08:30" : ""); }, [invalid]);
-  const close = useCallback(() => { setOpen(false); trigger.current?.focus(); }, []);
+  const error = "กรอกเวลา 00:00–23:59 เช่น 08:30";
+  useEffect(() => { input.current?.setCustomValidity(invalid ? error : ""); }, [invalid]);
+  const dismiss = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
   function commit(next = text) { const normal = normalizeTimeText(next); if (normal !== next) setText(normal); field.onCommit?.(normal); }
-  function pick(t: string) { setText(t); setOpen(false); input.current?.focus(); field.onCommit?.(t); }
-  function blur(e: FocusEvent<HTMLInputElement>) { if (!wrap.current?.contains(e.relatedTarget) && !inPicker(e.relatedTarget)) commit(); }
-  return <span ref={wrap} className={`dt-field time-field${field.className ? ` ${field.className}` : ""}`} data-filled={time ? "true" : undefined}>
+  function pick(t: string) { setText(t); setTouched(false); setOpen(false); input.current?.focus({ preventScroll: true }); field.onCommit?.(t); }
+  function blur(e: FocusEvent<HTMLInputElement>) {
+    const normal = normalizeTimeText(text);
+    setTouched(true); if (normal !== text) setText(normal);
+    if (!wrap.current?.contains(e.relatedTarget) && !inPicker(e.relatedTarget)) field.onCommit?.(normal);
+  }
+  return <span className="time-control"><span ref={wrap} className={`dt-field time-field${field.className ? ` ${field.className}` : ""}`} data-filled={time ? "true" : undefined}>
     <input ref={input} id={id} name={field.name} value={text} required={field.required} readOnly={field.readOnly} disabled={field.disabled}
-      inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5} placeholder={field.placeholder ?? "ชช:นน"}
-      aria-label={field["aria-label"]} aria-describedby={field["aria-describedby"]} aria-invalid={field["aria-invalid"] ?? (invalid || undefined)}
-      onChange={(e) => setText(maskTimeText(e.target.value))} onBlur={blur}
-      onKeyDown={(e) => { if (e.key === "Enter" && field.onCommit) { e.preventDefault(); commit(); } else if (e.key === "ArrowDown" && e.altKey && !locked) { e.preventDefault(); setOpen(true); } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } }} />
-    {!locked && <button ref={trigger} type="button" className="dt-trigger" aria-label="เลือกเวลาจากรายการ" aria-haspopup="dialog" aria-expanded={open}
+      type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5} placeholder={field.placeholder ?? "ชช:นน"}
+      aria-label={field["aria-label"]} aria-describedby={[field["aria-describedby"], touched && invalid ? errorId : ""].filter(Boolean).join(" ") || undefined} aria-invalid={field["aria-invalid"] || invalid || undefined}
+      onChange={(e) => setText(maskTimeText(e.target.value))} onBlur={blur} onInvalid={() => setTouched(true)}
+      onPaste={(e) => { if (locked) return; const parsed = parseTime(e.clipboardData.getData("text")); if (parsed) { e.preventDefault(); setText(parsed); } }}
+      onKeyDown={(e) => { if (e.key === "Enter" && invalid) { e.preventDefault(); setTouched(true); input.current?.reportValidity(); } else if (e.key === "Enter" && field.onCommit) { e.preventDefault(); commit(); } else if (e.key === "ArrowDown" && e.altKey && !locked) { e.preventDefault(); setOpen(true); } else if (e.key === "Escape" && open) { e.preventDefault(); close(); } }} />
+    {!locked && <button ref={trigger} type="button" className="dt-trigger" aria-label="เปิดตัวเลือกเวลา" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? pickerId : undefined}
       onClick={() => setOpen(!open)}><Clock3 size={18} aria-hidden="true" /></button>}
-    <Popover anchor={wrap} owner={wrap} open={open} onClose={close} label="เลือกเวลา"><TimeList selected={time} step={step} onPick={pick} onClose={close} /></Popover>
+    <Popover anchor={wrap} owner={wrap} id={pickerId} open={open && !locked} onClose={dismiss} label="เลือกเวลา"><TimePicker selected={time} required={field.required} onPick={pick} onClear={() => pick("")} onClose={close} /></Popover>
+  </span>{touched && invalid && <span className="time-input-error" id={errorId}>{error}</span>}
   </span>;
 }
 

@@ -21,6 +21,7 @@
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:check": "node --conditions=react-server --import tsx scripts/check-database.ts",
+    "db:diagnose:host": "node diagnose-database.cjs",
     "db:setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mysql-local.ps1 -Action setup",
     "db:start:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mysql-local.ps1 -Action start",
     "db:stop:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mysql-local.ps1 -Action stop",

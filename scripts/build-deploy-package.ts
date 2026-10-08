@@ -37,14 +37,14 @@ try {
   if (externals.some((e) => e.target.startsWith(".."))) throw new Error("EXTERNAL_LINK_OUTSIDE_NODE_MODULES");
   writeFileSync(join(APP, "next-externals.json"), JSON.stringify(externals, null, 2));
   cpSync("public", join(APP, "public"), { recursive: true });
-  for (const file of ["server.cjs", "next.config.ts", "package-lock.json"]) cpSync(file, join(APP, file));
+  for (const file of ["server.cjs", "diagnose-database.cjs", "next.config.ts", "package-lock.json"]) cpSync(file, join(APP, file));
 
   const source = JSON.parse(readFileSync("package.json", "utf8"));
   const runtime = {
     name: source.name, version: source.version, private: true, type: source.type,
     // Tested on Node.js 24.14 (all suites) and 20.20.2 (simulated host installation); the bound is what Next.js 16 and Prisma 7 accept.
     engines: { node: ">=20.19.0" },
-    scripts: { start: "node server.cjs" },
+    scripts: { start: "node server.cjs", "db:diagnose:host": "node diagnose-database.cjs" },
     dependencies: source.dependencies, overrides: source.overrides,
   };
   writeFileSync(join(APP, "package.json"), `${JSON.stringify(runtime, null, 2)}\n`);
