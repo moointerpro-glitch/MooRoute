@@ -7,9 +7,10 @@ import { ArrowLeft, Check, Copy, KeyRound, Power, Save, ShieldCheck, UserPlus } 
 import {AdminDialog,AdminFormBoundary} from "./admin-form-boundary";
 import { ACCOUNT_TYPES } from "@/lib/account-display";
 import type { UserDetail, UserFormOptions } from "@/server/services/users";
+import { newUuid } from "@/lib/new-uuid";
 
 async function post<T>(action: string, input: Record<string, unknown>): Promise<T> {
-  const response = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ action, input }) });
+  const response = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": newUuid() }, body: JSON.stringify({ action, input }) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message ?? "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง");
   return data as T;

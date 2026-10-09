@@ -1,7 +1,7 @@
 import { isoFromBe } from "./trip-format";
 import { itemUnits, statusLabels, type ConsignmentState } from "../server/domain/consignment";
 
-export interface HistoryFilterValue { query: string; status: string[]; branchId: string | null; categoryId: string | null; date: string | null; tripCode: string | null; mine: boolean; page: number }
+export interface HistoryFilterValue { query: string; status: string[]; branchId: string | null; categoryId: string | null; date: string | null; tripCode: string | null; mine: boolean; page: number; phase?: "active" | "finished" | null }
 const id = (v: string | null) => v && /^[A-Za-z0-9_-]{1,36}$/.test(v) ? v : null;
 
 /** Parses history filters from a query string; the service validates every value again. */
@@ -14,14 +14,16 @@ export function parseHistoryFilter(params: URLSearchParams): HistoryFilterValue 
     branchId: id(params.get("branch")), categoryId: id(params.get("category")), date,
     tripCode: (params.get("trip") ?? "").trim().slice(0, 64) || null, mine: params.get("mine") === "1",
     page: Math.min(10_000, Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1)),
+    phase: params.get("phase") === "active" ? "active" : params.get("phase") === "finished" ? "finished" : null,
   };
 }
 /**
  * One row of "what is being sent" in the consignment form (D234): the sender types every field, so they stay
  * text until submitted. Kept in this shared module because both the server page and the client form use it.
  */
-export type PackRow = { kind: string; customName: string; count: string; description: string; weight: string };
-export const blankPackRow: PackRow = { kind: "", customName: "", count: "", description: "", weight: "" };
+export type PackRow = { kind: string; customName: string; count: string; name: string; quantity: string; unit: string; description: string };
+export const blankPackRow: PackRow = { kind: "", customName: "", count: "", name: "", quantity: "", unit: "", description: "" };
 export const statusText = (s: string) => statusLabels[s as ConsignmentState] ?? s;
-export const unitText = (u: string) => u === "PACKAGE" ? "ชิ้น" : itemUnits[u] ?? u;
+export type ListPhase = "active" | "finished";
+export const unitText = (u: string) => u === "PACKAGE" ? "บรรจุภัณฑ์" : itemUnits[u] ?? u;
 export const statusTone = (s: string) => ["CLOSED", "RECEIVED"].includes(s) ? "tone-done" : ["CANCELLED", "REJECTED", "RETURNED"].includes(s) ? "tone-muted" : s === "ISSUE" ? "tone-alert" : s === "DRAFT" ? "tone-draft" : "tone-active";

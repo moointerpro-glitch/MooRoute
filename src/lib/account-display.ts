@@ -7,7 +7,7 @@ export interface AccountType { code: string; name: string; does: string; scope: 
 /** Ordered from the narrowest to the widest type. */
 export const ACCOUNT_TYPES: readonly AccountType[] = [
   { code: "REQUESTER", name: "พนักงานทั่วไป", does: "ค้นหารอบรถ ฝากของส่งรถ และติดตามรายการของตนเอง", scope: "รายการของตนเอง และแผนกที่ผู้ดูแลกำหนด (ถ้ามี)" },
-  { code: "BRANCH_RECEIVER", name: "พนักงานสาขา", does: "รับของ แจ้งปัญหา และปิดงานของสาขาตนเอง", scope: "สาขาที่ประจำ" },
+  { code: "BRANCH_RECEIVER", name: "พนักงานสาขา", does: "รับของ แจ้งปัญหา และยืนยันจัดส่งสำเร็จของสาขาตนเอง", scope: "สาขาที่ประจำ" },
   { code: "WAREHOUSE", name: "คลังและรถขนส่ง", does: "รับของเข้าคลัง ขึ้นรถ ออกและพิมพ์ฉลาก ใบคุมรถ และบันทึกรถออก", scope: "คลังที่ประจำ หรือรถที่ตนเองขับ" },
   { code: "DISPATCHER", name: "ผู้วางแผนขนส่ง", does: "จัดทำและเผยแพร่แผนรถ จัดรถให้คำขอ แก้ไขปัญหาและการคืนของ นำเข้าตาราง", scope: "ทั้งบริษัท" },
   { code: "ADMINISTRATOR", name: "ผู้ดูแลระบบ", does: "ทำงานได้ทุกประเภท ดูแลบัญชีผู้ใช้ และข้อมูลหลักทั้งหมด", scope: "ทั้งบริษัท" },

@@ -7,6 +7,17 @@ test("local authentication never silently becomes a deployed production fallback
   for(const changes of [{APP_ENV:"production"},{APP_ENV:undefined},{BETTER_AUTH_URL:"https://example.com"},{BETTER_AUTH_SECRET:"placeholder"}])assert.throws(()=>authConfiguration({...env,...changes}));
 });
 
+test("D240: a development run is shared on the private network only by explicit opt-in",()=>{
+  const env={APP_ENV:"local",BETTER_AUTH_URL:"http://172.16.5.100:3010",BETTER_AUTH_SECRET:"test-only-random-equivalent-secret-1234567890"};
+  assert.throws(()=>authConfiguration(env),"no opt-in: loopback only");
+  assert.equal(authConfiguration({...env,LOCAL_NETWORK_ACCESS:"1"}).baseURL,env.BETTER_AUTH_URL);
+  for(const url of ["http://192.168.1.24:3010","http://10.0.0.5:3010"])assert.equal(authConfiguration({...env,LOCAL_NETWORK_ACCESS:"1",BETTER_AUTH_URL:url}).baseURL,url);
+  for(const url of ["http://203.0.113.10:3010","http://172.32.0.1:3010","http://example.com:3010","https://172.16.5.100:3010","http://0.0.0.0:3010"])
+    assert.throws(()=>authConfiguration({...env,LOCAL_NETWORK_ACCESS:"1",BETTER_AUTH_URL:url}),Error,url);
+  assert.throws(()=>authConfiguration({...env,LOCAL_NETWORK_ACCESS:"true"}));
+  assert.throws(()=>authConfiguration({...env,APP_ENV:"production",LOCAL_NETWORK_ACCESS:"1"}),"production never accepts an address literal");
+});
+
 test("D227: production accounts need an HTTPS origin on a real host name and a real secret",()=>{
   const env={APP_ENV:"production",BETTER_AUTH_URL:"https://transport.example.co.th",BETTER_AUTH_SECRET:"test-only-random-equivalent-secret-1234567890"};
   assert.deepEqual([authConfiguration(env).baseURL,authConfiguration(env).mode],["https://transport.example.co.th","production"]);

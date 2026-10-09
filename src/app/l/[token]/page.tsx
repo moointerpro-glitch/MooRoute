@@ -36,7 +36,7 @@ export default async function LabelLookupPage({ params, searchParams }: { params
         <p>{result.replacement ? `ฉบับปัจจุบันคือฉบับที่ ${result.replacement.number} กรุณาใช้ฉลากฉบับนั้น` : "ยังไม่มีฉลากฉบับใหม่ กรุณาติดต่อผู้วางแผนขนส่ง"}</p></div>}
     <section className="detail-card"><dl className="fact-list">
       <div><dt>สถานะรายการ</dt><dd>{statusText(result.consignment.status)}</dd></div>
-      {result.package && <div><dt>ชิ้นที่สแกน</dt><dd>{result.package.name} · {custodyLabels[result.package.custody]}</dd></div>}
+      {result.package && <div><dt>บรรจุภัณฑ์ที่สแกน</dt><dd>{result.package.name} · {custodyLabels[result.package.custody]}</dd></div>}
       <div><dt>ฉลาก</dt><dd>ฉบับที่ {result.number}{current ? "" : " (ยกเลิก)"}</dd></div>
     </dl>
     <Link className="primary-button" href={`/consignments/${result.consignment.id}`}>เปิดรายการฝากส่ง</Link></section>

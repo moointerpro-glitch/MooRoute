@@ -5,7 +5,7 @@ import { requireCondition } from "@/server/domain/errors";
 import { parseHistoryFilter } from "@/lib/consignment-format";
 import {
   assignConsignment, cancelConsignment, closeConsignment, departTrip, listConsignments, loadConsignment, reassignConsignment, recordReturn,
-  rejectConsignment, reportIssue, resolveIssue, saveConsignmentDraft, submitConsignment, warehouseReceiveConsignment,
+  reportIssue, resolveIssue, saveConsignmentDraft, submitConsignment, warehouseReceiveConsignment,
 } from "@/server/services/consignments";
 import { receiveConsignment } from "@/server/services/receipts";
 
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 type Handler = (db: ReturnType<typeof getDatabase>, actorId: string, key: string, input: never) => Promise<unknown>;
 // The action name only selects a service; every service re-authorizes the session actor itself.
 const actions: Record<string, Handler> = {
-  saveDraft: saveConsignmentDraft, submit: submitConsignment, cancel: cancelConsignment, reject: rejectConsignment, assign: assignConsignment,
+  saveDraft: saveConsignmentDraft, submit: submitConsignment, cancel: cancelConsignment, assign: assignConsignment,
   reassign: reassignConsignment, warehouseReceive: warehouseReceiveConsignment, load: loadConsignment, depart: departTrip, receive: receiveConsignment,
   reportIssue, resolveIssue, recordReturn, close: closeConsignment,
 };

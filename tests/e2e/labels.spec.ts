@@ -133,7 +133,7 @@ test("T16/T18: incomplete address blocks a real label; sample is watermarked wit
   await expect(page.getByRole("heading", { name: "ใบคุมรถฝากของส่งสาขา" })).toBeVisible();
   await expect(page.locator(".manifest-group")).toHaveCount(2);
   await expect(page.locator(".manifest-group").first()).toContainText("ฉบับที่ 1"); await expect(page.locator(".manifest-group").nth(1)).toContainText("ยังไม่ออก");
-  await expect(page.locator(".manifest-foot")).toContainText("2 รายการ · 5 ชิ้น");
+  await expect(page.locator(".manifest-foot")).toContainText("2 ใบฝาก · 5 บรรจุภัณฑ์");
   await expect(page.locator(".signatures div")).toHaveText(["ผู้ส่งมอบ (คลัง)", "พนักงานขับรถ", "ผู้ตรวจสอบ"]);
   await shot(page, "manifest-screen");
   const manifest = await pdfPages(page, "manifest");
@@ -154,7 +154,7 @@ test("T17/T13: revoked QR is rejected with the replacement; lookup needs sign-in
   await page.goto(path);
   await expect(page.locator(".form-success")).toContainText("ฉลากฉบับที่ 1 เป็นฉบับปัจจุบัน");
   // The scan result names the piece and where it is; it never shows an internal code as if it were the sender.
-  await expect(page.getByText("ชิ้นที่ 1/3 · หีบห่อ · อยู่กับผู้ฝาก")).toBeVisible();
+  await expect(page.getByText("หีบห่อ 1/3 · อยู่กับผู้ฝาก")).toBeVisible();
   // A receiver of another branch is out of scope; the administrator sees everything (D215).
   await login(page, f.otherBranch);
   await page.goto(path);

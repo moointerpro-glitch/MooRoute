@@ -3,13 +3,17 @@ import { ConfigurationError } from "../config/environment";
 
 /**
  * Where the application's own password accounts may run (D227).
- * - APP_ENV=local: a loopback origin only, for development and rehearsals.
+ * - APP_ENV=local: a loopback origin only, for development and rehearsals. With LOCAL_NETWORK_ACCESS=1 (D240,
+ *   set only by `npm run dev:lan`) a private IPv4 address of this machine is also accepted, so that devices on
+ *   the same network can sign in to a development run over plain HTTP.
  * - APP_ENV=production: an HTTPS origin on a real host name. Plain HTTP, IP literals and loopback are refused, so
  *   session cookies are always Secure and never sent to a development address.
  * Any other value makes authentication refuse to start; there is no fallback.
  */
 export type AuthMode = "local" | "production";
 const loopback = ["127.0.0.1", "localhost"];
+const privateNetwork = /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}$/;
+export const isPrivateNetworkAddress = (host: string) => isIP(host) === 4 && privateNetwork.test(host);
 
 export function authConfiguration(env: Record<string, string | undefined>) {
   const mode = env.APP_ENV;
@@ -17,7 +21,8 @@ export function authConfiguration(env: Record<string, string | undefined>) {
   let url: URL;
   try { url = new URL(env.BETTER_AUTH_URL ?? ""); } catch { throw new ConfigurationError("AUTH_URL_REQUIRED"); }
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new ConfigurationError("AUTH_URL_REQUIRED");
-  if (mode === "local" && !loopback.includes(url.hostname)) throw new ConfigurationError("LOCAL_AUTH_LOOPBACK_REQUIRED");
+  const sharedOnNetwork = env.LOCAL_NETWORK_ACCESS === "1" && url.protocol === "http:" && isPrivateNetworkAddress(url.hostname);
+  if (mode === "local" && !loopback.includes(url.hostname) && !sharedOnNetwork) throw new ConfigurationError("LOCAL_AUTH_LOOPBACK_REQUIRED");
   if (mode === "production" && (url.protocol !== "https:" || loopback.includes(url.hostname) || isIP(url.hostname.replace(/^\[|\]$/g, "")) !== 0 || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(url.hostname)))
     throw new ConfigurationError("PRODUCTION_AUTH_HTTPS_HOST_REQUIRED");
   const secret = env.BETTER_AUTH_SECRET;

@@ -5,6 +5,7 @@ import {useRef,useState} from "react";
 import {masterDefinitions,type Field} from "@/lib/master-definitions";
 import {AdminDialog,AdminFormBoundary} from "./admin-form-boundary";
 import {DateInput,DateTimeInput,TimeInput} from "./date-time-inputs";
+import { newUuid } from "@/lib/new-uuid";
 type Row=Record<string,string|number|boolean|null>;
 function display(field:Field,v:Row[string]){
   if(v==null)return "";
@@ -32,7 +33,7 @@ export function MasterForm({kind,row,options,canWrite,canDelete,backHref}:{kind:
       values[f.name]=text;
     }
     setBusy(true);setMessage("");setSuccess(false);
-    try{const r=await fetch(`/api/masters/${kind}`,{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({id:row?.id,expectedVersion:Number(row?.version??0),reason:fd.get("reason"),action,values:action==="save"?values:undefined})});const data=await r.json();if(!r.ok){setMessage(data.message??"บันทึกไม่สำเร็จ");return;}
+    try{const r=await fetch(`/api/masters/${kind}`,{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":newUuid()},body:JSON.stringify({id:row?.id,expectedVersion:Number(row?.version??0),reason:fd.get("reason"),action,values:action==="save"?values:undefined})});const data=await r.json();if(!r.ok){setMessage(data.message??"บันทึกไม่สำเร็จ");return;}
       setDirty(false);setSuccess(true);setConfirm(false);setMessage(data.outcome==="deleted"?"ลบข้อมูลที่ไม่มีรายการอ้างอิงแล้ว":data.outcome==="archived"?"ข้อมูลมีรายการอ้างอิง ระบบเก็บเข้าคลังและรักษาประวัติแล้ว":"บันทึกข้อมูลสำเร็จ");
     }catch{setMessage("เชื่อมต่อไม่ได้ กรุณาโหลดข้อมูลใหม่เพื่อตรวจสอบผลก่อนลองอีกครั้ง");}finally{setBusy(false);}
   };

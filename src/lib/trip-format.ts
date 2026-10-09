@@ -31,3 +31,5 @@ export function thaiDateTime(isoInstant: string) {
 export const roundLabel = (roundNo: number | null) => roundNo === null ? "ไม่กำหนดรอบ" : `รอบ ${roundNo}`;
 /** Only redirect to same-site relative paths after login. */
 export const safeNext = (value: unknown) => typeof value === "string" && /^\/(?!\/)[^\\\s]*$/.test(value) ? value : null;
+/** Time of day in Thailand with seconds, for "last updated" lines. */
+export const bangkokClock = (ms: number) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(ms));

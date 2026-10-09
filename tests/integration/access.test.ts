@@ -11,7 +11,7 @@ import { accountSummary, updateMyProfile } from "../../src/server/services/accou
 import { DomainError } from "../../src/server/domain/errors";
 import type { DraftInput } from "../../src/server/domain/consignment";
 import { saveConsignmentDraft, submitConsignment, consignmentDetail, listConsignments, consignmentFormOptions,
-  assignConsignment, rejectConsignment, reassignConsignment, cancelConsignment, addAttachment, attachmentForDownload } from "../../src/server/services/consignments";
+  assignConsignment, reassignConsignment, cancelConsignment, addAttachment, attachmentForDownload } from "../../src/server/services/consignments";
 import { saveDraft, publishPlan } from "../../src/server/services/plans";
 import { planningData } from "../../src/server/services/planning-read";
 import { navigationAccess } from "../../src/lib/navigation";
@@ -138,7 +138,6 @@ test("D216/D235: a planner cannot review their own request, including replays an
     const idem = key();
     await assert.rejects(assignConsignment(db, actor, idem, assign), denied("SELF_REVIEW"));
     await assert.rejects(assignConsignment(db, actor, idem, assign), denied("SELF_REVIEW"));
-    await assert.rejects(rejectConsignment(db, actor, key(), { id: d.id, expectedVersion: s.version, reason: "ตรวจคำขอตนเอง" }), denied("SELF_REVIEW"));
     const detail = await consignmentDetail(db, actor, d.id);
     assert.ok(!detail.actions.includes("assign"));
     assert.ok(detail.blockedActions.some((a) => a.action === "assign" && a.reason.includes("อีกคน")));
@@ -150,7 +149,7 @@ test("D216/D235: a planner cannot review their own request, including replays an
     const actor = accounts.ADMINISTRATOR, d = await saveConsignmentDraft(db, actor, key(), draft());
     const s = await submitConsignment(db, actor, key(), { id: d.id, expectedVersion: d.version });
     const detail = await consignmentDetail(db, actor, d.id);
-    assert.ok(detail.actions.includes("assign") && detail.actions.includes("reject"));
+    assert.ok(detail.actions.includes("assign") && detail.actions.includes("cancelRequest") && !detail.actions.includes("reject"));
     assert.ok(!detail.blockedActions.some((a) => a.reason.includes("อีกคน")));
     const a = await assignConsignment(db, actor, key(), { id: d.id, expectedVersion: s.version, tripId: "access-trip-1" });
     const moved = await reassignConsignment(db, actor, key(), { id: d.id, expectedVersion: a.version, tripId: "access-trip-2", reason: "ผู้ดูแลระบบย้ายคำขอของตนเอง" });

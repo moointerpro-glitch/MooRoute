@@ -9,6 +9,7 @@ import {TripEditor} from "./planning-trip-editor";
 import {RouteEditor,TemplateEditor} from "./planning-catalog-editor";
 import {PlanningDialog} from "./planning-dialog";
 import {thaiDay} from "./planning-day";
+import { newUuid } from "@/lib/new-uuid";
 
 export function PlanningEditPage({date,kind,id,copy,revision}:{date:string;kind:string;id?:string;copy?:string;revision?:string}){
  const router=useRouter(),[data,setData]=useState<PlanningData|null>(null),[trip,setTrip]=useState<DraftTrip|null>(null);
@@ -27,7 +28,7 @@ export function PlanningEditPage({date,kind,id,copy,revision}:{date:string;kind:
    if(kind==="trip"){
     const source=model.trips.find(t=>t.tripId===(copy||id));
     if((id||copy)&&!source)throw Error("ไม่พบเที่ยวในฉบับแผนนี้ กรุณากลับรายการแล้วเปิดใหม่");
-    const tripId=crypto.randomUUID();
+    const tripId=newUuid();
     setTrip(copy&&source?{...source,tripId,code:`T-${tripId.slice(0,12)}`,cancelled:false}:source??{tripId,code:`T-${tripId.slice(0,12)}`,kind:"BRANCH_DELIVERY",roundNo:1,cancelled:false,vehicleId:null,loadingAt:null,departureAt:null,arrivalAt:null,occupancyStart:null,occupancyEnd:null,bufferMinutes:0,stops:[]});
    }else if(id&&!(kind==="route"?model.routes:model.templates).some(r=>r.id===id))throw Error("ไม่พบรายการที่ต้องการแก้ไข");
    setData(model);
@@ -45,7 +46,7 @@ export function PlanningEditPage({date,kind,id,copy,revision}:{date:string;kind:
  },[dirty,busy,backHref]);
  const save=async(action:string,input:unknown)=>{
   if(busy)return false;setBusy(true);setError("");
-  const body=JSON.stringify({action,input});if(requestKey.current?.body!==body)requestKey.current={body,key:crypto.randomUUID()};
+  const body=JSON.stringify({action,input});if(requestKey.current?.body!==body)requestKey.current={body,key:newUuid()};
   try{
    const r=await fetch("/api/planning",{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":requestKey.current.key},body}),result=await r.json();
    if(!r.ok){requestKey.current=null;throw Error(result.message??"บันทึกไม่สำเร็จ");}

@@ -12,7 +12,7 @@ function Label({ payload: p, item, baseUrl, sample }: { payload: LabelPayload; i
   const packed = [item.kind, item.description].filter(Boolean).join(" · ");
   const from = [p.sender.contactName, p.sender.contactPhone ? `โทร ${p.sender.contactPhone}` : null, p.sender.department].filter(Boolean).join(" · ");
   return <article className={sample ? "label label-sample" : "label"} data-package={item.sequence}>
-    <header className="label-top"><div className="label-head"><span className="label-brand">หมูอินเตอร์ · ฝากของส่งสาขา</span>{packed && <span className="label-kind">{packed}</span>}</div><span className="label-count" aria-label={`ชิ้นที่ ${item.sequence} จาก ${item.total}`}>{item.sequence}/{item.total}</span></header>
+    <header className="label-top"><div className="label-head"><span className="label-brand">หมูอินเตอร์ · ฝากของส่งสาขา</span>{packed && <span className="label-kind">{packed}</span>}</div><span className="label-count" aria-label={`ลำดับที่ ${item.sequence} จาก ${item.total}`}>{item.sequence}/{item.total}</span></header>
     {sample && <p className="label-watermark">ตัวอย่าง</p>}
     <section className="label-to">
       <span className="label-cap">ส่งถึง</span>

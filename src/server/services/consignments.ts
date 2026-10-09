@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma, type ConsignmentStatus, type PrismaClient } from "../../generated/prisma/client";
 import { DomainError, requireCondition, versionMatches } from "../domain/errors";
 import { serviceDate } from "../domain/planning";
-import { idPattern, normalizeDraft, reasonText, requireTransition, submissionProblems, issueTypes, quantityPattern, transitionMatrix, statusLabels, storedPackaging, packagingPieces, packagingSummary, packagingWeightKg, pieceName, type ActorRule, type DraftInput, type NormalizedDraft } from "../domain/consignment";
+import { idPattern, normalizeDraft, reasonText, requireTransition, submissionProblems, issueTypes, quantityPattern, transitionMatrix, statusLabels, storedPackaging, storedCategory, packagingPieces, packagingSummary, packagingContents, packagingCountText, packagingWeightKg, packagingName, lineLabel, pieceName, itemUnits, ACTIVE_STATUSES, FINISHED_STATUSES, type ActorRule, type DraftInput, type NormalizedDraft } from "../domain/consignment";
 import { principal, requireCapability, type Principal } from "../auth/permissions";
 import { contactPolicy } from "./trip-search";
 import { consignmentScope, requireConsignmentAccess } from "../auth/resource-policy";
@@ -49,7 +49,7 @@ function requireActor(p: Principal, actorId: string, action: string, c: Locked) 
   if (!ok && c.status === "DRAFT" && c.requesterId !== actorId && !p.permissions.has("consignment.read.drafts")) throw new DomainError("NOT_FOUND", "ไม่พบรายการฝากส่ง");
   requireCondition(ok, "FORBIDDEN", "คุณไม่มีสิทธิ์ดำเนินการกับรายการฝากส่งนี้");
   // D216: a reviewer cannot review their own request. D235: the administrator is exempt.
-  if (["assign", "reject", "reassign"].includes(action)) requireCondition(p.admin || c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
+  if (["assign", "reassign"].includes(action)) requireCondition(p.admin || c.requesterId !== actorId, "SELF_REVIEW", "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ");
 }
 /** Packaging lines of a stored request, including requests saved before D234. */
 export const packagingOf = (c: { draftItems: unknown; packageCount: number; packageWeight: Prisma.Decimal | null; packageWeightUnit: string | null }) =>
@@ -62,7 +62,7 @@ async function event(tx: Transaction, consignmentId: string, actorId: string, ki
 }
 const ok = (c: { id: string; status: string; version: number }): Result => ({ id: c.id, status: c.status, version: c.version });
 const idList = (value: unknown, max = 500) => {
-  requireCondition(Array.isArray(value) && value.length <= max && value.every((v) => typeof v === "string" && idPattern.test(v)) && new Set(value).size === value.length, "INVALID_INPUT", "รายการชิ้นที่เลือกไม่ถูกต้อง");
+  requireCondition(Array.isArray(value) && value.length <= max && value.every((v) => typeof v === "string" && idPattern.test(v)) && new Set(value).size === value.length, "INVALID_INPUT", "รายการที่เลือกไม่ถูกต้อง");
   return value as string[];
 };
 
@@ -82,7 +82,7 @@ async function validateReferences(tx: Transaction, d: NormalizedDraft) {
   requireCondition((await tx.warehouse.findUnique({ where: { id: d.sourceWarehouseId } }))?.active, "INACTIVE_REFERENCE", "คลังต้นทางไม่พร้อมใช้งาน");
   const branch = await tx.branch.findUnique({ where: { id: d.destinationBranchId } });
   requireCondition(branch && !branch.archived && branch.destinationType === "BRANCH", "INACTIVE_REFERENCE", "สาขาปลายทางไม่พร้อมใช้งาน");
-  const categories = [...new Set(d.items.map((i) => i.categoryId))];
+  const categories = [...new Set([...d.items.map((i) => i.categoryId), ...(d.categoryId ? [d.categoryId] : [])])];
   requireCondition((await tx.consignmentCategory.count({ where: { id: { in: categories }, active: true } })) === categories.length, "INACTIVE_REFERENCE", "หมวดสิ่งของบางรายการไม่พร้อมใช้งาน");
   return branch;
 }
@@ -91,9 +91,10 @@ function draftData(d: NormalizedDraft) {
     departmentId: d.departmentId, sourceWarehouseId: d.sourceWarehouseId, destinationBranchId: d.destinationBranchId, receiptMode: d.receiptMode,
     requestedServiceDate: d.requestedServiceDate ? serviceDate(d.requestedServiceDate) : null, requestedRoundNo: d.requestedRoundNo, requestedTripId: d.requestedTripId,
     senderName: d.senderName, senderPhone: d.senderPhone, recipientName: d.recipientName, recipientPhone: d.recipientPhone, notes: d.notes,
-    // D234: the request document carries the packaging lines; the count is their total and weights are per line.
+    // D234/D236: the request document carries the merged table and the request category; the count is the total
+    // of its rows. `items` holds only a separate item list from before D236; rows carry their own contents.
     packageCount: d.packageCount, packageWeight: null, packageWeightUnit: null,
-    draftItems: { schemaVersion: 2, items: d.items.map((i) => ({ ...i })), packaging: d.packaging.map((l) => ({ ...l })) },
+    draftItems: { schemaVersion: 3, categoryId: d.categoryId, items: d.looseItems.map((i) => ({ ...i })), packaging: d.packaging.map((l) => ({ ...l })) },
   };
 }
 
@@ -131,7 +132,7 @@ export async function submitConsignment(db: PrismaClient, actorId: string, key: 
     const draft = normalizeDraft({ id: c.id, expectedVersion: c.version, departmentId: c.departmentId, sourceWarehouseId: c.sourceWarehouseId, destinationBranchId: c.destinationBranchId,
       requestedServiceDate: c.requestedServiceDate?.toISOString().slice(0, 10) ?? null, requestedRoundNo: c.requestedRoundNo, requestedTripId: c.requestedTripId,
       senderName: c.senderName, senderPhone: c.senderPhone, recipientName: c.recipientName, recipientPhone: c.recipientPhone, notes: c.notes, receiptMode: c.receiptMode,
-      packaging: packagingOf(c), items });
+      categoryId: storedCategory(c.draftItems), packaging: packagingOf(c), items });
     const branch = await validateReferences(tx, draft);
     const recipientKnown = !!((draft.recipientName || branch.contactName) && (draft.recipientPhone || branch.contactPhone));
     const problems = submissionProblems(draft, bangkokServiceDate(), recipientKnown);
@@ -146,11 +147,15 @@ export async function submitConsignment(db: PrismaClient, actorId: string, key: 
     }
     if (problems.length) throw new DomainError("SUBMISSION_INCOMPLETE", problems.join(" · "), problems);
     // Items and one package record per piece are materialized while still DRAFT; database triggers freeze them afterwards.
-    for (const item of draft.items) await tx.consignmentItem.create({ data: { consignmentId: c.id, categoryId: item.categoryId, name: item.name, sentQuantity: item.quantity, unit: item.unit } });
+    // A row with an inner quantity gets its item ID written into the request document, so the row and its
+    // received/returned balance stay linked exactly (the document is frozen together with the status change below).
+    const linked = draft.packaging.map((l) => l.quantity ? { ...l, itemId: randomUUID() } : { ...l });
+    for (const l of linked) if (l.itemId) await tx.consignmentItem.create({ data: { id: l.itemId, consignmentId: c.id, categoryId: draft.categoryId!, name: l.name!, sentQuantity: l.quantity!, unit: l.unit! } });
+    for (const item of draft.looseItems) await tx.consignmentItem.create({ data: { consignmentId: c.id, categoryId: item.categoryId, name: item.name, sentQuantity: item.quantity, unit: item.unit } });
     for (const piece of packagingPieces(draft.packaging)) {
       await tx.consignmentPackage.create({ data: { consignmentId: c.id, sequence: piece.sequence, total: piece.total, weight: piece.weight, weightUnit: piece.weight ? "KG" : null, custody: "SENDER" } });
     }
-    const updated = await bump(tx, c.id, { status: "PENDING_REVIEW", submittedAt: new Date() });
+    const updated = await bump(tx, c.id, { status: "PENDING_REVIEW", submittedAt: new Date(), draftItems: { schemaVersion: 3, categoryId: draft.categoryId, items: draft.looseItems.map((i) => ({ ...i })), packaging: linked } });
     await event(tx, c.id, actorId, "SUBMITTED", idem, { receiptMode: c.receiptMode, items: draft.items.length, packages: draft.packageCount, packaging: packagingSummary(draft.packaging) });
     await audit(tx, actorId, "CONSIGNMENT_SUBMITTED", "Consignment", c.id, idem, ok(updated));
     return ok(updated);
@@ -276,24 +281,13 @@ export async function correctAssignmentAddress(db: PrismaClient, actorId: string
   });
 }
 
-export async function rejectConsignment(db: PrismaClient, actorId: string, key: string, input: { id: string; expectedVersion: number; reason: string }) {
-  const reason = reasonText(input?.reason);
-  return guardedWrite(db, actorId, "consignment.reject", key, input, async (tx, idem) => {
-    const p = await principal(tx, actorId), c = await lockConsignment(tx, input.id); requireActor(p, actorId, "reject", c);
-    const prior = await replay<Result>(tx, idem); if (prior) return prior;
-    versionMatches(c.version, input.expectedVersion); requireTransition("reject", c.status);
-    const updated = await bump(tx, c.id, { status: "REJECTED" });
-    await event(tx, c.id, actorId, "REJECTED", idem, { reason });
-    await tx.auditLog.create({ data: { actorId, action: "CONSIGNMENT_REJECTED", entityType: "Consignment", entityId: c.id, idempotencyId: idem, reason, after: ok(updated) } });
-    return ok(updated);
-  });
-}
-
 export async function cancelConsignment(db: PrismaClient, actorId: string, key: string, input: { id: string; expectedVersion: number; reason: string }) {
   const reason = reasonText(input?.reason);
   return guardedWrite(db, actorId, "consignment.cancel", key, input, async (tx, idem) => {
     const p = await principal(tx, actorId), c = await lockConsignment(tx, input.id);
-    const action = ["DRAFT", "PENDING_REVIEW"].includes(c.status) ? "cancelRequest" : "cancelAssigned";
+    // D236: a draft is cancelled only by its requester; a pending request by its requester or, in place of the
+    // former "reject", by a reviewer; an assigned one by a reviewer.
+    const action = c.status === "DRAFT" ? "cancelRequest" : c.status === "PENDING_REVIEW" ? (c.requesterId === actorId ? "cancelRequest" : "cancelPending") : "cancelAssigned";
     requireActor(p, actorId, action, c);
     const prior = await replay<Result>(tx, idem); if (prior) return prior;
     versionMatches(c.version, input.expectedVersion); requireTransition(action, c.status);
@@ -321,7 +315,7 @@ async function packageHandover(db: PrismaClient, actorId: string, key: string, i
     versionMatches(c.version, input.expectedVersion); requireTransition(action, c.status);
     const packages = await tx.consignmentPackage.findMany({ where: { consignmentId: c.id }, orderBy: { sequence: "asc" } });
     // Explicit handover of every stable package ID; a partial handover is reported as an issue instead.
-    requireCondition(packages.length === packageIds.length && packages.every((x) => packageIds.includes(x.id) && x.custody === spec.from), "PACKAGE_HANDOVER", `กรุณาตรวจและยืนยันให้ครบทั้ง ${packages.length} ชิ้น หากขาดให้แจ้งปัญหา`);
+    requireCondition(packages.length === packageIds.length && packages.every((x) => packageIds.includes(x.id) && x.custody === spec.from), "PACKAGE_HANDOVER", `กรุณาตรวจนับและเลือกให้ครบ: ${packagingCountText(packagingOf(c))} หากขาดให้แจ้งปัญหา`);
     if (action === "load") {
       const plan = await tx.dailyPlan.findUnique({ where: { id: c.currentAssignment!.tripRevision.planId } });
       requireCondition(plan?.publishedRevisionId === c.currentAssignment!.tripRevision.planRevisionId && !c.currentAssignment!.tripRevision.cancelled, "ASSIGNMENT_STALE", "รอบรถที่จัดไว้เปลี่ยนแปลงหรือถูกยกเลิกแล้ว กรุณาให้ผู้วางแผนขนส่งย้ายรอบก่อนขึ้นรถ");
@@ -392,7 +386,7 @@ export async function reportIssue(db: PrismaClient, actorId: string, key: string
     const prior = await replay<Result>(tx, idem); if (prior) return prior;
     versionMatches(c.version, input.expectedVersion); requireTransition("reportIssue", c.status);
     const packages = await tx.consignmentPackage.findMany({ where: { consignmentId: c.id } });
-    requireCondition(packageIds.every((id) => packages.some((x) => x.id === id)), "INVALID_INPUT", "ชิ้นที่ระบุไม่อยู่ในรายการนี้");
+    requireCondition(packageIds.every((id) => packages.some((x) => x.id === id)), "INVALID_INPUT", "บรรจุภัณฑ์ที่ระบุไม่อยู่ในใบฝากนี้");
     // The movement state is preserved so recovery returns to an unambiguous state.
     const updated = await bump(tx, c.id, { status: "ISSUE", resumeStatus: c.status, hasOpenIssue: true });
     await event(tx, c.id, actorId, "ISSUE", idem, { type: input.type, description, packageIds, resumeStatus: c.status });
@@ -420,7 +414,7 @@ export async function resolveIssue(db: PrismaClient, actorId: string, key: strin
 export async function recordReturn(db: PrismaClient, actorId: string, key: string, input: { id: string; expectedVersion: number; reason: string; packageIds?: string[]; items?: { itemId: string; quantity: string }[] }) {
   const reason = reasonText(input?.reason), packageIds = idList(input.packageIds ?? []), items = input.items ?? [];
   requireCondition(Array.isArray(items) && items.length <= 50 && items.every((i) => i && idPattern.test(i.itemId) && typeof i.quantity === "string" && quantityPattern.test(i.quantity) && Number(i.quantity) > 0) && new Set(items.map((i) => i.itemId)).size === items.length, "INVALID_QUANTITY", "จำนวนส่งคืนไม่ถูกต้อง");
-  requireCondition(packageIds.length + items.length > 0, "INVALID_INPUT", "กรุณาเลือกชิ้นหรือรายการที่ส่งคืน");
+  requireCondition(packageIds.length + items.length > 0, "INVALID_INPUT", "กรุณาเลือกสิ่งที่ส่งคืน");
   return guardedWrite(db, actorId, "consignment.return", key, input, async (tx, idem) => {
     const p = await principal(tx, actorId), c = await lockConsignment(tx, input.id); requireActor(p, actorId, "recordReturn", c);
     const prior = await replay<Result>(tx, idem); if (prior) return prior;
@@ -429,7 +423,7 @@ export async function recordReturn(db: PrismaClient, actorId: string, key: strin
     for (const id of packageIds) {
       const x = b.packages.find((pk) => pk.id === id);
       // Only undelivered packages can be returned to the source; received packages stay in the receipt ledger.
-      requireCondition(x && ["WAREHOUSE", "VEHICLE", "SENDER"].includes(x.custody) && !b.receivedPackages.has(id) && !b.returnedPackages.has(id), "RETURN_PACKAGE", "ส่งคืนได้เฉพาะชิ้นที่ยังไม่ได้รับและยังไม่ส่งคืน");
+      requireCondition(x && ["WAREHOUSE", "VEHICLE", "SENDER"].includes(x.custody) && !b.receivedPackages.has(id) && !b.returnedPackages.has(id), "RETURN_PACKAGE", "ส่งคืนได้เฉพาะบรรจุภัณฑ์ที่ยังไม่ได้รับและยังไม่ส่งคืน");
     }
     for (const line of items) {
       const item = b.items.find((i) => i.id === line.itemId);
@@ -484,18 +478,24 @@ export async function consignmentFormOptions(db: PrismaClient, actorId: string) 
   }, { isolationLevel: "RepeatableRead" });
 }
 
-export interface HistoryFilter { query: string; status: string[]; branchId: string | null; categoryId: string | null; date: string | null; tripCode: string | null; mine: boolean; page: number }
+export interface HistoryFilter { query: string; status: string[]; branchId: string | null; categoryId: string | null; date: string | null; tripCode: string | null; mine: boolean; page: number;
+  /** D236: "active" is the tracking page (not finished yet); "finished" is the history page. Absent means every status. */
+  phase?: "active" | "finished" | null }
+const phaseStatuses = (phase: HistoryFilter["phase"]) => phase === "active" ? ACTIVE_STATUSES : phase === "finished" ? FINISHED_STATUSES : null;
 export async function listConsignments(db: PrismaClient, actorId: string, f: HistoryFilter, options: { export?: boolean } = {}) {
   requireCondition(typeof f.query === "string" && f.query.length <= 100 && Number.isInteger(f.page) && f.page >= 1 && f.page <= 10_000 && Array.isArray(f.status) && f.status.length <= 13 && f.status.every((s) => s in statusSet) && (f.branchId === null || idPattern.test(f.branchId)) && (f.categoryId === null || idPattern.test(f.categoryId)) && (f.tripCode === null || (typeof f.tripCode === "string" && f.tripCode.length <= 64)), "INVALID_SEARCH", "ตัวกรองไม่ถูกต้อง");
   if (f.date) serviceDate(f.date);
+  requireCondition(f.phase == null || f.phase === "active" || f.phase === "finished", "INVALID_SEARCH", "ตัวกรองไม่ถูกต้อง");
+  const phase = phaseStatuses(f.phase);
   return db.$transaction(async (tx) => {
     const p = await principal(tx, actorId); requireCapability(p, "consignment.read");
     const scope = await consignmentScope(tx, p, actorId);
     const parts: Prisma.Sql[] = [scope.sql()];
-    if (f.query) { const like = `%${f.query.replace(/[\\%_]/g, (m) => `\\${m}`)}%`; parts.push(Prisma.sql`(c.code LIKE ${like} OR EXISTS (SELECT 1 FROM ConsignmentItem qi WHERE qi.consignmentId=c.id AND qi.name LIKE ${like}) OR JSON_SEARCH(c.draftItems, 'one', ${like}, NULL, '$.packaging[*].description') IS NOT NULL)`); }
+    if (phase) parts.push(Prisma.sql`c.status IN (${Prisma.join(phase)})`);
+    if (f.query) { const like = `%${f.query.replace(/[\\%_]/g, (m) => `\\${m}`)}%`; parts.push(Prisma.sql`(c.code LIKE ${like} OR EXISTS (SELECT 1 FROM ConsignmentItem qi WHERE qi.consignmentId=c.id AND qi.name LIKE ${like}) OR JSON_SEARCH(c.draftItems, 'one', ${like}, NULL, '$.packaging[*].name', '$.packaging[*].description') IS NOT NULL)`); }
     if (f.status.length) parts.push(Prisma.sql`c.status IN (${Prisma.join(f.status)})`);
     if (f.branchId) parts.push(Prisma.sql`c.destinationBranchId=${f.branchId}`);
-    if (f.categoryId) parts.push(Prisma.sql`EXISTS (SELECT 1 FROM ConsignmentItem ci WHERE ci.consignmentId=c.id AND ci.categoryId=${f.categoryId})`);
+    if (f.categoryId) parts.push(Prisma.sql`(JSON_UNQUOTE(JSON_EXTRACT(c.draftItems, '$.categoryId'))=${f.categoryId} OR EXISTS (SELECT 1 FROM ConsignmentItem ci WHERE ci.consignmentId=c.id AND ci.categoryId=${f.categoryId}))`);
     if (f.date) parts.push(Prisma.sql`(c.requestedServiceDate=${serviceDate(f.date)} OR EXISTS (SELECT 1 FROM ConsignmentAssignment da JOIN Trip dt ON dt.id=da.tripId JOIN DailyPlan dp ON dp.id=dt.planId WHERE da.id=c.currentAssignmentId AND dp.serviceDate=${serviceDate(f.date)}))`);
     if (f.tripCode) parts.push(Prisma.sql`EXISTS (SELECT 1 FROM ConsignmentAssignment ta JOIN Trip tt ON tt.id=ta.tripId WHERE ta.consignmentId=c.id AND tt.code=${f.tripCode})`);
     if (f.mine) parts.push(Prisma.sql`c.requesterId=${actorId}`);
@@ -508,16 +508,32 @@ export async function listConsignments(db: PrismaClient, actorId: string, f: His
       consignmentItem_consignmentId: { include: { category: { select: { name: true } } } },
       currentAssignment: { select: { transportSnapshot: true, trip: { select: { code: true } } } },
     } });
+    // D236: a closed request counts as delivered only when nothing was returned.
+    const returned = new Set(ids.length ? (await tx.returnLine.findMany({ where: { consignmentId: { in: ids.map((r) => r.id) } }, select: { consignmentId: true }, distinct: ["consignmentId"] })).map((r) => r.consignmentId) : []);
+    const categoryIds = [...new Set(rows.flatMap((r) => { const id = storedCategory(r.draftItems); return id ? [id] : []; }))];
+    const categoryNames = new Map((categoryIds.length ? await tx.consignmentCategory.findMany({ where: { id: { in: categoryIds } }, select: { id: true, name: true } }) : []).map((x) => [x.id, x.name]));
     return {
       total: Number(total), page: f.page, pageSize, pageCount: Math.max(1, Math.ceil(Number(total) / pageSize)),
       rows: ids.map(({ id }) => { const c = rows.find((r) => r.id === id)!; const t = c.currentAssignment?.transportSnapshot as { serviceDate?: string; roundNo?: number; plate?: string } | undefined; return {
         id: c.id, code: c.code, status: c.status, createdAt: c.createdAt.toISOString(), requestedServiceDate: c.requestedServiceDate?.toISOString().slice(0, 10) ?? null,
         branch: c.destinationBranch, warehouse: c.sourceWarehouse.name, requester: c.requester.displayName, packageCount: c.packageCount,
-        packaging: packagingSummary(packagingOf(c)), contents: [...new Set(packagingOf(c).flatMap((l) => l.description ? [l.description] : []))],
-        items: c.consignmentItem_consignmentId.length ? c.consignmentItem_consignmentId.map((i) => ({ name: i.name, quantity: i.sentQuantity.toString(), unit: i.unit, category: i.category.name })) : (((c.draftItems ?? { items: [] }) as unknown as DraftItems).items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, unit: i.unit, category: "" })),
+        packaging: packagingSummary(packagingOf(c)), packagingCount: packagingCountText(packagingOf(c)), contents: packagingContents(packagingOf(c)), incomplete: returned.has(c.id),
+        category: categoryNames.get(storedCategory(c.draftItems) ?? "") ?? c.consignmentItem_consignmentId[0]?.category.name ?? null,
+        // Only items without a row (the list used before D236); row contents are already in the contents field.
+        items: c.consignmentItem_consignmentId.length ? c.consignmentItem_consignmentId.filter((i) => !packagingOf(c).some((l) => l.itemId === i.id)).map((i) => ({ name: i.name, quantity: i.sentQuantity.toString(), unit: i.unit, category: i.category.name })) : (((c.draftItems ?? { items: [] }) as unknown as DraftItems).items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, unit: i.unit, category: "" })),
         trip: c.currentAssignment ? { code: c.currentAssignment.trip.code, serviceDate: t?.serviceDate ?? null, roundNo: t?.roundNo ?? null, plate: t?.plate ?? null } : null,
       }; }),
     };
+  }, { isolationLevel: "RepeatableRead" });
+}
+/** How many requests are in each status within the caller's scope; drives the tracking page chips. */
+export async function consignmentStatusCounts(db: PrismaClient, actorId: string, options: { mine?: boolean } = {}) {
+  return db.$transaction(async (tx) => {
+    const p = await principal(tx, actorId); requireCapability(p, "consignment.read");
+    const scope = await consignmentScope(tx, p, actorId);
+    const where = options.mine ? Prisma.sql`${scope.sql()} AND c.requesterId=${actorId}` : scope.sql();
+    const rows = await tx.$queryRaw<Array<{ status: string; total: bigint }>>`SELECT c.status, COUNT(*) AS total FROM Consignment c WHERE ${where} GROUP BY c.status`;
+    return Object.fromEntries(rows.map((r) => [r.status, Number(r.total)])) as Record<string, number>;
   }, { isolationLevel: "RepeatableRead" });
 }
 const statusSet: Record<string, true> = Object.fromEntries(["DRAFT", "PENDING_REVIEW", "REJECTED", "ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED", "IN_TRANSIT", "PARTIALLY_RECEIVED", "ISSUE", "RECEIVED", "CLOSED", "CANCELLED", "RETURNED"].map((s) => [s, true]));
@@ -529,7 +545,7 @@ function actionAvailability(p: Principal, actorId: string, c: Locked, accounted:
   for (const [action, rule] of Object.entries(transitionMatrix)) {
     if (!rule.actors.some((a) => p.permissions.has(a.capability) && satisfies(p, actorId, a.scope, c))) continue;
     let reason = "";
-    if (["assign", "reject", "reassign"].includes(action) && c.requesterId === actorId && !p.admin)
+    if (["assign", "reassign"].includes(action) && c.requesterId === actorId && !p.admin)
       reason = "คำขอที่คุณสร้างต้องให้ผู้วางแผนขนส่งอีกคนตรวจและจัดรถ";
     else if (!(rule.from as string[]).includes(c.status))
       reason = action === "receive" && ["ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED"].includes(c.status)
@@ -557,7 +573,13 @@ export async function consignmentDetail(db: PrismaClient, actorId: string, id: s
     const b = await balances(tx, id);
     const categories = await tx.consignmentCategory.findMany({ where: { id: { in: b.items.map((i) => i.categoryId) } } });
     const draftItems = ((c.draftItems ?? { items: [] }) as unknown as DraftItems).items ?? [];
-    const packaging = packagingOf(c), pieces = packagingPieces(packaging);
+    const lines = packagingOf(c), pieces = packagingPieces(lines), linkedIds = new Set(lines.flatMap((l) => l.itemId ? [l.itemId] : []));
+    const requestCategory = storedCategory(c.draftItems), categoryName = requestCategory ? (await tx.consignmentCategory.findUnique({ where: { id: requestCategory } }))?.name ?? null : categories[0]?.name ?? null;
+    const packaging = lines.map((l) => {
+      const item = l.itemId ? b.items.find((i) => i.id === l.itemId) : undefined;
+      return { ...l, packagingName: packagingName(l), label: lineLabel(l), unitName: l.unit ? itemUnits[l.unit] ?? l.unit : null,
+        item: item ? { id: item.id, received: item.received.toString(), returned: item.returned.toString() } : null };
+    });
     const { actions, blockedActions } = actionAvailability(p, actorId, base, c.receiptMode === "PACKAGES"
       ? b.packages.every((x) => b.receivedPackages.has(x.id) || b.returnedPackages.has(x.id)) : b.accounted);
     // Contacts on the request are personal data: shown to parties of this consignment only.
@@ -568,11 +590,14 @@ export async function consignmentDetail(db: PrismaClient, actorId: string, id: s
       branch: { id: c.destinationBranchId, code: c.destinationBranch.code, name: c.destinationBranch.name },
       requested: { serviceDate: c.requestedServiceDate?.toISOString().slice(0, 10) ?? null, roundNo: c.requestedRoundNo, tripId: c.requestedTripId, tripCode: c.requestedTrip?.code ?? null },
       contacts: { senderName: c.senderName, senderPhone: c.senderPhone, recipientName: c.recipientName, recipientPhone: c.recipientPhone }, notes: c.notes,
-      packageCount: c.packageCount, packaging, packagingSummary: packagingSummary(packaging), weightKg: packagingWeightKg(packaging),
+      packageCount: c.packageCount, packaging, packagingSummary: packagingSummary(lines), packagingCount: packagingCountText(lines), weightKg: packagingWeightKg(lines), categoryId: requestCategory, category: categoryName,
+      // Returned pieces or quantities mean a closed request was not delivered in full (D236).
+      incomplete: b.returnedPackages.size > 0 || b.items.some((i) => i.returned.gt(0)), receivedPackages: b.receivedPackages.size,
+      looseItems: b.items.filter((i) => !linkedIds.has(i.id)).map((i) => ({ id: i.id, name: i.name, category: categories.find((x) => x.id === i.categoryId)?.name ?? "", sent: i.sentQuantity.toString(), received: i.received.toString(), returned: i.returned.toString(), unit: i.unit })),
       items: b.items.length ? b.items.map((i) => ({ id: i.id, name: i.name, category: categories.find((x) => x.id === i.categoryId)?.name ?? "", sent: i.sentQuantity.toString(), received: i.received.toString(), returned: i.returned.toString(), unit: i.unit }))
         : draftItems.map((i, n) => ({ id: `draft-${n}`, name: i.name, category: "", sent: i.quantity, received: "0", returned: "0", unit: i.unit, categoryId: i.categoryId })),
       draftItems,
-      // `code` is the scannable identifier; `name` is what people read ("ชิ้นที่ 1/3 · กล่อง").
+      // `code` is the scannable identifier; `name` is what people read ("กล่อง 1/3").
       packages: b.packages.map((x) => { const piece = pieces[x.sequence - 1]; return { id: x.id, code: `${c.code}-${x.sequence}/${x.total}`, name: pieceName({ sequence: x.sequence, total: x.total, name: piece?.name ?? "หีบห่อ" }), line: piece?.line ?? 0, description: piece?.description ?? null, sequence: x.sequence, total: x.total, custody: x.custody, received: b.receivedPackages.has(x.id), returned: b.returnedPackages.has(x.id), weight: x.weight?.toString() ?? null, weightUnit: x.weightUnit }; }),
       assignments: c.consignmentAssignment_consignmentId.map((a) => ({ id: a.id, current: a.id === c.currentAssignmentId, tripId: a.tripId, tripCode: a.trip.code, stop: a.stop, reason: a.reason, approvedBy: a.approvedBy.displayName, approvedAt: a.approvedAt.toISOString(), transport: a.transportSnapshot as Record<string, unknown>, sender: a.senderSnapshot.payload as Record<string, unknown>, recipient: a.recipientSnapshot.payload as Record<string, unknown>, labels: a.labelVersion_assignmentId.map((l) => ({ number: l.number, revoked: !!l.revokedAt })) })),
       events: c.consignmentEvent_consignmentId.map((e) => ({ id: e.id, kind: e.kind, at: e.occurredAt.toISOString(), actor: e.actor.displayName, payload: e.payload as Record<string, unknown>, compensates: e.compensatesEventId })),

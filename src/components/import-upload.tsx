@@ -5,6 +5,7 @@ import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {AdminFormBoundary} from "./admin-form-boundary";
 import { ArrowLeft, Upload } from "lucide-react";
+import { newUuid } from "@/lib/new-uuid";
 
 type Kind = { value: string; title: string };
 
@@ -15,7 +16,7 @@ export function ImportUpload({ kinds }: { kinds: Kind[] }) {
   async function submit(form: HTMLFormElement) {
     setBusy(true); setMessage("");
     try {
-      const response = await fetch("/api/imports", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: new FormData(form) });
+      const response = await fetch("/api/imports", { method: "POST", headers: { "Idempotency-Key": newUuid() }, body: new FormData(form) });
       const data = await response.json().catch(() => null);
       if (!response.ok) { setMessage(data?.message ?? "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง"); return; }
       setDirty(false);router.push(`/admin/imports/${data.batchId}${data.existing ? "?existing=1" : ""}`);

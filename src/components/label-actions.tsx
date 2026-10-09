@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { newUuid } from "@/lib/new-uuid";
 
 type Props = { consignmentId: string; version: number; canIssue: boolean; canCorrect: boolean; blocked: string | null; masterChanged: boolean };
 
@@ -13,7 +14,7 @@ export function LabelActions({ consignmentId, version, canIssue, canCorrect, blo
   async function run(action: string, input: unknown, done: string) {
     setBusy(true); setMessage(null);
     try {
-      const response = await fetch("/api/labels", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ action, input }) });
+      const response = await fetch("/api/labels", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": newUuid() }, body: JSON.stringify({ action, input }) });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.message ?? "ดำเนินการไม่สำเร็จ");
       setMessage({ tone: "ok", text: done }); setReason(""); router.refresh();

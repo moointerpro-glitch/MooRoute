@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {AdminDialog} from "./admin-form-boundary";
 import type { ImportDetail } from "@/server/services/imports";
+import { newUuid } from "@/lib/new-uuid";
 
 type Field = { name: string; label: string; required: boolean };
 export const importActionLabels: Record<string, string> = { CREATE: "เพิ่มใหม่", UPDATE: "ปรับปรุงของเดิม", SKIP: "ข้าม", MERGED: "รวมกับแถวซ้ำ", BLOCKED: "ต้องแก้ไข", UNDECIDED: "รอตัดสินใจ" };
@@ -22,7 +23,7 @@ export function ImportReview({ d, fields }: { d: ImportDetail; fields: Field[] }
   async function run(action: string, input: Record<string, unknown>, done: string) {
     setBusy(true); setMessage(null);
     try {
-      const response = await fetch(`/api/imports/${d.id}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ action, input: { expectedVersion: d.version, ...input } }) });
+      const response = await fetch(`/api/imports/${d.id}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": newUuid() }, body: JSON.stringify({ action, input: { expectedVersion: d.version, ...input } }) });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.message ?? "ดำเนินการไม่สำเร็จ");
       setMessage({ tone: "ok", text: done }); router.refresh();return true;

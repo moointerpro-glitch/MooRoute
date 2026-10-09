@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { KeyRound, Save } from "lucide-react";
 import type { MyAccount } from "@/server/services/account";
+import { newUuid } from "@/lib/new-uuid";
 
 async function post(action: "profile" | "password", input: Record<string, unknown>) {
-  const response = await fetch("/api/account", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ action, input }) });
+  const response = await fetch("/api/account", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": newUuid() }, body: JSON.stringify({ action, input }) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message ?? "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง");
   return data;

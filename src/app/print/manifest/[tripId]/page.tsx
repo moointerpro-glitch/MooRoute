@@ -41,13 +41,13 @@ export default async function ManifestPage({ params }: { params: Promise<{ tripI
       {m.groups.length === 0 ? <p className="manifest-note">ไม่มีรายการฝากส่งในรอบนี้</p> : m.groups.map((g) => <section key={g.sequence} className="manifest-group">
         <h2>จุดส่งที่ {g.sequence}: {g.name} ({g.branchCode})</h2>
         <table><caption className="sr-only">รายการฝากส่งถึง {g.name}</caption>
-          <thead><tr><th scope="col">เลขที่ฝากส่ง</th><th scope="col">คลังต้นทาง</th><th scope="col">สิ่งที่ฝากส่ง</th><th scope="col">จำนวนชิ้น</th><th scope="col">ฉลาก</th><th scope="col">สถานะ</th></tr></thead>
+          <thead><tr><th scope="col">เลขที่ฝากส่ง</th><th scope="col">คลังต้นทาง</th><th scope="col">สิ่งที่ฝากส่ง</th><th scope="col">จำนวน</th><th scope="col">ฉลาก</th><th scope="col">สถานะ</th></tr></thead>
           <tbody>{g.consignments.map((c) => <tr key={c.id}><td>{c.code}</td><td>{c.warehouse}</td><td>{[c.packaging, [...c.contents, ...c.items.map((i) => `${i.name} ${Number(i.quantity).toLocaleString("th-TH")} ${unitText(i.unit)}`)].join(", ")].filter(Boolean).join(" — ")}</td><td>{c.packages}</td><td>{c.labelNumber ? `ฉบับที่ ${c.labelNumber}` : "ยังไม่ออก"}</td><td>{statusText(c.status)}</td></tr>)}</tbody>
           <tfoot><tr><th scope="row" colSpan={2}>รวมจุดส่งนี้</th><td>{g.unitTotals.map((u) => `${Number(u.quantity).toLocaleString("th-TH")} ${unitText(u.unit)}`).join(" · ")}</td><td>{g.packageTotal}</td><td colSpan={2}>ผู้รับลงชื่อ …………………………… เวลา …………</td></tr></tfoot>
         </table>
       </section>)}
       <footer className="manifest-foot">
-        <p>รวมทั้งรอบ: {m.consignmentTotal} รายการ · {m.packageTotal} ชิ้น (จำนวนสิ่งของรวมแยกตามหน่วย ไม่นำหน่วยต่างกันมารวมกัน)</p>
+        <p>รวมทั้งรอบ: {m.consignmentTotal} ใบฝาก · {m.packageTotal} บรรจุภัณฑ์ (จำนวนสิ่งของรวมแยกตามหน่วย ไม่นำหน่วยต่างกันมารวมกัน)</p>
         <div className="signatures"><div><span />ผู้ส่งมอบ (คลัง)</div><div><span />พนักงานขับรถ</div><div><span />ผู้ตรวจสอบ</div></div>
         <p className="manifest-meta">พิมพ์โดย {m.generatedBy} · {thaiDateTime(new Date().toISOString())} น.</p>
       </footer>

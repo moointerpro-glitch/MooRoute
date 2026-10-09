@@ -112,6 +112,23 @@ export function TripSearch({ today, options, params }: { today: string; options:
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [branchText, selected]);
 
+  // D236: typed text searches by itself after a short pause. A chosen branch is left alone, an open suggestion
+  // list keeps working, and an incomplete or invalid time range waits without showing an error.
+  useEffect(() => {
+    const text = branchText.trim();
+    if (query.mode !== "branch" || (selected && branchText === `${selected.name} (${selected.code})`)) return;
+    if (text === query.q && !query.branch) return;
+    const timer = window.setTimeout(() => update({ branch: null, q: text }), 450);
+    return () => window.clearTimeout(timer);
+  }, [branchText, selected, query.mode, query.q, query.branch, update]);
+  useEffect(() => {
+    if (query.mode !== "range") return;
+    const from = minuteOf(rangeDraft.from), to = minuteOf(rangeDraft.to);
+    if (from === null || to === null || to < from || (clock(from) === query.from && clock(to) === query.to)) return;
+    const timer = window.setTimeout(() => { setRangeError(""); update({ mode: "range", from: clock(from), to: clock(to) }); }, 450);
+    return () => window.clearTimeout(timer);
+  }, [rangeDraft, query.mode, query.from, query.to, update]);
+
   const modeIndex = modes.findIndex((m) => m.id === query.mode), mode = modes[modeIndex];
   function navigateTabs(event: KeyboardEvent, index: number) {
     const keys: Record<string, number> = { ArrowRight: (index + 1) % 3, ArrowLeft: (index + 2) % 3, Home: 0, End: 2 };

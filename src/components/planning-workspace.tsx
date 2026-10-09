@@ -10,6 +10,7 @@ import {PlanningDialog} from "./planning-dialog";
 
 import {beDate,isoDate,kindLabels,localInstant,statusLabels} from "./planning-fields";
 import {CoverageTable,DayBar,MissingPlanNotice,RangeTools,RoundSummary,TripTable,WeekStrip,thaiDay} from "./planning-day";
+import { newUuid } from "@/lib/new-uuid";
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const actionLabels:Record<string,string>={PLAN_DRAFT_CREATED:"สร้างฉบับร่าง",PLAN_PUBLISHED:"เผยแพร่แผน",ROUTE_REVISED:"แก้ไขเส้นทาง",TEMPLATE_REVISED:"แก้ไขแม่แบบ",CONSIGNMENT_REASSIGNED:"ย้ายพัสดุ"};
 
@@ -45,7 +46,7 @@ export function PlanningWorkspace({initialDate,initialTab,initialRevision,saved,
   return()=>controller.abort();},[stripStart,overviewTick]);
 
  const post=async(action:string,input:unknown)=>{
-  const r=await fetch("/api/planning",{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({action,input})}),result=await r.json();
+  const r=await fetch("/api/planning",{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":newUuid()},body:JSON.stringify({action,input})}),result=await r.json();
   if(!r.ok)throw Error(result.message??"บันทึกไม่สำเร็จ");
   return result;
  };

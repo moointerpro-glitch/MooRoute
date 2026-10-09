@@ -51,7 +51,9 @@ function Popover({ anchor, owner, open, onClose, label, children, id }: { anchor
   }, [open, onClose, owner]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(<div ref={ref} id={id} role="dialog" aria-label={label} className="picker-popover"
-    style={style ? { top: style.top, left: style.left } : { top: -9999, left: -9999 }}>{children}</div>, document.body);
+    style={style ? { top: style.top, left: style.left } : { top: -9999, left: -9999 }}>{children}</div>,
+    // Inside a modal dialog the page behind is inert and covered, so the popover must live in that dialog (D236).
+    anchor.current?.closest("dialog") ?? document.body);
 }
 const inPicker = (node: EventTarget | null) => node instanceof Element && !!node.closest(".picker-popover");
 

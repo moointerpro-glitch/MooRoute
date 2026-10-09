@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Building2, History, ListOrdered, PackagePlus, Search, Settings } from "lucide-react";
+import { Building2, History, ListOrdered, PackagePlus, PackageSearch, Search, Settings } from "lucide-react";
 import type { NavigationAccess } from "@/lib/navigation";
 import type { ProfileSummary } from "./profile-menu";
 
@@ -28,7 +28,9 @@ export function SessionNavigation({ session, onNavigate }: { session: Session | 
     { href: "/trips", label: "รอบรถทั้งหมด", icon: ListOrdered, allowed: session?.canSearch, active: pathname.startsWith("/trips") },
     { href: "/branches", label: "สาขาทั้งหมด", icon: Building2, allowed: session?.canSearch, active: pathname.startsWith("/branches") },
     { href: "/consign", label: "ฝากของส่งรถ", icon: PackagePlus, allowed: session?.canConsign, active: pathname === "/consign" },
-    { href: "/consignments", label: "ประวัติฝากส่ง", icon: History, allowed: session?.canHistory, active: pathname.startsWith("/consignments") },
+    // D236: unfinished requests are tracked on their own page; history holds only finished ones.
+    { href: "/tracking", label: "ติดตาม", icon: PackageSearch, allowed: session?.canHistory, active: pathname.startsWith("/tracking") },
+    { href: "/consignments", label: "ประวัติ", icon: History, allowed: session?.canHistory, active: pathname === "/consignments" },
     { href: "/admin", label: "จัดการหลังบ้าน", icon: Settings, allowed: session?.canOpenBackend, active: pathname.startsWith("/admin") },
   ];
   return <>{links.filter((l) => l.allowed).map(({ href, label, icon: Icon, active }) =>

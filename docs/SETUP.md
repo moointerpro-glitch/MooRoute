@@ -158,7 +158,11 @@ The resulting SQL was reviewed and augmented with InnoDB/utf8mb4, CHECK constrai
 npm run dev
 ```
 
-Open `http://127.0.0.1:3010`. Port 3010 was selected because another application already uses 3000. For a production-mode local preview, stop the development server first:
+Open `http://127.0.0.1:3010`. Port 3010 was selected because another application already uses 3000.
+
+To let other devices on the same private network open the development run (D240), stop `npm run dev` and use `npm run dev:lan` instead. It prints the address to open, for example `http://172.16.5.100:3010`; use that address on this machine too, because 127.0.0.1 does not answer while it runs. Add `-- --host=<address>` when the machine has several private addresses. Traffic is plain HTTP: development data and trusted networks only. Windows Firewall must allow inbound TCP 3010.
+
+For a production-mode local preview, stop the development server first:
 
 ```powershell
 npm run build

@@ -48,7 +48,7 @@ export async function receiveConsignment(db: PrismaClient, actorId: string, key:
     const receivedPackages = new Set(previous.flatMap((line) => line.packageId ? [line.packageId] : []));
     for (const line of input.lines) {
       if (line.itemId) {
-        requireCondition(consignment.receiptMode === "DETAILED", "RECEIPT_MODE", "รายการนี้ตรวจรับตามจำนวนชิ้นเท่านั้น");
+        requireCondition(consignment.receiptMode === "DETAILED", "RECEIPT_MODE", "ใบฝากนี้ตรวจรับตามจำนวนบรรจุภัณฑ์เท่านั้น");
         const item = items.find((i) => i.id === line.itemId);
         requireCondition(item && item.unit === line.unit, "RECEIPT_UNIT", "รายการหรือหน่วยไม่ตรงกับสินค้าที่ส่ง");
         // Cumulative received plus returned quantity can never exceed what was sent.
@@ -56,8 +56,8 @@ export async function receiveConsignment(db: PrismaClient, actorId: string, key:
         requireCondition(total.lte(item.sentQuantity), "RECEIPT_EXCEEDS_SENT", "จำนวนรับเกินจำนวนที่ส่ง"); totals.set(item.id, total);
       } else {
         const parcel = packages.find((p) => p.id === line.packageId);
-        requireCondition(parcel && parcel.custody === "VEHICLE" && line.unit === "PACKAGE" && new Prisma.Decimal(line.quantity).eq(1), "RECEIPT_PACKAGE", "ข้อมูลชิ้นที่รับไม่ถูกต้อง");
-        requireCondition(!receivedPackages.has(parcel.id), "PACKAGE_ALREADY_RECEIVED", "ชิ้นนี้รับแล้ว"); receivedPackages.add(parcel.id);
+        requireCondition(parcel && parcel.custody === "VEHICLE" && line.unit === "PACKAGE" && new Prisma.Decimal(line.quantity).eq(1), "RECEIPT_PACKAGE", "ข้อมูลบรรจุภัณฑ์ที่รับไม่ถูกต้อง");
+        requireCondition(!receivedPackages.has(parcel.id), "PACKAGE_ALREADY_RECEIVED", "บรรจุภัณฑ์นี้รับแล้ว"); receivedPackages.add(parcel.id);
       }
     }
     if (correction) await tx.consignmentEvent.create({ data: { consignmentId: consignment.id, actorId, kind: "CORRECTION", occurredAt: new Date(), idempotencyId: idem, payload: { schemaVersion: 1, type: "RECEIPT_BEFORE_DEPARTURE", reason: correction } } });

@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { requirePageActor } from "@/server/auth/session";
 import { getDatabase } from "@/server/persistence/database";
 import { tripDetail } from "@/server/services/trip-search";
-import { consignmentDetail, consignmentFormOptions } from "@/server/services/consignments";
+import { consignmentDetail, consignmentFormOptions, type ConsignmentDetail } from "@/server/services/consignments";
+import { itemUnits } from "@/server/domain/consignment";
 import { DomainError } from "@/server/domain/errors";
 import { ConsignForm, type ConsignInitial } from "@/components/consign-form";
 import { blankPackRow } from "@/lib/consignment-format";
@@ -13,7 +14,23 @@ import { roundLabel } from "@/lib/trip-format";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ฝากของส่งรถ" };
 
-const denied = (title: string, text: string) => <div className="container message-page"><span className="eyebrow">ฝากของส่งรถ</span><h1>{title}</h1><p>{text}</p><Link className="secondary-button" href="/consignments">ไปที่ประวัติฝากส่ง</Link></div>;
+/**
+ * Rows for the form from a stored draft. A draft made with the earlier form kept its items in a separate list:
+ * item N is placed on row N when that row has no contents yet (the usual one-item, one-row case). Anything that
+ * cannot be placed is listed for the person to type in; nothing is merged by guessing.
+ */
+function fromStored(d: ConsignmentDetail): Pick<ConsignInitial, "categoryId" | "packaging" | "unplacedItems"> {
+  const loose = [...d.draftItems], unit = (code: string) => itemUnits[code] ?? code;
+  const packaging = d.packaging.map((l) => {
+    const row = { kind: l.kind, customName: l.customName ?? "", count: String(l.count), name: l.name ?? "", quantity: l.quantity ?? "", unit: l.unit ?? "", description: l.description ?? "" };
+    if (row.name || row.quantity || !loose.length) return row;
+    const item = loose.shift()!;
+    return { ...row, name: item.name, quantity: item.quantity, unit: item.unit };
+  });
+  return { categoryId: d.categoryId ?? d.draftItems[0]?.categoryId ?? "", packaging: packaging.length ? packaging : [{ ...blankPackRow }], unplacedItems: loose.map((i) => `${i.name} ${i.quantity} ${unit(i.unit)}`) };
+}
+
+const denied = (title: string, text: string) => <div className="container message-page"><span className="eyebrow">ฝากของส่งรถ</span><h1>{title}</h1><p>{text}</p><Link className="secondary-button" href="/tracking">ไปที่หน้าติดตาม</Link></div>;
 
 export default async function ConsignPage({ searchParams }: { searchParams: Promise<{ id?: string; trip?: string; branch?: string }> }) {
   const actor = await requirePageActor(), { id, trip, branch } = await searchParams, db = getDatabase();
@@ -25,8 +42,8 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
   let initial: ConsignInitial = {
     id: null, code: null, version: 0, departmentId: "", sourceWarehouseId: options.warehouses.length === 1 ? options.warehouses[0].id : options.defaultWarehouseId,
     destinationBranchId: "", requestedServiceDate: "", requestedRoundNo: null, requestedTripId: null, tripLabel: null, tripProblems: [],
-    senderName: options.senderName, senderPhone: options.senderPhone, recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", packaging: [{ ...blankPackRow }],
-    items: [], attachments: [],
+    senderName: options.senderName, senderPhone: options.senderPhone, recipientName: "", recipientPhone: "", notes: "", receiptMode: "PACKAGES", categoryId: options.categories.length === 1 ? options.categories[0].id : "", packaging: [{ ...blankPackRow }],
+    attachments: [], unplacedItems: [],
   };
   let owner: string | null = null;
   if (id) {
@@ -39,9 +56,7 @@ export default async function ConsignPage({ searchParams }: { searchParams: Prom
     initial = { ...initial, id: d.id, code: d.code, version: d.version, departmentId: d.departmentId, sourceWarehouseId: d.warehouse.id, destinationBranchId: d.branch.id,
       requestedServiceDate: d.requested.serviceDate ?? "", requestedRoundNo: d.requested.roundNo, requestedTripId: d.requested.tripId, tripLabel: d.requested.tripCode,
       senderName: d.contacts.senderName ?? "", senderPhone: d.contacts.senderPhone ?? "", recipientName: d.contacts.recipientName ?? "", recipientPhone: d.contacts.recipientPhone ?? "",
-      notes: d.notes ?? "", receiptMode: d.receiptMode,
-      packaging: d.packaging.length ? d.packaging.map((l) => ({ kind: l.kind, customName: l.customName ?? "", count: String(l.count), description: l.description ?? "", weight: l.weight ?? "" })) : initial.packaging,
-      items: d.draftItems, attachments: d.attachments.map((a) => ({ id: a.id, name: a.name, size: a.size })) };
+      notes: d.notes ?? "", receiptMode: d.receiptMode, ...fromStored(d), attachments: d.attachments.map((a) => ({ id: a.id, name: a.name, size: a.size })) };
   } else if (trip) {
     // Pre-fill from the search page's eligible-trip action; the server re-checks eligibility on submission and assignment.
     try {

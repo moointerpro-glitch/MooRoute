@@ -16,7 +16,8 @@ export const transitionMatrix: Record<string, Transition> = {
   saveDraft: { from: ["DRAFT"], to: "DRAFT", actors: [{ capability: "consignment.create", scope: "OWN_REQUESTER" }], prerequisites: "Department in the requester's scope; active source warehouse and destination branch" },
   submit: { from: ["DRAFT"], to: "PENDING_REVIEW", actors: [{ capability: "consignment.create", scope: "OWN_REQUESTER" }], prerequisites: "Items, package count, contacts and a future service date; receipt mode frozen; items and packages materialized; preferred trip (if any) must be eligible" },
   cancelRequest: { from: ["DRAFT", "PENDING_REVIEW"], to: "CANCELLED", actors: [{ capability: "consignment.create", scope: "OWN_REQUESTER" }], prerequisites: "Reason" },
-  reject: { from: ["PENDING_REVIEW"], to: "REJECTED", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "Reason" },
+  // D236: replaces the former "reject" action. Limited to PENDING_REVIEW so a reviewer can never touch another person's private draft.
+  cancelPending: { from: ["PENDING_REVIEW"], to: "CANCELLED", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "Reason; used when the planner cannot serve a submitted request" },
   assign: { from: ["PENDING_REVIEW"], to: "ASSIGNED", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "Current published outbound trip visiting the destination, before cutoff, compatible known capacity; sender/recipient/transport snapshots frozen" },
   reassign: { from: ["ASSIGNED", "WAREHOUSE_RECEIVED"], to: "(unchanged)", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "No loading, departure or receipt evidence; packages with sender or warehouse; eligible target; labels revoked; reason" },
   correctAddress: { from: ["ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED"], to: "(unchanged)", actors: [{ capability: "consignment.assign", scope: "GLOBAL" }], prerequisites: "No departure recorded; same trip and stop; sender/recipient snapshots re-frozen from current master data; previous labels revoked; reason" },
@@ -35,8 +36,12 @@ export const transitionMatrix: Record<string, Transition> = {
 export const statusLabels: Record<ConsignmentState, string> = {
   DRAFT: "ฉบับร่าง", PENDING_REVIEW: "รอตรวจสอบ", REJECTED: "ไม่อนุมัติ", ASSIGNED: "จัดรถแล้ว", WAREHOUSE_RECEIVED: "คลังรับของแล้ว",
   LOADED: "ขึ้นรถแล้ว", IN_TRANSIT: "อยู่ระหว่างขนส่ง", PARTIALLY_RECEIVED: "รับบางส่วน", ISSUE: "พบปัญหา", RECEIVED: "รับครบแล้ว",
-  CLOSED: "ปิดงาน", CANCELLED: "ยกเลิก", RETURNED: "ส่งคืน",
+  CLOSED: "จัดส่งสำเร็จ", CANCELLED: "ยกเลิก", RETURNED: "ส่งคืน",
 };
+/** D236: a closed request is "จัดส่งสำเร็จ" only when nothing was returned; otherwise it says so. */
+export const CLOSED_INCOMPLETE_LABEL = "ปิดงาน (ส่งไม่ครบ)";
+export const ACTIVE_STATUSES: ConsignmentState[] = ["DRAFT", "PENDING_REVIEW", "ASSIGNED", "WAREHOUSE_RECEIVED", "LOADED", "IN_TRANSIT", "PARTIALLY_RECEIVED", "RECEIVED", "ISSUE"];
+export const FINISHED_STATUSES: ConsignmentState[] = ["CLOSED", "CANCELLED", "REJECTED", "RETURNED"];
 export const eventLabels: Record<string, string> = {
   SUBMITTED: "ส่งคำขอ", ASSIGNED: "จัดรถ", WAREHOUSE_RECEIVED: "คลังรับของ", LOADED: "ขึ้นรถ", DEPARTED: "รถออก", RECEIPT: "สาขารับของ",
   ISSUE: "แจ้งปัญหา", CORRECTION: "แก้ไขโดยผู้วางแผนขนส่ง", RETURNED: "ส่งคืน", CLOSED: "ปิดงาน", CANCELLED: "ยกเลิก", REJECTED: "ไม่อนุมัติ", ISSUE_RESOLVED: "แก้ไขปัญหาแล้ว",
@@ -47,7 +52,7 @@ export const custodyLabels: Record<string, string> = { SENDER: "อยู่ก�
 export const itemUnits: Record<string, string> = { PIECE: "ชิ้น", SHEET: "แผ่น", BOX: "กล่อง", PACK: "แพ็ก", SET: "ชุด", ROLL: "ม้วน", BOTTLE: "ขวด", BAG: "ถุง", UNIT: "เครื่อง", KG: "กิโลกรัม" };
 export const weightUnits: Record<string, string> = { KG: "กิโลกรัม" };
 export const issueTypes: Record<string, string> = { SHORTAGE: "ของขาด", DAMAGE: "ของเสียหาย", WRONG_ITEM: "ของไม่ตรงรายการ", DELAY: "ล่าช้า", OTHER: "อื่น ๆ" };
-export const receiptModeLabels: Record<string, string> = { PACKAGES: "สาขาตรวจรับตามจำนวนชิ้นที่ฝาก", DETAILED: "สาขาตรวจรับตามจำนวนชิ้น และนับสิ่งของข้างใน" };
+export const receiptModeLabels: Record<string, string> = { PACKAGES: "สาขาตรวจรับตามจำนวนบรรจุภัณฑ์", DETAILED: "สาขาตรวจรับตามจำนวนบรรจุภัณฑ์ และนับจำนวนข้างใน" };
 
 export const idPattern = /^[A-Za-z0-9_-]{1,36}$/;
 export const quantityPattern = /^(?:0|[1-9]\d{0,10})(?:\.\d{1,3})?$/;
@@ -60,7 +65,15 @@ export const phonePattern = /^[+\d ()-]{7,32}$/;
 export const packagingKinds: Record<string, string> = { BOX: "กล่อง", BAG: "ถุง", CRATE: "ลัง", BUNDLE: "มัด", ROLL: "ม้วน", ENVELOPE: "ซอง", PALLET: "พาเลท", OTHER: "อื่น ๆ (ระบุเอง)" };
 export const LEGACY_PACKAGING = "PACKAGE";
 export const PACKAGING_LIMITS = { lines: 20, pieces: 500, customName: 40, description: 191, confirmAbove: 50 } as const;
-export interface PackagingLine { kind: string; customName: string | null; count: number; description: string | null; weight: string | null }
+/**
+ * One row of the merged "สิ่งที่ฝากส่ง" table (D236): what it is packed in and how many pieces, what is inside
+ * (`name`), optionally how much of it (`quantity` + `unit`), and a free note (`description`).
+ * `weight` is kept for requests saved before D236; the form no longer asks for it.
+ * `itemId` is written at submission and links the row to its ConsignmentItem balance.
+ */
+export interface PackagingLine { kind: string; customName: string | null; count: number; name?: string | null; quantity?: string | null; unit?: string | null; description: string | null; weight: string | null; itemId?: string | null }
+/** What a row contains, for people: the item name, or the description used before D236. */
+export const lineLabel = (l: Pick<PackagingLine, "name" | "description">) => l.name?.trim() || l.description?.trim() || null;
 /** One physical piece. `sequence`/`total` number the whole request and match the printed label. */
 export interface PackagingPiece { sequence: number; total: number; line: number; kind: string; name: string; description: string | null; weight: string | null }
 
@@ -76,10 +89,16 @@ export function packagingSummary(lines: PackagingLine[]) {
 /** Expands lines into pieces in line order, so piece N of a submitted request always maps to the same line. */
 export function packagingPieces(lines: PackagingLine[]): PackagingPiece[] {
   const total = packagingTotal(lines), pieces: PackagingPiece[] = [];
-  lines.forEach((l, line) => { for (let n = 0; n < l.count; n++) pieces.push({ sequence: pieces.length + 1, total, line, kind: l.kind, name: packagingName(l), description: l.description, weight: l.weight }); });
+  lines.forEach((l, line) => { for (let n = 0; n < l.count; n++) pieces.push({ sequence: pieces.length + 1, total, line, kind: l.kind, name: packagingName(l), description: lineLabel(l), weight: l.weight }); });
   return pieces;
 }
-export const pieceName = (p: Pick<PackagingPiece, "sequence" | "total" | "name">) => `ชิ้นที่ ${p.sequence}/${p.total} · ${p.name}`;
+/** D237: the packaging itself is the unit ("กล่อง 2/3"); the number matches the one printed large on the label. */
+export const pieceName = (p: Pick<PackagingPiece, "sequence" | "total" | "name">) => `${p.name} ${p.sequence}/${p.total}`;
+/** A total for people: "กล่อง 3" for one kind, "กล่อง 2 · ถัง 1 (รวม 3)" for several. Never a generic counter word. */
+export function packagingCountText(lines: PackagingLine[]) {
+  const summary = packagingSummary(lines);
+  return new Set(lines.map((l) => packagingName(l))).size > 1 ? `${summary} (รวม ${packagingTotal(lines)})` : summary;
+}
 /** Sum of the stated per-piece weights in kilograms, as a decimal string; null when no line states a weight. */
 export function packagingWeightKg(lines: PackagingLine[]): string | null {
   // Integer thousandths avoid floating-point drift; inputs are limited to three decimals.
@@ -99,8 +118,17 @@ export function packagingWeightKg(lines: PackagingLine[]): string | null {
 export function storedPackaging(document: unknown, legacy: { packageCount: number; packageWeight?: string | null; packageWeightUnit?: string | null }): PackagingLine[] {
   const lines = (document as { packaging?: unknown } | null)?.packaging;
   if (Array.isArray(lines)) return (lines as Partial<PackagingLine>[]).flatMap((l) => l && typeof l === "object" && Number.isInteger(l.count) && l.count! > 0
-    ? [{ kind: typeof l.kind === "string" ? l.kind : LEGACY_PACKAGING, customName: l.customName ?? null, count: l.count!, description: l.description ?? null, weight: l.weight ?? null }] : []);
-  return legacy.packageCount > 0 ? [{ kind: LEGACY_PACKAGING, customName: null, count: legacy.packageCount, description: null, weight: legacy.packageWeightUnit === "KG" ? legacy.packageWeight ?? null : null }] : [];
+    ? [{ kind: typeof l.kind === "string" ? l.kind : LEGACY_PACKAGING, customName: l.customName ?? null, count: l.count!, name: l.name ?? null, quantity: l.quantity ?? null, unit: l.unit ?? null, description: l.description ?? null, weight: l.weight ?? null, itemId: l.itemId ?? null }] : []);
+  return legacy.packageCount > 0 ? [{ kind: LEGACY_PACKAGING, customName: null, count: legacy.packageCount, name: null, quantity: null, unit: null, description: null, weight: legacy.packageWeightUnit === "KG" ? legacy.packageWeight ?? null : null, itemId: null }] : [];
+}
+/** The request-level item category (D236); null for requests saved before it. */
+export function storedCategory(document: unknown): string | null {
+  const id = (document as { categoryId?: unknown } | null)?.categoryId;
+  return typeof id === "string" && idPattern.test(id) ? id : null;
+}
+/** What is inside, as short texts for lists: "โปสเตอร์ 30 แผ่น", "ชุดพนักงาน". */
+export function packagingContents(lines: PackagingLine[]) {
+  return [...new Set(lines.flatMap((l) => { const label = lineLabel(l); return label ? [l.quantity && l.unit ? `${label} ${l.quantity} ${itemUnits[l.unit] ?? l.unit}` : label] : []; }))];
 }
 
 export function requireTransition(action: string, status: string) {
@@ -108,7 +136,7 @@ export function requireTransition(action: string, status: string) {
   requireCondition(rule && (rule.from as string[]).includes(status), "INVALID_TRANSITION", `ไม่สามารถ${actionLabels[action] ?? "ดำเนินการ"}ได้ในสถานะ “${statusLabels[status as ConsignmentState] ?? status}”`);
 }
 export const actionLabels: Record<string, string> = {
-  saveDraft: "บันทึกฉบับร่าง", submit: "ส่งคำขอ", cancelRequest: "ยกเลิกคำขอ", reject: "ไม่อนุมัติ", assign: "จัดรถ", reassign: "ย้ายรอบรถ",
+  saveDraft: "บันทึกฉบับร่าง", submit: "ส่งคำขอ", cancelRequest: "ยกเลิกคำขอ", cancelPending: "ยกเลิกคำขอ", assign: "จัดรถ", reassign: "ย้ายรอบรถ",
   correctAddress: "แก้ไขที่อยู่บนฉลาก", cancelAssigned: "ยกเลิกรายการที่จัดรถแล้ว", warehouseReceive: "บันทึกคลังรับของ", load: "บันทึกขึ้นรถ", depart: "บันทึกรถออก", receive: "บันทึกรับของ",
   correctiveReceive: "บันทึกรับของก่อนรถออก", reportIssue: "แจ้งปัญหา", recordReturn: "บันทึกส่งคืน", resolveIssue: "ปิดปัญหา", close: "ปิดงาน",
 };
@@ -118,14 +146,24 @@ export interface DraftInput {
   id?: string | null; expectedVersion: number; departmentId: string; sourceWarehouseId: string; destinationBranchId: string;
   requestedServiceDate: string | null; requestedRoundNo: number | null; requestedTripId: string | null;
   senderName: string | null; senderPhone: string | null; recipientName: string | null; recipientPhone: string | null; notes: string | null;
-  receiptMode: "PACKAGES" | "DETAILED"; items: DraftItemInput[];
-  /** D234: what the goods are packed in. When present it replaces the three legacy package fields below. */
+  receiptMode: "PACKAGES" | "DETAILED";
+  /** D236: one category for the whole request. Required at submission unless a legacy item list carries categories. */
+  categoryId?: string | null;
+  /** Before D236: a separate item list. Still accepted, but never together with inner quantities on packaging rows. */
+  items?: DraftItemInput[];
+  /** D234/D236: the merged table. When present it replaces the three legacy package fields below. */
   packaging?: PackagingLine[] | null;
   /** Before D234: one count for identical packages. Still accepted and read as a single "หีบห่อ" line. */
   packageCount?: number; packageWeight?: string | null; packageWeightUnit?: string | null;
 }
 /** A validated draft: packaging is always present and the package count is always its total. */
-export type NormalizedDraft = Omit<DraftInput, "packaging" | "packageCount" | "packageWeight" | "packageWeightUnit"> & { packaging: PackagingLine[]; packageCount: number };
+export type NormalizedDraft = Omit<DraftInput, "packaging" | "packageCount" | "packageWeight" | "packageWeightUnit" | "items" | "categoryId"> & {
+  packaging: PackagingLine[]; packageCount: number; categoryId: string | null;
+  /** Items that become ConsignmentItem rows: derived from rows with an inner quantity, or the legacy list. */
+  items: DraftItemInput[];
+  /** The legacy list exactly as given; stored with the request so it can be edited again. */
+  looseItems: DraftItemInput[];
+};
 const text = (value: unknown, max: number, label: string) => {
   if (value === null || value === undefined || value === "") return null;
   requireCondition(typeof value === "string", "INVALID_INPUT", `${label}ไม่ถูกต้อง`);
@@ -147,8 +185,11 @@ export function normalizeDraft(raw: DraftInput): NormalizedDraft {
   requireCondition(raw.requestedTripId == null || raw.requestedTripId === "" || (typeof raw.requestedTripId === "string" && idPattern.test(raw.requestedTripId)), "INVALID_INPUT", "รอบรถที่เลือกไม่ถูกต้อง");
   requireCondition(raw.receiptMode === "PACKAGES" || raw.receiptMode === "DETAILED", "INVALID_INPUT", "วิธีตรวจรับไม่ถูกต้อง");
   const packaging = raw.packaging == null ? legacyPackaging(raw) : normalizePackaging(raw.packaging);
-  requireCondition(Array.isArray(raw.items) && raw.items.length <= 50, "INVALID_ITEMS", "ระบุรายการสิ่งของได้ไม่เกิน ๕๐ รายการ");
-  const items = raw.items.map((item, index) => {
+  const categoryId = raw.categoryId == null || raw.categoryId === "" ? null : raw.categoryId;
+  requireCondition(categoryId === null || (typeof categoryId === "string" && idPattern.test(categoryId)), "INVALID_INPUT", "หมวดสิ่งของไม่ถูกต้อง");
+  const rawItems = raw.items ?? [];
+  requireCondition(Array.isArray(rawItems) && rawItems.length <= 50, "INVALID_ITEMS", "ระบุรายการสิ่งของได้ไม่เกิน ๕๐ รายการ");
+  const looseItems = rawItems.map((item, index) => {
     requireCondition(item && typeof item === "object" && typeof item.categoryId === "string" && idPattern.test(item.categoryId), "INVALID_ITEMS", `กรุณาเลือกหมวดของรายการที่ ${index + 1}`);
     const name = text(item.name, 191, `ชื่อรายการที่ ${index + 1}`);
     requireCondition(name, "INVALID_ITEMS", `กรุณาระบุชื่อรายการที่ ${index + 1}`);
@@ -156,20 +197,24 @@ export function normalizeDraft(raw: DraftInput): NormalizedDraft {
     requireCondition(typeof item.unit === "string" && item.unit in itemUnits, "INVALID_UNIT", `กรุณาเลือกหน่วยของรายการที่ ${index + 1}`);
     return { categoryId: item.categoryId, name, quantity: item.quantity, unit: item.unit };
   });
+  const counted = packaging.filter((l) => l.quantity);
+  requireCondition(!(looseItems.length && counted.length), "INVALID_ITEMS", "กรอกจำนวนข้างในได้ในตารางสิ่งที่ฝากส่งเท่านั้น");
+  // Rows with an inner quantity become item balances once a category is chosen; until then the draft has none.
+  const items = looseItems.length ? looseItems : categoryId ? counted.map((l) => ({ categoryId, name: l.name!, quantity: l.quantity!, unit: l.unit! })) : [];
   const senderPhone = text(raw.senderPhone, 32, "เบอร์ผู้ฝาก"), recipientPhone = text(raw.recipientPhone, 32, "เบอร์ผู้รับ");
   for (const phone of [senderPhone, recipientPhone]) requireCondition(phone === null || phonePattern.test(phone), "INVALID_PHONE", "เบอร์ติดต่อไม่ถูกต้อง");
   return {
     id: raw.id ?? null, expectedVersion: raw.expectedVersion, departmentId: raw.departmentId, sourceWarehouseId: raw.sourceWarehouseId, destinationBranchId: raw.destinationBranchId,
     requestedServiceDate: raw.requestedServiceDate || null, requestedRoundNo: raw.requestedRoundNo ?? null, requestedTripId: raw.requestedTripId || null,
     senderName: text(raw.senderName, 191, "ชื่อผู้ฝาก"), senderPhone, recipientName: text(raw.recipientName, 191, "ชื่อผู้รับ"), recipientPhone, notes: text(raw.notes, 1000, "หมายเหตุ"),
-    receiptMode: raw.receiptMode, packaging, packageCount: packagingTotal(packaging), items,
+    receiptMode: raw.receiptMode, categoryId, packaging, packageCount: packagingTotal(packaging), items, looseItems,
   };
 }
 function legacyPackaging(raw: DraftInput): PackagingLine[] {
   const count = raw.packageCount ?? 0;
-  requireCondition(Number.isInteger(count) && count >= 0 && count <= PACKAGING_LIMITS.pieces, "INVALID_PACKAGES", "จำนวนชิ้นที่ฝากต้องเป็นจำนวนเต็ม ๐ ถึง ๕๐๐");
-  const weight = text(raw.packageWeight, 20, "น้ำหนักต่อชิ้น"), weightUnit = text(raw.packageWeightUnit, 32, "หน่วยน้ำหนัก");
-  requireCondition((weight === null && weightUnit === null) || (weight !== null && quantityPattern.test(weight) && Number(weight) > 0 && weightUnit !== null && weightUnit in weightUnits), "INVALID_WEIGHT", "กรุณาระบุน้ำหนักต่อชิ้นและหน่วยให้ครบคู่ หรือเว้นว่างทั้งสองช่อง");
+  requireCondition(Number.isInteger(count) && count >= 0 && count <= PACKAGING_LIMITS.pieces, "INVALID_PACKAGES", "จำนวนบรรจุภัณฑ์ต้องเป็นจำนวนเต็ม ๐ ถึง ๕๐๐");
+  const weight = text(raw.packageWeight, 20, "น้ำหนักต่อบรรจุภัณฑ์"), weightUnit = text(raw.packageWeightUnit, 32, "หน่วยน้ำหนัก");
+  requireCondition((weight === null && weightUnit === null) || (weight !== null && quantityPattern.test(weight) && Number(weight) > 0 && weightUnit !== null && weightUnit in weightUnits), "INVALID_WEIGHT", "กรุณาระบุน้ำหนักต่อบรรจุภัณฑ์และหน่วยให้ครบคู่ หรือเว้นว่างทั้งสองช่อง");
   return storedPackaging(null, { packageCount: count, packageWeight: weight, packageWeightUnit: weightUnit });
 }
 function normalizePackaging(value: unknown): PackagingLine[] {
@@ -180,23 +225,30 @@ function normalizePackaging(value: unknown): PackagingLine[] {
     const customName = line.kind === "OTHER" ? text(line.customName, PACKAGING_LIMITS.customName, `ชื่อบรรจุภัณฑ์ของ${row}`) : null;
     requireCondition(line.kind !== "OTHER" || customName, "INVALID_PACKAGES", `กรุณาพิมพ์ชื่อบรรจุภัณฑ์ของ${row}`);
     requireCondition(Number.isInteger(line.count) && line.count >= 1 && line.count <= PACKAGING_LIMITS.pieces, "INVALID_PACKAGES", `จำนวนของ${row}ต้องเป็นจำนวนเต็ม ๑ ถึง ๕๐๐`);
-    const weight = text(line.weight, 20, `น้ำหนักต่อชิ้นของ${row}`);
-    requireCondition(weight === null || (quantityPattern.test(weight) && Number(weight) > 0), "INVALID_WEIGHT", `น้ำหนักต่อชิ้นของ${row}ต้องมากกว่าศูนย์ (กิโลกรัม ทศนิยมไม่เกิน ๓ ตำแหน่ง) หรือเว้นว่าง`);
-    return { kind: line.kind, customName, count: line.count, description: text(line.description, PACKAGING_LIMITS.description, `รายละเอียดของ${row}`), weight };
+    const weight = text(line.weight, 20, `น้ำหนักต่อบรรจุภัณฑ์ของ${row}`);
+    requireCondition(weight === null || (quantityPattern.test(weight) && Number(weight) > 0), "INVALID_WEIGHT", `น้ำหนักต่อบรรจุภัณฑ์ของ${row}ต้องมากกว่าศูนย์ (กิโลกรัม ทศนิยมไม่เกิน ๓ ตำแหน่ง) หรือเว้นว่าง`);
+    const name = text(line.name, 191, `ชื่อรายการของ${row}`), quantity = text(line.quantity, 20, `จำนวนข้างในของ${row}`), unit = text(line.unit, 32, `หน่วยของ${row}`);
+    requireCondition(quantity === null || (quantityPattern.test(quantity) && Number(quantity) > 0), "INVALID_QUANTITY", `จำนวนข้างในของ${row}ต้องมากกว่าศูนย์ (ทศนิยมไม่เกิน ๓ ตำแหน่ง) หรือเว้นว่าง`);
+    requireCondition((quantity === null) === (unit === null) && (unit === null || Object.hasOwn(itemUnits, unit)), "INVALID_UNIT", `กรุณากรอกจำนวนข้างในและหน่วยของ${row}ให้ครบคู่ หรือเว้นว่างทั้งสองช่อง`);
+    requireCondition(quantity === null || name, "INVALID_ITEMS", `กรุณาระบุชื่อรายการของ${row}ก่อนกรอกจำนวนข้างใน`);
+    return { kind: line.kind, customName, count: line.count, name, quantity, unit, description: text(line.description, PACKAGING_LIMITS.description, `รายละเอียดของ${row}`), weight, itemId: null };
   });
-  requireCondition(packagingTotal(lines) <= PACKAGING_LIMITS.pieces, "INVALID_PACKAGES", "ฝากได้ไม่เกิน ๕๐๐ ชิ้นต่อหนึ่งคำขอ กรุณาแยกเป็นหลายคำขอ");
+  requireCondition(packagingTotal(lines) <= PACKAGING_LIMITS.pieces, "INVALID_PACKAGES", "จำนวนรวมต้องไม่เกิน ๕๐๐ ต่อหนึ่งคำขอ กรุณาแยกเป็นหลายคำขอ");
   return lines;
 }
 
 /**
- * Submission completeness (D234). The packaging lines are the request; the item list is optional and only
- * required when the branch must count the contents. Without an item list every line must say what is inside.
+ * Submission completeness (D236). Every row says what it is packed in, how many pieces and what is inside.
+ * The inner quantity is optional and only required when the branch must count the contents.
+ * A request saved before D236 with a separate item list is complete without row names and without a request category.
  */
-export function submissionProblems(d: { items: unknown[]; packaging: Pick<PackagingLine, "count" | "description">[]; receiptMode: string; senderName: string | null; senderPhone: string | null; requestedServiceDate: string | null }, today: string, recipientKnown: boolean) {
+export function submissionProblems(d: { items: unknown[]; packaging: Pick<PackagingLine, "count" | "name" | "description" | "quantity">[]; receiptMode: string; categoryId?: string | null; senderName: string | null; senderPhone: string | null; requestedServiceDate: string | null }, today: string, recipientKnown: boolean) {
   const problems: string[] = [];
+  const legacyItems = d.items.length > d.packaging.filter((l) => l.quantity).length;
   if (packagingTotal(d.packaging) < 1) problems.push("กรุณาระบุสิ่งที่ฝากส่งอย่างน้อย ๑ แถว ว่าบรรจุใส่อะไรและจำนวนเท่าไร");
-  else if (!d.items.length && d.packaging.some((l) => !l.description?.trim())) problems.push("กรุณากรอกรายละเอียดของทุกแถวว่าข้างในคืออะไร");
-  if (d.receiptMode === "DETAILED" && !d.items.length) problems.push("เลือกให้สาขานับสิ่งของข้างในแล้ว กรุณาเพิ่มรายการสิ่งของอย่างน้อย ๑ รายการ");
+  else if (!legacyItems && d.packaging.some((l) => !lineLabel(l))) problems.push("กรุณากรอกชื่อรายการของทุกแถวว่าข้างในคืออะไร");
+  if (!d.categoryId && !legacyItems) problems.push("กรุณาเลือกหมวดสิ่งของ");
+  if (d.receiptMode === "DETAILED" && !d.items.length && !d.packaging.some((l) => l.quantity)) problems.push("เลือกให้สาขานับจำนวนข้างในแล้ว กรุณากรอกจำนวนข้างในอย่างน้อย ๑ แถว");
   if (!d.senderName || !d.senderPhone) problems.push("กรุณาระบุชื่อและเบอร์ติดต่อผู้ฝาก");
   if (!recipientKnown) problems.push("กรุณาระบุชื่อและเบอร์ผู้รับ เพราะสาขานี้ยังไม่มีข้อมูลผู้ติดต่อ");
   if (!d.requestedServiceDate) problems.push("กรุณาระบุวันที่ต้องการส่ง");
